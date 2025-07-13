@@ -131,15 +131,18 @@ backend:
 
   - task: "Niche Analysis Core Feature"
     implemented: true
-    working: false
+    working: true
     file: "backend/server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "❌ CRITICAL FAILURE - POST /api/niche/analyze returns 500 error. Root cause: '[Errno -2] Name or service not known' - DNS resolution failure for Supabase domain (jicslnklqvcckqltfavq.supabase.co). Network connectivity issue prevents Supabase database operations."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Fixed MongoDB connection issue by updating MONGO_URL from 'mongodb:27017' to 'localhost:27017'. POST /api/niche/analyze now works perfectly with all test cases: fitness+keywords, crypto+keywords, saas (no keywords). Returns proper trend analysis with trend_score (0.0-1.0), velocity (0.0-1.0), and forecast_summary. MongoDB storage confirmed working. Google Trends integration and simulated data both functioning."
 
   - task: "Content Generation Core Feature"
     implemented: true
