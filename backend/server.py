@@ -10,7 +10,6 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
 import asyncio
-from supabase import create_client, Client
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from pytrends.request import TrendReq
 import random
@@ -19,13 +18,7 @@ import json
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Initialize Supabase client
-supabase: Client = create_client(
-    os.environ.get('SUPABASE_URL'),
-    os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
-)
-
-# MongoDB connection (fallback for some operations)
+# MongoDB connection (primary storage)
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
@@ -72,8 +65,9 @@ class TrendAnalysis(BaseModel):
 # --- ORACLE ENGINE CORE ---
 class OracleEngine:
     def __init__(self):
-        self.openai_key = os.environ.get('OPENAI_API_KEY')
         self.gemini_key = os.environ.get('GEMINI_API_KEY')
+        if not self.gemini_key:
+            logging.warning("Gemini API key not found")
         
     async def monitor_niche_trends(self, niche: str, keywords: List[str] = None) -> List[TrendData]:
         """Monitor trends for a specific niche using Google Trends and simulated data"""
@@ -91,7 +85,7 @@ class OracleEngine:
             expanded_keywords = self._expand_niche_keywords(niche, keywords)
             
             # Get trends for each keyword set (max 5 at a time for Google Trends)
-            for i in range(0, len(expanded_keywords), 5):
+            for i in range(0, min(len(expanded_keywords), 10), 5):
                 keyword_batch = expanded_keywords[i:i+5]
                 
                 try:
@@ -136,12 +130,12 @@ class OracleEngine:
     def _expand_niche_keywords(self, niche: str, base_keywords: List[str]) -> List[str]:
         """Expand keywords based on niche"""
         niche_expansions = {
-            'fitness': ['workout', 'nutrition', 'supplements', 'training', 'wellness'],
-            'crypto': ['bitcoin', 'ethereum', 'defi', 'nft', 'blockchain'],
-            'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud'],
-            'ecommerce': ['dropshipping', 'shopify', 'amazon fba', 'online store', 'marketplace'],
+            'fitness': ['workout', 'nutrition', 'supplements', 'training', 'wellness', 'exercise', 'protein', 'cardio'],
+            'crypto': ['bitcoin', 'ethereum', 'defi', 'nft', 'blockchain', 'trading', 'altcoins', 'web3'],
+            'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud', 'api', 'integration'],
+            'ecommerce': ['dropshipping', 'shopify', 'amazon fba', 'online store', 'marketplace', 'sales'],
             'real estate': ['property investment', 'rental income', 'house flipping', 'commercial real estate'],
-            'marketing': ['digital marketing', 'social media', 'seo', 'advertising', 'content marketing']
+            'marketing': ['digital marketing', 'social media', 'seo', 'advertising', 'content marketing', 'conversion']
         }
         
         expanded = base_keywords.copy()
@@ -157,131 +151,155 @@ class OracleEngine:
         
         # Simple velocity calculation: recent change rate
         recent_change = values[-1] - values[0] if len(values) >= 2 else 0
-        return max(0, recent_change / 100.0)  # Normalize to 0-1
+        return max(0, min(1.0, recent_change / 100.0))  # Normalize to 0-1
     
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
         """Generate simulated high-value trends for demonstration"""
         niche_trends = {
             'fitness': [
-                "AI-powered fitness tracking wearables",
-                "Plant-based protein alternatives gaining momentum",
-                "Cold plunge therapy for recovery",
-                "Functional fitness movements"
+                "AI-powered fitness tracking wearables gaining momentum",
+                "Plant-based protein alternatives showing 200% growth", 
+                "Cold plunge therapy for athletic recovery trending",
+                "Functional fitness movements replacing gym workouts",
+                "Biohacking supplements for performance optimization"
             ],
             'crypto': [
-                "Layer 2 scaling solutions adoption",
-                "Institutional Bitcoin accumulation",
-                "DeFi yield farming strategies",
-                "NFT utility in gaming"
+                "Layer 2 scaling solutions seeing mass adoption",
+                "Institutional Bitcoin accumulation reaching new highs",
+                "DeFi yield farming strategies evolving rapidly",
+                "NFT utility in gaming ecosystems expanding",
+                "Crypto payment integration in mainstream apps"
             ],
             'saas': [
-                "AI workflow automation tools",
-                "No-code development platforms",
-                "Customer success automation",
-                "API-first architecture"
+                "AI workflow automation tools disrupting industries",
+                "No-code development platforms democratizing software",
+                "Customer success automation reducing churn",
+                "API-first architecture becoming standard",
+                "Micro-SaaS solutions targeting niche markets"
+            ],
+            'marketing': [
+                "AI-generated personalized video content scaling",
+                "Voice commerce optimization strategies emerging", 
+                "Interactive content driving 300% more engagement",
+                "First-party data strategies replacing cookies",
+                "Influencer micro-communities outperforming macro"
+            ],
+            'ecommerce': [
+                "Social commerce integration boosting conversions",
+                "Sustainable packaging becoming purchase driver",
+                "Live shopping experiences increasing sales 400%",
+                "AI-powered inventory prediction reducing waste",
+                "Subscription model adoption across categories"
             ]
         }
         
         default_trends = [
-            f"Emerging {niche} market opportunities",
-            f"Innovation in {niche} technology",
-            f"{niche} consumer behavior shifts"
+            f"Emerging {niche} market opportunities gaining traction",
+            f"Innovation in {niche} technology disrupting status quo",
+            f"{niche} consumer behavior shifts creating new demand",
+            f"Next-generation {niche} solutions reaching mainstream"
         ]
         
         trends_list = niche_trends.get(niche.lower(), default_trends)
         simulated = []
         
-        for i, trend in enumerate(trends_list[:4]):  # Limit to 4 simulated trends
+        for i, trend in enumerate(trends_list[:5]):  # Limit to 5 simulated trends
             simulated.append(TrendData(
                 niche=niche,
                 title=trend,
-                content=f"High-velocity trend detected in {niche} space: {trend}. Analysis shows significant growth potential.",
+                content=f"High-velocity trend detected in {niche} space: {trend}. Oracle analysis shows significant growth potential with strong momentum indicators.",
                 source="Oracle Intelligence",
-                trend_score=random.uniform(0.6, 0.95),
-                velocity=random.uniform(0.4, 0.8)
+                trend_score=random.uniform(0.65, 0.95),
+                velocity=random.uniform(0.45, 0.85)
             ))
         
         return simulated
     
     async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
-        """Generate AI-powered content based on trends"""
+        """Generate AI-powered content using Gemini"""
         
-        # Choose AI model based on content type
-        if content_type == 'ad_copy':
-            # Use OpenAI for ad copy (better for persuasive writing)
-            api_key = self.openai_key
-            model_provider = "openai"
-            model_name = "gpt-4o"
-            system_prompt = """You are an expert direct-response copywriter specializing in high-converting ad copy. 
+        if not self.gemini_key:
+            raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        
+        # Use Gemini for all content types with specialized prompts
+        system_prompts = {
+            'ad_copy': """You are an expert direct-response copywriter specializing in high-converting ad copy. 
             Create compelling, action-driven advertisements that follow proven frameworks like AIDA, PAS, and SCAB.
-            Focus on benefits, urgency, and clear calls-to-action."""
-        else:
-            # Use Gemini for social posts and affiliate content
-            api_key = self.gemini_key
-            model_provider = "gemini"
-            model_name = "gemini-2.5-flash-preview-04-17"
-            system_prompt = """You are a social media expert and content strategist. 
-            Create engaging, shareable content that resonates with target audiences and drives engagement.
-            Focus on storytelling, value delivery, and authentic connection."""
+            Focus on benefits, urgency, and clear calls-to-action. Write persuasive copy that converts browsers into buyers.""",
+            
+            'social_post': """You are a social media expert and viral content strategist. 
+            Create engaging, shareable content that resonates with target audiences and drives massive engagement.
+            Focus on storytelling, value delivery, hooks, and authentic connection. Make it worth sharing.""",
+            
+            'affiliate_review': """You are a trusted product reviewer and affiliate marketer.
+            Create honest, detailed reviews that help customers make informed decisions while naturally promoting products.
+            Focus on benefits, addressing objections, comparisons, and authentic recommendations."""
+        }
         
         # Create content prompt based on type
         trend_context = "\n".join([f"- {trend}" for trend in trends])
         
-        prompts = {
+        content_prompts = {
             'ad_copy': f"""Create high-converting ad copy for the {niche} niche based on these trending topics:
 {trend_context}
 
 Requirements:
 - Write 3 different ad variations (short, medium, long)
 - Include compelling headlines with urgency
-- Use proven copywriting frameworks
+- Use proven copywriting frameworks (AIDA, PAS, SCAB)
 - Include clear call-to-action
 - Focus on benefits and transformation
 - Target audience pain points and desires
+- Use emotional triggers and social proof
 
-Format as: **Headline** | Body Copy | **CTA**""",
+Format as: **Headline** | Body Copy | **CTA**
 
-            'social_post': f"""Create engaging social media content for the {niche} niche based on these trends:
+Make it irresistible and action-oriented.""",
+
+            'social_post': f"""Create viral social media content for the {niche} niche based on these trends:
 {trend_context}
 
 Requirements:
 - Create 3 platform-specific posts (Twitter/X, LinkedIn, Instagram)
-- Include relevant hashtags
+- Include relevant hashtags for each platform
 - Engaging hooks and value-driven content
 - Encourage interaction and sharing
-- Maintain authentic tone
+- Maintain authentic, relatable tone
 - Include content pillars: education, inspiration, entertainment
+- Use emojis and formatting for readability
 
-Format each post with platform label and content.""",
+Format each post with platform label and optimized content.""",
 
             'affiliate_review': f"""Create persuasive affiliate marketing content for the {niche} niche based on these trends:
 {trend_context}
 
 Requirements:
-- Write product review outline with pros/cons
+- Write comprehensive product review with pros/cons
 - Include personal experience narrative
-- Address common objections
+- Address common objections and concerns
 - Highlight key benefits and unique selling points
 - Include comparison with alternatives
-- Clear recommendation and affiliate disclosure
+- Clear recommendation with reasoning
+- Proper affiliate disclosure
+- Call-to-action for purchasing
 
-Format as structured review with sections."""
+Format as structured review with clear sections and compelling conclusion."""
         }
         
         try:
-            # Initialize LLM chat
+            # Initialize Gemini chat
             chat = LlmChat(
-                api_key=api_key,
+                api_key=self.gemini_key,
                 session_id=f"{content_type}-{uuid.uuid4()}",
-                system_message=system_prompt
-            ).with_model(model_provider, model_name).with_max_tokens(4096)
+                system_message=system_prompts[content_type]
+            ).with_model("gemini", "gemini-2.5-flash-preview-04-17").with_max_tokens(4096)
             
             # Generate content
-            user_message = UserMessage(text=prompts[content_type])
+            user_message = UserMessage(text=content_prompts[content_type])
             response = await chat.send_message(user_message)
             
             # Calculate confidence score based on response length and quality indicators
-            confidence = min(0.95, 0.7 + (len(response) / 2000) * 0.25)
+            confidence = min(0.95, 0.75 + (len(response) / 2000) * 0.20)
             
             return GeneratedContent(
                 niche=niche,
@@ -311,30 +329,32 @@ async def analyze_niche(request: NicheRequest):
         # Get trend data
         trends = await oracle.monitor_niche_trends(request.niche, request.keywords)
         
-        # Store trends in Supabase
+        # Store trends in MongoDB
         for trend in trends:
             trend_dict = trend.dict()
-            trend_dict['created_at'] = trend_dict['created_at'].isoformat()
-            supabase.table('trends').insert(trend_dict).execute()
+            await db.trends.insert_one(trend_dict)
         
-        # Generate forecast summary
+        # Generate forecast summary using Gemini
         top_trends = [trend.title for trend in trends[:5]]
-        forecast_prompt = f"Based on these top trends in {request.niche}: {', '.join(top_trends)}, provide a brief forecast summary and top 3 opportunities."
+        forecast_prompt = f"""Based on these top trends in {request.niche}: {', '.join(top_trends)}, provide a brief, actionable forecast summary (2-3 sentences) and identify the top 3 business opportunities."""
         
-        # Use Gemini for analysis
-        chat = LlmChat(
-            api_key=oracle.gemini_key,
-            session_id=f"forecast-{uuid.uuid4()}",
-            system_message="You are a trend analyst providing concise, actionable insights."
-        ).with_model("gemini", "gemini-2.5-flash-preview-04-17")
+        try:
+            chat = LlmChat(
+                api_key=oracle.gemini_key,
+                session_id=f"forecast-{uuid.uuid4()}",
+                system_message="You are a business trend analyst providing concise, actionable insights."
+            ).with_model("gemini", "gemini-2.5-flash-preview-04-17")
+            
+            forecast_response = await chat.send_message(UserMessage(text=forecast_prompt))
+        except Exception as e:
+            logging.warning(f"Forecast generation failed: {e}")
+            forecast_response = f"Strong momentum detected in {request.niche} with {len(trends)} high-velocity trends identified."
         
-        forecast_response = await chat.send_message(UserMessage(text=forecast_prompt))
-        
-        # Extract opportunities (simplified)
+        # Extract opportunities
         opportunities = [
             f"Capitalize on {trends[0].title if trends else 'emerging trends'}",
-            f"Create content around {request.niche} innovation",
-            f"Target early adopters in {request.niche} space"
+            f"Create targeted content around {request.niche} innovation",
+            f"Target early adopters in {request.niche} market segment"
         ]
         
         analysis = TrendAnalysis(
@@ -360,10 +380,9 @@ async def generate_content(request: ForecastRequest):
             request.content_type
         )
         
-        # Store in Supabase
+        # Store in MongoDB
         content_dict = content.dict()
-        content_dict['created_at'] = content_dict['created_at'].isoformat()
-        supabase.table('generated_content').insert(content_dict).execute()
+        await db.generated_content.insert_one(content_dict)
         
         return content
         
@@ -375,8 +394,14 @@ async def generate_content(request: ForecastRequest):
 async def get_content_history(niche: str):
     """Get content generation history for a niche"""
     try:
-        response = supabase.table('generated_content').select("*").eq('niche', niche).order('created_at', desc=True).limit(20).execute()
-        return {"content_history": response.data}
+        cursor = db.generated_content.find({"niche": niche}).sort("created_at", -1).limit(20)
+        content_history = []
+        async for doc in cursor:
+            # Convert MongoDB ObjectId to string for JSON serialization
+            doc['_id'] = str(doc['_id'])
+            content_history.append(doc)
+        
+        return {"content_history": content_history}
     except Exception as e:
         logging.error(f"Error fetching content history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -385,8 +410,14 @@ async def get_content_history(niche: str):
 async def get_latest_trends(niche: str):
     """Get latest trends for a niche"""
     try:
-        response = supabase.table('trends').select("*").eq('niche', niche).order('created_at', desc=True).limit(10).execute()
-        return {"trends": response.data}
+        cursor = db.trends.find({"niche": niche}).sort("created_at", -1).limit(10)
+        trends = []
+        async for doc in cursor:
+            # Convert MongoDB ObjectId to string for JSON serialization  
+            doc['_id'] = str(doc['_id'])
+            trends.append(doc)
+        
+        return {"trends": trends}
     except Exception as e:
         logging.error(f"Error fetching trends: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -395,14 +426,17 @@ async def get_latest_trends(niche: str):
 async def get_dashboard_stats():
     """Get dashboard statistics"""
     try:
-        # Get counts from Supabase
-        trends_count = supabase.table('trends').select("id", count="exact").execute()
-        content_count = supabase.table('generated_content').select("id", count="exact").execute()
+        # Get counts from MongoDB
+        trends_count = await db.trends.count_documents({})
+        content_count = await db.generated_content.count_documents({})
+        
+        # Get distinct niches
+        distinct_niches = await db.trends.distinct("niche")
         
         return {
-            "total_trends_monitored": trends_count.count or 0,
-            "content_pieces_generated": content_count.count or 0,
-            "active_niches": ["fitness", "crypto", "saas", "ecommerce", "marketing"],
+            "total_trends_monitored": trends_count,
+            "content_pieces_generated": content_count,
+            "active_niches": distinct_niches or ["fitness", "crypto", "saas", "ecommerce", "marketing"],
             "system_status": "operational"
         }
     except Exception as e:
@@ -410,7 +444,7 @@ async def get_dashboard_stats():
         return {
             "total_trends_monitored": 0,
             "content_pieces_generated": 0,
-            "active_niches": [],
+            "active_niches": ["fitness", "crypto", "saas", "ecommerce", "marketing"],
             "system_status": "degraded"
         }
 
@@ -434,11 +468,16 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database tables"""
+    """Initialize database collections"""
     try:
-        # Create tables if they don't exist
-        # Note: In production, you'd run migrations separately
-        logger.info("Oracle Engine startup complete")
+        # Create indexes for better performance
+        await db.trends.create_index("niche")
+        await db.trends.create_index("created_at")
+        await db.generated_content.create_index("niche")
+        await db.generated_content.create_index("content_type")
+        await db.generated_content.create_index("created_at")
+        
+        logger.info("Oracle Engine startup complete - MongoDB initialized")
     except Exception as e:
         logger.error(f"Startup error: {e}")
 
