@@ -161,15 +161,18 @@ backend:
 
   - task: "Data Retrieval Endpoints"
     implemented: true
-    working: false
+    working: true
     file: "backend/server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "❌ CRITICAL FAILURE - Both GET /api/content/history/{niche} and GET /api/trends/latest/{niche} return 500 errors due to Supabase connectivity issues. Same DNS resolution problem prevents database queries."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Fixed MongoDB connection. Both GET /api/content/history/{niche} and GET /api/trends/latest/{niche} now work perfectly. Data retrieval confirmed working with proper JSON responses. MongoDB data persistence verified - content and trends are properly stored and retrievable."
 
   - task: "Error Handling"
     implemented: true
