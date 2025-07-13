@@ -298,6 +298,10 @@ Format as structured review with clear sections and compelling conclusion."""
             user_message = UserMessage(text=content_prompts[content_type])
             response = await chat.send_message(user_message)
             
+            # Check if response is valid
+            if not response:
+                raise Exception("Empty response from Gemini API")
+            
             # Calculate confidence score based on response length and quality indicators
             confidence = min(0.95, 0.75 + (len(response) / 2000) * 0.20)
             
