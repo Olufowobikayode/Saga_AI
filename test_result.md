@@ -207,13 +207,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Niche Analysis Core Feature"
-    - "Content Generation Core Feature"
-    - "Data Retrieval Endpoints"
-  stuck_tasks:
-    - "Niche Analysis Core Feature"
-    - "Content Generation Core Feature"
-    - "Data Retrieval Endpoints"
+    - "End-to-End Workflow Testing"
+  stuck_tasks: []
   test_all: true
   test_priority: "high_first"
 
