@@ -97,7 +97,7 @@ class OracleEngine:
 
             async def fetch_batch(kw_list):
                 loop = asyncio.get_running_loop()
-                interest_data = await loop.run_in_executor(
+                await loop.run_in_executor(
                     None, lambda: pytrends.build_payload(kw_list=kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
                 )
                 interest_data = pytrends.interest_over_time()
@@ -135,7 +135,7 @@ class OracleEngine:
             'crypto': ['bitcoin', 'ethereum', 'defi', 'nft', 'blockchain', 'trading', 'altcoins', 'web3', 'cryptocurrency', 'BTC', 'ETH', 'decentralized finance', 'non-fungible token', 'smart contract', 'wallet', 'crypto exchange', 'Binance', 'Coinbase', 'Kraken', 'Solana', 'Cardano', 'Ripple', 'XRP', 'Dogecoin', 'Shiba Inu', 'metaverse', 'dApps', 'yield farming', 'staking', 'liquidity pool', 'mining', 'crypto mining', 'gas fees', 'airdrop', 'ICO', 'initial coin offering', 'stablecoin', 'USDT', 'USDC', 'DAO', 'decentralized autonomous organization', 'Layer 2', 'scalability', 'halving', 'bull market', 'bear market', 'HODL', 'FUD', 'FOMO', 'DYOR', 'technical analysis', 'charting', 'cold storage', 'hot wallet', 'Ledger', 'Trezor', 'public key', 'private key', 'seed phrase', 'tokenomics', 'whitepaper', 'roadmap', 'crypto regulations', 'SEC', 'crypto news', 'crypto influencers', 'play-to-earn', 'P2E', 'move-to-earn', 'M2E', 'NFT marketplace', 'OpenSea', 'Blur', 'memecoin', 'governance token', 'altcoin season', 'crypto portfolio', 'dollar-cost averaging', 'DCA', 'on-chain analysis', 'EVM'],
             'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud', 'api', 'integration', 'SaaS', 'subscription', 'CRM', 'customer relationship management', 'marketing automation', 'email marketing', 'project management', 'collaboration software', 'HR software', 'accounting software', 'invoicing', 'helpdesk', 'customer support', 'live chat', 'analytics', 'business intelligence', 'dashboard', 'B2B', 'enterprise software', 'SMB', 'small business software', 'startup tools', 'product-led growth', 'PLG', 'freemium', 'free trial', 'demo', 'user onboarding', 'UX', 'UI', 'ARR', 'MRR', 'churn rate', 'customer lifetime value', 'CLV', 'lead generation', 'sales funnel', 'DevOps', 'CI/CD', 'platform as a service', 'PaaS', 'infrastructure as a service', 'IaaS', 'cloud hosting', 'AWS', 'Google Cloud', 'Azure', 'no-code', 'low-code', 'workflow automation', 'API first', 'single sign-on', 'SSO', 'data security', 'uptime', 'SLA', 'vertical SaaS', 'horizontal SaaS', 'microservices', 'ERP', 'enterprise resource planning', 'supply chain management', 'ecommerce platform', 'payment gateway', 'subscription management', 'customer success', 'user retention'],
         }
-        expanded = list(set(base_keywords))
+        expanded = list(set(base_keywords or []))
         niche_key = niche.lower()
         if niche_key in niche_expansions:
             expanded.extend(niche_expansions[niche_key])
@@ -183,9 +183,9 @@ You will use the provided trends as the core insight to create timely, relevant,
 
 **Facebook Post:**
 - **Attention (Hook):** Start with a bold, relatable question or a pattern-interrupting statement based on a key trend. Make them stop scrolling.
-- **Interest (Story/Value):** Tell a short, personal story or provide a surprising insight related to the trends. Build an immediate connection.
+- **Interest (Story/Value):** Tell a short, personal story or provide a surprising insight related to the trends. Build an immediate connection. Use emojis to add visual interest and break up text.
 - **Desire (Benefit):** Explain the powerful benefit of embracing this trend or idea. What positive future can the reader achieve? Paint a vivid picture.
-- **Action (Call to Engagement):** End with a specific, low-friction question that encourages detailed comments, not just "yes/no" answers. (e.g., "What's the #1 thing holding you back from trying this?").
+- **Action (Call to Engagement):** End with a specific, low-friction question that encourages detailed comments, not just "yes/no" answers. (e.g., "What's the #1 thing holding you back from trying this? Let me know below! 👇").
 - **Hashtags:** Provide 3-5 highly relevant, community-focused hashtags.
 
 **Image Prompt (Thumb-Stopping Visual):**
@@ -254,38 +254,51 @@ You will use the provided trends as the core insight to create timely, relevant,
 - **Full Prompt Example:** "vibrant illustration, a magnifying glass hovering over a bar chart that is trending upwards, surrounded by icons representing marketing and sales, clean and modern vector style, bright color palette"
 
 ---
-### **IF Content Type is `ad_copy`:**
 
-Your goal is to get the click. Use proven direct-response copywriting techniques.
+### **IF Content Type is `print_on_demand`:**
 
-**Ad Copy (3 Variations for A/B Testing):**
-- **Variation A (Short & Punchy - for Feeds):**
-    - **Headline:** A 5-8 word, high-impact headline that targets a pain point revealed by the trends.
-    - **Body:** 1-2 sentences that present the "big promise" or unique solution.
-    - **CTA:** A clear, urgent call-to-action (e.g., "Learn More," "Get Started Free," "Shop Now").
-- **Variation B (Story-Driven - for Articles/Newsletters):**
-    - **Hook:** A short, relatable story or a "Did you know..." fact based on the trends.
-    - **Problem/Agitate:** Clearly describe the problem the target audience is facing.
-    - **Solution/Promise:** Introduce the solution with a focus on benefits, not just features.
-    - **CTA:** A compelling call-to-action with a reason to click now (e.g., "Get the full strategy before it's gone").
-- **Variation C (Benefit-Focused - for Landing Pages):**
-    - **Headline:** Focus on the ultimate desired outcome.
-    - **Bulleted Benefits:** List 3-5 key benefits derived from the trends, explaining what the user will *get*, *feel*, or *achieve*.
-    - **CTA:** A strong, benefit-oriented call-to-action (e.g., "Start My Transformation," "Unlock My Growth").
+**Goal:** Create commercially viable, creative concepts for Print on Demand products.
 
-**Detailed Image Prompt for Ad Creative:**
-- **Style:** [e.g., Bright and clean commercial photography, modern user-interface mockup, dynamic graphic with bold text]
-- **Subject:** A clear depiction of the product in use, or a person achieving the result promised by the ad. The subject should look aspirational and relatable.
-- **Scene:** A clean, uncluttered background that doesn't distract from the main subject. Use brand colors if applicable.
-- **Lighting:** Bright, professional, and optimistic.
-- **Mood:** Urgent, exciting, trustworthy, problem-solving.
-- **Full Prompt Example:** "bright commercial photo, a smiling woman in her 30s easily using a sleek productivity SaaS on her laptop, sitting in a bright, modern co-working space, background is slightly blurred, mood is efficient and empowering, 4k"
+**POD Concept:**
+- **Concept/Theme:** A short, catchy name for the design idea, inspired by the trends.
+- **Design Style:** [e.g., Vintage Retro, Minimalist Line Art, Bold Typography, 90s Nostalgia, Abstract Geometric].
+- **Key Elements:** Describe the main visual components of the design.
+- **Tagline/Text (Optional):** A short, clever phrase to include in the design.
+- **Target Audience:** Who would buy this? (e.g., Developers, Fitness Enthusiasts, Crypto Traders).
+
+**Detailed Image Prompt for POD Design (Design-Based):**
+- **Style:** Use terms like `minimalist vector art`, `flat illustration`, `graphic t-shirt design`, `sticker design`.
+- **Subject:** Clearly describe the main subject and its elements.
+- **Composition:** Specify `isolated on a clean white background` to ensure it's ready for printing.
+- **Color Palette:** Suggest a limited, cohesive color scheme (e.g., `monochromatic`, `warm retro colors`).
+- **Full Prompt Example:** "graphic t-shirt design, a stylized, minimalist vector art of an astronaut meditating in a lotus position on top of a crescent moon, a simple Saturn planet in the background, isolated on a clean white background, monochromatic blue and white color palette, clean lines, no text"
+
+---
+
+### **IF Content Type is `ecommerce_product`:**
+
+**Goal:** Write a compelling product description for an e-commerce store that converts.
+
+**E-commerce Product Description:**
+- **Product Title:** An SEO-friendly and enticing title.
+- **Tagline:** A single, powerful sentence that captures the product's main benefit.
+- **Story-Driven Description:** A 2-3 paragraph description that tells a story. Set the scene, introduce the problem (related to the trends), and present your product as the hero.
+- **Bulleted Features & Benefits:** List 3-5 key features and translate each into a tangible benefit for the customer.
+- **Specifications:** A simple list of essential details (e.g., Materials, Dimensions, Compatibility).
+
+**Detailed Image Prompt for E-commerce Photography:**
+- **Style:** Use terms like `professional product photography`, `e-commerce product shot`.
+- **Subject:** The product itself, shown from its most appealing angle.
+- **Scene:** `on a clean, solid color background` or `in a lifestyle context`.
+- **Lighting:** `bright studio lighting`, `soft natural light`.
+- **Composition:** `centered`, `dynamic angle`, `showing texture and detail`.
+- **Full Prompt Example:** "professional product photography of a sleek, matte black wireless charger, on a clean white background, bright studio lighting to eliminate shadows, dynamic angle showing the charging port and texture, 8k, hyper-detailed"
 
 ---
 
 ### **IF Content Type is `affiliate_review`:**
 
-Your goal is to build maximum trust and guide the reader to a confident purchase through your link.
+**Goal:** Build maximum trust and guide the reader to a confident purchase, while also capturing their information for future marketing.
 
 **Affiliate Review Content:**
 - **Catchy Title:** A title that combines the product name with a powerful benefit or addresses a major question (e.g., "Is [Product Name] Worth It? My Honest 2025 Review").
@@ -297,22 +310,15 @@ Your goal is to build maximum trust and guide the reader to a confident purchase
 - **The Verdict & Final Recommendation:** A strong summary of why you recommend it despite the minor flaws.
 - **Strong Call-to-Action:** A clear, enthusiastic call to action. "Click here to get [Product Name] and see the same results I did. You won't regret it."
 
-**Detailed Image Prompt for Review:**
-- **Style:** [e.g., Authentic and candid photography, screen recording GIF, before-and-after graphic]
-- **Subject:** You (or a relatable person) genuinely using and enjoying the product. An "unboxing" shot or a screenshot of a key "aha!" moment inside the software.
-- **Scene:** A realistic setting, like a home office or a real-world environment where the product would be used.
-- **Lighting:** Natural and clean. Avoid looking overly corporate or staged.
-- **Mood:** Trustworthy, helpful, authentic, successful.
-- **Full Prompt Example:** "candid photo, a man smiling at his laptop screen showing a 'success' graph, a coffee mug next to him, sitting in a cozy, well-lit home office, a feeling of genuine satisfaction and relief, natural light from a window"
-
-**Landing Page Code:**
-- **Instructions:** Generate a complete, single HTML file with embedded modern CSS (using the Tailwind CSS CDN for styling) for a high-converting landing page. The page should be clean, professional, and mobile-responsive.
+**Landing Page Code (with Lead Capture for Google Sites):**
+- **Instructions:** Generate a complete, single HTML file with embedded modern CSS (using the Tailwind CSS CDN) for a high-converting landing page. The page must be mobile-responsive and include placeholders for an affiliate link and a Google Form link for lead capture.
 - **Structure:**
-    1.  **Hero Section:** A compelling headline based on the review title, a sub-headline explaining the main benefit, and a prominent "Get It Now" CTA button.
-    2.  **Problem Section:** A short section with an icon and text describing the pain point the visitor is experiencing (related to the trends).
-    3.  **Solution/Benefits Section:** Use 3-5 cards or list items, each with an icon, a benefit headline, and a short description.
-    4.  **Social Proof Section:** Include 2-3 placeholder testimonial blocks with a name and a star rating.
-    5.  **Final CTA Section:** A final, urgent call-to-action block with another prominent button.
+    1.  **Hero Section:** Compelling headline, sub-headline, and TWO prominent CTA buttons: "Get It Now" (for the affiliate link) and "Get Updates & Free Checklist" (for the lead capture).
+    2.  **Problem Section:** A short section describing the visitor's pain point.
+    3.  **Benefits Section:** 3-5 cards or list items with icons and benefit descriptions.
+    4.  **Social Proof Section:** 2-3 placeholder testimonial blocks.
+    5.  **Final CTA Section:** A final, urgent call-to-action block with the same two buttons.
+- **JavaScript:** Include a simple, inline script that shows a confirmation alert when the "Get Updates" button is clicked.
 - **Output:** Provide the full, copy-paste-ready HTML code inside a single code block.
 """
         
@@ -329,7 +335,6 @@ Your goal is to build maximum trust and guide the reader to a confident purchase
                 raise Exception("Empty or invalid response from Gemini API")
             
             content_text = response.text
-            # Modified scoring: higher base confidence for a premium model, with less variance.
             confidence = round(random.uniform(0.88, 0.95), 3)
             
             return GeneratedContent(
@@ -360,20 +365,24 @@ async def analyze_niche(request: NicheRequest):
             await db.trends.insert_many([t.dict() for t in trends])
 
         top_trends_titles = [trend.title for trend in trends[:5]]
-        forecast_prompt = f"""As a world-class market analyst, review these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a detailed, actionable forecast (4-6 sentences). Then, identify and rank the **Top 20 most profitable business opportunities** based on these trends. Be specific and creative."""
+        forecast_prompt = f"""As a world-class market analyst, review these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a detailed, actionable forecast (4-6 sentences). Then, identify and rank the **Top 20 most profitable business opportunities** based on these trends. Be specific and creative. Format the opportunities as a numbered list."""
         
         forecast_summary = f"Strong momentum detected in {request.niche}."
-        opportunities = [f"Capitalize on {trends[0].title}" if trends else f"Explore emerging {request.niche} trends"] * 20 # Placeholder
+        opportunities = [f"Could not generate unique opportunities for {request.niche} at this time."] * 20
         try:
             forecast_response = await oracle.model.generate_content_async(forecast_prompt)
-            # Basic parsing to separate summary from opportunities
-            parts = forecast_response.text.split("Top 20 most profitable business opportunities")
+            response_text = forecast_response.text
+            parts = response_text.lower().split("top 20 most profitable business opportunities")
+            
             if len(parts) > 1:
-                forecast_summary = parts[0].strip()
-                opp_text = parts[1].strip()
-                opportunities = [line.strip() for line in opp_text.split('\n') if line.strip() and (line.strip()[0].isdigit() or line.strip()[0] == '-')]
+                forecast_summary = parts[0].strip() or response_text
+                opp_text = parts[1]
+                # Improved parsing for numbered lists
+                opportunities = [line.split('.', 1)[1].strip() for line in opp_text.split('\n') if line.strip() and line.strip().split('.', 1)[0].isdigit()]
+                if not opportunities: # Fallback for non-numbered lists
+                    opportunities = [line.strip() for line in opp_text.split('\n') if line.strip() and not line.lower().startswith("here are")]
             else:
-                forecast_summary = forecast_response.text
+                forecast_summary = response_text
 
         except Exception as e:
             logging.warning(f"Forecast generation failed: {e}")
@@ -382,7 +391,7 @@ async def analyze_niche(request: NicheRequest):
             niche=request.niche,
             trends=trends,
             forecast_summary=forecast_summary,
-            top_opportunities=opportunities[:20] # Ensure we only return 20
+            top_opportunities=opportunities[:20]
         )
     except Exception as e:
         logger.error(f"Error in analyze_niche: {e}")
