@@ -29,12 +29,9 @@ try:
     db_name = os.environ['DB_NAME']
     gemini_api_key = os.environ['GEMINI_API_KEY']
 
-    # Use certifi to provide the SSL certificate authority file for MongoDB connection
     ca = certifi.where()
     client = AsyncIOMotorClient(mongo_url, tlsCAFile=ca)
-    
     db = client[db_name]
-    
     genai.configure(api_key=gemini_api_key)
 
 except KeyError as e:
@@ -82,45 +79,65 @@ class TrendAnalysis(BaseModel):
 # --- ORACLE ENGINE CORE ---
 class OracleEngine:
     def __init__(self):
-        # Initialize the model once for reuse.
         self.model = genai.GenerativeModel('gemini-2.5-pro')
 
+    # MODIFIED: Rewritten for speed and reliability
     async def monitor_niche_trends(self, niche: str, keywords: List[str] = None) -> List[TrendData]:
-        trends = []
-        try:
-            pytrends = TrendReq(hl='en-US', tz=360)
-            if not keywords:
-                keywords = [niche]
-            
-            expanded_keywords = self._expand_niche_keywords(niche, keywords)
-            
-            def fetch_trends_sync(kw_list):
-                pytrends.build_payload(kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
-                return pytrends.interest_over_time()
-
-            for i in range(0, min(len(expanded_keywords), 40), 20):
-                keyword_batch = expanded_keywords[i:i+20]
-                try:
-                    interest_data = await asyncio.to_thread(fetch_trends_sync, keyword_batch)
-                    if not interest_data.empty:
-                        for keyword in keyword_batch:
-                            if keyword in interest_data.columns:
-                                latest_values = interest_data[keyword].tail(3).tolist()
-                                avg_score = sum(latest_values) / len(latest_values) if latest_values else 0
-                                velocity = self._calculate_velocity(latest_values)
-                                trends.append(TrendData(
-                                    niche=niche, title=f"Trending: {keyword}",
-                                    content=f"Search interest for '{keyword}' shows momentum.",
-                                    source="Google Trends", trend_score=round(avg_score / 100.0, 3),
-                                    velocity=round(velocity, 3)
-                                ))
-                except Exception as e:
-                    logging.warning(f"Could not fetch Google Trends for {keyword_batch}: {e}")
-                await asyncio.sleep(1)
-        except Exception as e:
-            logging.error(f"Error in trend monitoring: {e}")
+        # Start with a reliable base of simulated trends
+        trends = self._generate_simulated_trends(niche)
         
-        trends.extend(self._generate_simulated_trends(niche))
+        try:
+            pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
+            keywords = keywords or [niche]
+            expanded_keywords = self._expand_niche_keywords(niche, keywords)
+            random.shuffle(expanded_keywords)
+
+            # Create batches of keywords to query
+            batch_size = 5
+            num_keywords_to_process = 10
+            keyword_batches = [
+                expanded_keywords[i:i + batch_size]
+                for i in range(0, min(len(expanded_keywords), num_keywords_to_process), batch_size)
+            ]
+
+            # Asynchronous function to fetch data for a single batch
+            async def fetch_batch(kw_list):
+                loop = asyncio.get_running_loop()
+                # Run the synchronous pytrends code in a separate thread
+                interest_data = await loop.run_in_executor(
+                    None, lambda: pytrends.build_payload(kw_list=kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
+                )
+                interest_data = pytrends.interest_over_time()
+                return interest_data, kw_list
+
+            # Run all batch fetches concurrently for maximum speed
+            tasks = [fetch_batch(batch) for batch in keyword_batches]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process the results
+            for result in results:
+                if isinstance(result, Exception):
+                    logging.warning(f"A trend batch failed: {result}")
+                    continue
+                
+                interest_data, kw_list = result
+                if not interest_data.empty:
+                    for keyword in kw_list:
+                        if keyword in interest_data.columns:
+                            latest_values = interest_data[keyword].tail(3).tolist()
+                            avg_score = sum(latest_values) / len(latest_values) if latest_values else 0
+                            velocity = self._calculate_velocity(latest_values)
+                            trends.append(TrendData(
+                                niche=niche, title=f"Live Trend: {keyword}",
+                                content=f"Live search interest for '{keyword}' shows momentum.",
+                                source="Google Trends", trend_score=round(avg_score / 100.0, 3),
+                                velocity=round(velocity, 3)
+                            ))
+                            
+        except Exception as e:
+            logging.error(f"Major error in trend monitoring: {e}")
+        
+        # Sort the combined list of simulated and live trends
         trends.sort(key=lambda x: (x.trend_score * x.velocity), reverse=True)
         return trends[:10]
 
@@ -131,56 +148,193 @@ class OracleEngine:
             'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud', 'api', 'integration', 'SaaS', 'subscription', 'CRM', 'customer relationship management', 'marketing automation', 'email marketing', 'project management', 'collaboration software', 'HR software', 'accounting software', 'invoicing', 'helpdesk', 'customer support', 'live chat', 'analytics', 'business intelligence', 'dashboard', 'B2B', 'enterprise software', 'SMB', 'small business software', 'startup tools', 'product-led growth', 'PLG', 'freemium', 'free trial', 'demo', 'user onboarding', 'UX', 'UI', 'ARR', 'MRR', 'churn rate', 'customer lifetime value', 'CLV', 'lead generation', 'sales funnel', 'DevOps', 'CI/CD', 'platform as a service', 'PaaS', 'infrastructure as a service', 'IaaS', 'cloud hosting', 'AWS', 'Google Cloud', 'Azure', 'no-code', 'low-code', 'workflow automation', 'API first', 'single sign-on', 'SSO', 'data security', 'uptime', 'SLA', 'vertical SaaS', 'horizontal SaaS', 'microservices', 'ERP', 'enterprise resource planning', 'supply chain management', 'ecommerce platform', 'payment gateway', 'subscription management', 'customer success', 'user retention'],
         }
         expanded = list(set(base_keywords))
-        if niche.lower() in niche_expansions:
-            expanded.extend(niche_expansions[niche.lower()])
+        niche_key = niche.lower()
+        if niche_key in niche_expansions:
+            expanded.extend(niche_expansions[niche_key])
         return list(set(expanded))
 
     def _calculate_velocity(self, values: List[float]) -> float:
         if len(values) < 2: return 0.0
-        recent_change = values[-1] - values[0]
-        return max(0.0, min(1.0, recent_change / 100.0))
+        return max(0.0, min(1.0, (values[-1] - values[0]) / 100.0))
 
+    # NEW: Now provides a reliable base of high-quality trends for core niches.
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
-        niche_trends = {
-            'fitness': [],
-            'crypto': [],
-            'saas': []
+        niche_key = niche.lower()
+        evergreen_trends = {
+            'fitness': ["AI-Powered Personal Training Apps", "Wearable Tech for Health Monitoring", "Mental Wellness and Mindfulness", "Plant-Based Nutrition and Protein", "Home Gym and Smart Equipment"],
+            'crypto': ["Decentralized Finance (DeFi) Adoption", "NFTs for Digital Identity & Ticketing", "Layer 2 Scaling Solutions", "Web3 Gaming (Play-to-Earn)", "Institutional Investment in Bitcoin"],
+            'saas': ["AI in Workflow Automation", "Vertical SaaS for Specific Industries", "No-Code/Low-Code Development Platforms", "Cybersecurity and Data Privacy Tools", "Collaborative Project Management Software"]
         }
-        trends_list = niche_trends.get(niche.lower(), [f"Emerging {niche} market opportunities"])
+        
+        trends_list = evergreen_trends.get(niche_key, [f"Emerging {niche} Opportunities", f"Innovation in {niche} Technology"])
+        
         return [
             TrendData(
-                niche=niche, title=trend, content=f"High-velocity trend detected: {trend}",
-                source="Oracle Intelligence", trend_score=random.uniform(0.95, 1.5), velocity=random.uniform(0.85, 1)
+                niche=niche, title=trend, content=f"High-velocity evergreen trend: {trend}",
+                source="Oracle Intelligence", trend_score=random.uniform(0.75, 0.95), velocity=random.uniform(0.6, 0.85)
             ) for trend in trends_list
         ]
 
     async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
-        system_prompts = {
-            'ad_copy': "You are an expert direct-response copywriter specializing in high-converting ad copy. Create compelling, action-driven advertisements that follow proven frameworks. Focus on benefits, urgency, and clear calls-to-action.",
-            'social_post': "You are a social media expert, graphic design expert, and viral content strategist. Create engaging, shareable content that resonates with target audiences. Focus on storytelling, value delivery, and authentic connection.",
-            'affiliate_review': "You are a trusted product reviewer and affiliate marketer. Create honest, detailed reviews that help customers make informed decisions while naturally promoting products. Focus on benefits, addressing objections, and authentic recommendations."
-        }
-        trend_context = "\n".join([f"- {trend}" for trend in trends])
+        master_prompt_template = """
+You are Oracle, a master-level strategist combining the skills of a world-class copywriter, a viral social media manager, and a data-driven performance marketer. Your voice is human, engaging, and trustworthy. Your goal is NOT just to create content, but to generate assets that drive specific actions.
+
+You will use the provided trends as the core inspiration for every piece of content.
+
+**1. Niche:** {niche}
+**2. Content Type:** {content_type}
+**3. Key Trends:**
+{trends}
+
+---
+
+**YOUR TASK:** Based on the information above, generate the following assets. Adhere strictly to the format for the requested **Content Type**.
+
+---
+
+### **IF Content Type is `social_post`:**
+
+Your goal is virality and deep engagement. Create a post that stops the scroll and starts conversations.
+
+**Social Post:**
+- **Hook:** Start with a relatable question, a bold statement, or a surprising statistic directly related to the trends.
+- **Body:** Weave a short, compelling narrative or provide 3-5 high-value, actionable tips inspired by the trends. Use emojis to add personality and improve readability.
+- **Call to Engagement:** End with an open-ended question to encourage comments (e.g., "What's your take on this?" or "Have you tried this?").
+- **Hashtags:** Provide 5-7 highly relevant hashtags, mixing broad and niche terms.
+
+**Detailed Image Prompt for AI Generator (e.g., Midjourney, DALL-E):**
+- **Style:** [e.g., Photorealistic, cinematic, vibrant illustration, modern graphic design]
+- **Subject:** [e.g., A person expressing a specific emotion, a symbolic object, a stylized representation of a concept]
+- **Scene:** [e.g., A minimalist office, a dramatic outdoor landscape, an abstract background with specific colors] - Describe the environment that best captures the post's mood.
+- **Lighting:** [e.g., Soft and natural, dramatic studio lighting, neon glow, golden hour]
+- **Mood:** [e.g., Inspiring and hopeful, urgent and energetic, thoughtful and calm, luxurious and exclusive]
+- **Full Prompt Example:** "cinematic photo, a young female founder looking thoughtfully at a holographic chart showing upward-trending data, in a modern, minimalist office at dusk, soft golden hour light streaming through the window, mood is inspiring and forward-thinking, 8k, hyper-detailed"
+
+---
+
+### **IF Content Type is `ad_copy`:**
+
+Your goal is to get the click. Use proven direct-response copywriting techniques.
+
+**Ad Copy (3 Variations for A/B Testing):**
+- **Variation A (Short & Punchy - for Feeds):**
+    - **Headline:** A 5-8 word, high-impact headline that targets a pain point revealed by the trends.
+    - **Body:** 1-2 sentences that present the "big promise" or unique solution.
+    - **CTA:** A clear, urgent call-to-action (e.g., "Learn More," "Get Started Free," "Shop Now").
+- **Variation B (Story-Driven - for Articles/Newsletters):**
+    - **Hook:** A short, relatable story or a "Did you know..." fact based on the trends.
+    - **Problem/Agitate:** Clearly describe the problem the target audience is facing.
+    - **Solution/Promise:** Introduce the solution with a focus on benefits, not just features.
+    - **CTA:** A compelling call-to-action with a reason to click now (e.g., "Get the full strategy before it's gone").
+- **Variation C (Benefit-Focused - for Landing Pages):**
+    - **Headline:** Focus on the ultimate desired outcome.
+    - **Bulleted Benefits:** List 3-5 key benefits derived from the trends, explaining what the user will *get*, *feel*, or *achieve*.
+    - **CTA:** A strong, benefit-oriented call-to-action (e.g., "Start My Transformation," "Unlock My Growth").
+
+**Detailed Image Prompt for Ad Creative:**
+- **Style:** [e.g., Bright and clean commercial photography, modern user-interface mockup, dynamic graphic with bold text]
+- **Subject:** A clear depiction of the product in use, or a person achieving the result promised by the ad. The subject should look aspirational and relatable.
+- **Scene:** A clean, uncluttered background that doesn't distract from the main subject. Use brand colors if applicable.
+- **Lighting:** Bright, professional, and optimistic.
+- **Mood:** Urgent, exciting, trustworthy, problem-solving.
+- **Full Prompt Example:** "bright commercial photo, a smiling woman in her 30s easily using a sleek productivity SaaS on her laptop, sitting in a bright, modern co-working space, background is slightly blurred, mood is efficient and empowering, 4k"
+
+---
+
+### **IF Content Type is `print_on_demand`:**
+
+Your goal is to create commercially viable, creative concepts for Print on Demand products like t-shirts, mugs, and posters.
+
+**POD Concept:**
+- **Concept/Theme:** A short, catchy name for the design idea, inspired by the trends.
+- **Design Style:** [e.g., Vintage Retro, Minimalist Line Art, Bold Typography, 90s Nostalgia, Abstract Geometric, Whimsical Illustration].
+- **Key Elements:** Describe the main visual components of the design.
+- **Tagline/Text (Optional):** A short, clever phrase to include in the design.
+- **Target Audience:** Who would buy this? (e.g., Developers, Fitness Enthusiasts, Crypto Traders).
+
+**Detailed Image Prompt for POD Design (Design-Based):**
+- **Style:** Use terms like `minimalist vector art`, `flat illustration`, `graphic t-shirt design`, `sticker design`.
+- **Subject:** Clearly describe the main subject and its elements.
+- **Composition:** Specify `isolated on a clean white background` to ensure it's ready for printing.
+- **Color Palette:** Suggest a limited, cohesive color scheme (e.g., `monochromatic`, `warm retro colors`, `neon cyberpunk`).
+- **Full Prompt Example:** "graphic t-shirt design, a stylized, minimalist vector art of an astronaut meditating in a lotus position on top of a crescent moon, a simple Saturn planet in the background, isolated on a clean white background, monochromatic blue and white color palette, clean lines, no text"
+
+---
+
+### **IF Content Type is `ecommerce_product`:**
+
+Your goal is to write a compelling product description for an e-commerce store that converts browsers into buyers.
+
+**E-commerce Product Description:**
+- **Product Title:** An SEO-friendly and enticing title.
+- **Tagline:** A single, powerful sentence that captures the product's main benefit.
+- **Story-Driven Description:** A 2-3 paragraph description that tells a story. Set the scene, introduce the problem (related to the trends), and present your product as the hero.
+- **Bulleted Features & Benefits:** List 3-5 key features and translate each into a tangible benefit for the customer.
+- **Specifications:** A simple list of essential details (e.g., Materials, Dimensions, Compatibility).
+
+**Detailed Image Prompt for E-commerce Photography:**
+- **Style:** Use terms like `professional product photography`, `e-commerce product shot`, `cinematic product photo`.
+- **Subject:** The product itself, shown from its most appealing angle.
+- **Scene:** `on a clean, solid color background` or `in a lifestyle context` (e.g., a watch on a wrist).
+- **Lighting:** `bright studio lighting`, `soft natural light`.
+- **Composition:** `centered`, `dynamic angle`, `showing texture and detail`.
+- **Full Prompt Example:** "professional product photography of a sleek, matte black wireless charger, on a clean white background, bright studio lighting to eliminate shadows, dynamic angle showing the charging port and texture, 8k, hyper-detailed"
+
+---
+
+### **IF Content Type is `affiliate_review`:**
+
+Your goal is to build maximum trust and guide the reader to a confident purchase, while also capturing their information for future marketing.
+
+**Affiliate Review Content:**
+- **Catchy Title:** A title that combines the product name with a powerful benefit or addresses a major question (e.g., "Is [Product Name] Worth It? My Honest 2025 Review").
+- **Introduction (The Hook):** Start with a personal story about the problem you faced, which should relate to the identified trends.
+- **What is [Product Name] & Who is it For?:** Briefly explain the product and the ideal customer.
+- **My Experience & Results (The Core):** Detail your journey with the product. How did it solve your problem? Use the trends as context for why this product is so relevant *right now*.
+- **Top 3 Features/Benefits:** Break down the most impactful benefits, linking each one back to solving a specific pain point.
+- **What I Didn't Like (The Honesty):** Include 1-2 minor drawbacks or limitations. This builds immense trust and makes your recommendation more believable.
+- **The Verdict & Final Recommendation:** A strong summary of why you recommend it despite the minor flaws.
+- **Strong Call-to-Action:** A clear, enthusiastic call to action. "Click here to get [Product Name] and see the same results I did. You won't regret it."
+
+**Landing Page Code (with Lead Capture for Google Sites):**
+- **Instructions:** Generate a complete, single HTML file with embedded modern CSS (using the Tailwind CSS CDN) for a high-converting landing page. The page must be mobile-responsive and include placeholders for an affiliate link and a Google Form link for lead capture.
+- **Structure:**
+    1.  **Hero Section:** Compelling headline, sub-headline, and TWO prominent CTA buttons: "Get It Now" (for the affiliate link) and "Get Updates & Free Checklist" (for the lead capture).
+    2.  **Problem Section:** A short section describing the visitor's pain point.
+    3.  **Benefits Section:** 3-5 cards or list items with icons and benefit descriptions.
+    4.  **Social Proof Section:** 2-3 placeholder testimonial blocks.
+    5.  **Final CTA Section:** A final, urgent call-to-action block with the same two buttons.
+- **JavaScript:** Include a simple, inline script that shows a confirmation alert when the "Get Updates" button is clicked.
+- **Output:** Provide the full, copy-paste-ready HTML code inside a single code block.
+"""
         
-        full_prompt = f"{system_prompts.get(content_type, '')}\n\nTask: Create content for the '{niche}' niche based on these trends:\n{trend_context}"
+        trend_str = "\n".join(f"- {t.title}" for t in trends)
+        full_prompt = master_prompt_template.format(
+            niche=niche,
+            content_type=content_type,
+            trends=trend_str
+        )
 
         try:
             response = await self.model.generate_content_async(full_prompt)
             if not response or not hasattr(response, 'text') or not response.text:
                 raise Exception("Empty or invalid response from Gemini API")
             
-            confidence = min(1.5, 0.95 + (len(response.text) / 3000) * 0.2)
+            content_text = response.text
+            confidence = min(1.5, 0.95 + (len(content_text) / 3000) * 0.2)
             
             return GeneratedContent(
-                niche=niche, content_type=content_type,
+                niche=niche,
+                content_type=content_type,
                 title=f"{content_type.replace('_', ' ').title()} for {niche}",
-                content=response.text, confidence_score=confidence
+                content=content_text,
+                confidence_score=confidence
             )
         except Exception as e:
             logger.error(f"Error generating content: {e}")
             raise HTTPException(status_code=500, detail="Content generation failed.")
 
-# --- FASTAPI APP AND ROUTER ---
+# --- FastAPI APP AND ROUTER ---
 app = FastAPI(title="Oracle Engine", description="AI-Powered Trend Prediction & Content Generation")
 api_router = APIRouter(prefix="/api")
 oracle = OracleEngine()
@@ -194,6 +348,7 @@ async def analyze_niche(request: NicheRequest):
     try:
         trends = await oracle.monitor_niche_trends(request.niche, request.keywords)
         if trends:
+            # Storing only the top 10 trends found
             await db.trends.insert_many([t.dict() for t in trends])
 
         top_trends_titles = [trend.title for trend in trends[:5]]
@@ -208,7 +363,12 @@ async def analyze_niche(request: NicheRequest):
 
         opportunities = [f"Capitalize on {trends[0].title}" if trends else f"Explore emerging {request.niche} trends", f"Create targeted content around {request.niche} innovation"]
         
-        return TrendAnalysis(niche=request.niche, trends=trends, forecast_summary=forecast_summary, top_opportunities=opportunities)
+        return TrendAnalysis(
+            niche=request.niche,
+            trends=trends,
+            forecast_summary=forecast_summary,
+            top_opportunities=opportunities
+        )
     except Exception as e:
         logger.error(f"Error in analyze_niche: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -216,6 +376,8 @@ async def analyze_niche(request: NicheRequest):
 @api_router.post("/content/generate", response_model=GeneratedContent)
 async def generate_content_endpoint(request: ForecastRequest):
     try:
+        # Re-fetch trends to ensure freshness for content generation, or pass from frontend
+        # For simplicity, we assume trend_data from the request is a list of trend titles
         content = await oracle.generate_content(request.niche, request.trend_data, request.content_type)
         await db.generated_content.insert_one(content.dict())
         return content
