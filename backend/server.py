@@ -95,9 +95,9 @@ class OracleEngine:
             # Expand keywords based on niche
             expanded_keywords = self._expand_niche_keywords(niche, keywords)
             
-            # Get trends for each keyword set (max 5 at a time for Google Trends)
-            for i in range(0, min(len(expanded_keywords), 10), 5):
-                keyword_batch = expanded_keywords[i:i+5]
+            # Get trends for each keyword set (max 20 at a time for Google Trends)
+            for i in range(0, min(len(expanded_keywords), 40), 20):
+                keyword_batch = expanded_keywords[i:i+20]
                 
                 try:
                     pytrends.build_payload(keyword_batch, cat=0, timeframe='now 1-d', geo='', gprop='')
@@ -167,41 +167,11 @@ class OracleEngine:
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
         """Generate simulated high-value trends for demonstration"""
         niche_trends = {
-            'fitness': [
-                "AI-powered fitness tracking wearables gaining momentum",
-                "Plant-based protein alternatives showing 200% growth", 
-                "Cold plunge therapy for athletic recovery trending",
-                "Functional fitness movements replacing gym workouts",
-                "Biohacking supplements for performance optimization"
-            ],
-            'crypto': [
-                "Layer 2 scaling solutions seeing mass adoption",
-                "Institutional Bitcoin accumulation reaching new highs",
-                "DeFi yield farming strategies evolving rapidly",
-                "NFT utility in gaming ecosystems expanding",
-                "Crypto payment integration in mainstream apps"
-            ],
-            'saas': [
-                "AI workflow automation tools disrupting industries",
-                "No-code development platforms democratizing software",
-                "Customer success automation reducing churn",
-                "API-first architecture becoming standard",
-                "Micro-SaaS solutions targeting niche markets"
-            ],
-            'marketing': [
-                "AI-generated personalized video content scaling",
-                "Voice commerce optimization strategies emerging", 
-                "Interactive content driving 300% more engagement",
-                "First-party data strategies replacing cookies",
-                "Influencer micro-communities outperforming macro"
-            ],
-            'ecommerce': [
-                "Social commerce integration boosting conversions",
-                "Sustainable packaging becoming purchase driver",
-                "Live shopping experiences increasing sales 400%",
-                "AI-powered inventory prediction reducing waste",
-                "Subscription model adoption across categories"
-            ]
+            'fitness': [],
+            'crypto': [],
+            'saas': [],
+            'marketing': [],
+            'ecommerce': []
         }
         
         default_trends = [
@@ -220,13 +190,13 @@ class OracleEngine:
                 title=trend,
                 content=f"High-velocity trend detected in {niche} space: {trend}. Oracle analysis shows significant growth potential with strong momentum indicators.",
                 source="Oracle Intelligence",
-                trend_score=random.uniform(0.65, 0.95),
-                velocity=random.uniform(0.45, 0.85)
+                trend_score=random.uniform(0.65, 0.95, 1),
+                velocity=random.uniform(0.45, 0.85, 1.5)
             ))
         
         return simulated
     
-    async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
+        async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
         """Generate AI-powered content using Gemini"""
         
         if not self.gemini_key:
@@ -234,7 +204,7 @@ class OracleEngine:
         
         # Use Gemini for all content types with specialized prompts
         system_prompts = {
-            'ad_copy': """You are an expert direct-response copywriter specializing in high-converting ad copy. 
+            'ad_copy': """You are an expert direct-response copywriter specializing in high-converting ad copy for Print on Demand,  Products and Services. 
             Create compelling, action-driven advertisements that follow proven frameworks like AIDA, PAS, and SCAB.
             Focus on benefits, urgency, and clear calls-to-action. Write persuasive copy that converts browsers into buyers.""",
             
@@ -271,13 +241,14 @@ Make it irresistible and action-oriented.""",
 {trend_context}
 
 Requirements:
-- Create 3 platform-specific posts (Twitter/X, LinkedIn, Instagram)
-- Include relevant hashtags for each platform
+- Create 3 platform-specific posts (Twitter/X, LinkedIn, Facebook)
+- Include relevant hashtags for each platform based on trends information gotten
 - Engaging hooks and value-driven content
 - Encourage interaction and sharing
 - Maintain authentic, relatable tone
 - Include content pillars: education, inspiration, entertainment
 - Use emojis and formatting for readability
+- Use well structured image prompts to generate attractive and well and extremely detailed images that suits and describes post perfectly for each platform 
 
 Format each post with platform label and optimized content.""",
 
