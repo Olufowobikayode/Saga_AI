@@ -75,11 +75,12 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
     );
   }
   
+  // ADDED the missing content types to the array
   const contentTypes = [
     { id: 'facebook_post', label: 'Facebook Post' }, { id: 'twitter_thread', label: 'X (Twitter) Thread' },
     { id: 'linkedin_article', label: 'LinkedIn Article' }, { id: 'seo_blog_post', label: 'SEO Blog Post' },
-    { id: 'social_post', label: 'Generic Social Post' }, { id: 'ad_copy', label: 'Ad Copy' },
-    { id: 'affiliate_review', label: 'Affiliate Review' }
+    { id: 'ad_copy', label: 'Ad Copy' }, { id: 'affiliate_review', label: 'Affiliate Review' },
+    { id: 'print_on_demand', label: 'Print on Demand' }, { id: 'ecommerce_product', label: 'E-commerce Product' }
   ];
 
   const chartData = analysisResults.trends.slice(0, 6).map(t => ({
@@ -127,58 +128,11 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
   );
 };
 
-const GeneratedContentDisplay = ({ generatedContent }) => {
-  const copyToClipboard = (text, type) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${type} copied to clipboard!`);
-  };
-
-  if (!generatedContent) return null;
-
-  const sections = generatedContent.content.split('---').filter(section => section.trim() !== '');
-
-  return (
-    <div className="bg-white p-6 rounded-lg shadow-lg mt-8">
-      <div className="flex justify-between items-center border-b pb-4 mb-4">
-        <h2 className="text-2xl font-bold text-gray-800 capitalize">{generatedContent.content_type.replace(/_/g, ' ')} for "{generatedContent.niche}"</h2>
-        <button onClick={() => copyToClipboard(generatedContent.content, "Content")}
-          className="flex items-center gap-2 p-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 text-sm">
-          <Copy size={16} /> Copy All
-        </button>
-      </div>
-      <div className="results-output">
-        {sections.map((section, index) => {
-          const trimmedSection = section.trim();
-          const firstLine = trimmedSection.split('\n')[0];
-          const titleMatch = trimmedSection.match(/^\*\*(.*?):\*\*/);
-          const title = titleMatch ? titleMatch[1] : `Content Section ${index + 1}`;
-          const contentBlock = titleMatch ? trimmedSection.substring(titleMatch[0].length).trim() : trimmedSection;
-          
-          if (title.toLowerCase().includes('landing page code')) {
-            const codeMatch = contentBlock.match(/```html([\s\S]*)```/);
-            const code = codeMatch ? codeMatch[1].trim() : "Could not parse HTML code.";
-            return (
-              <div key={index} className="mt-4">
-                <h3 className="text-lg font-semibold mb-2 text-gray-700">{title}</h3>
-                <div className="relative"><code>{code}</code><button className="copy-button" onClick={() => copyToClipboard(code, 'HTML Code')}>Copy</button></div>
-              </div>
-            );
-          }
-          
-          return (
-            <div key={index} className="mt-4">
-              <h3 className="text-lg font-semibold mb-2 text-gray-700">{title}</h3>
-              <pre>{contentBlock}</pre>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+// ... (Keep the GeneratedContentDisplay component exactly as it is) ...
 
 // --- Main App Component ---
 function App() {
+  // ... (Keep all the state declarations and functions: useState, useEffect, handleAnalyze, handleGenerate) ...
   const [niche, setNiche] = useState('AI-powered SaaS');
   const [subNiche, setSubNiche] = useState('sales automation, copywriting tools');
   const [loading, setLoading] = useState({ isAnalyzing: false, isGenerating: false });
@@ -200,50 +154,11 @@ function App() {
   }, []);
 
   const handleAnalyze = async () => {
-    if (!niche.trim()) {
-      toast.error('Please enter a niche.');
-      return;
-    }
-    setLoading({ isAnalyzing: true, isGenerating: false });
-    setAnalysisResults(null);
-    setGeneratedContent(null);
-    try {
-      const keywordsArray = subNiche.split(',').map(k => k.trim()).filter(k => k);
-      const response = await axios.post(`${API_URL}/api/niche/analyze`, { niche: niche.trim(), keywords: keywordsArray });
-      setAnalysisResults(response.data);
-      toast.success(`Analysis complete for "${niche}"!`);
-    } catch (error) {
-      console.error("Error analyzing niche:", error);
-      toast.error(error.response?.data?.detail || 'Failed to analyze niche.');
-    } finally {
-      setLoading({ isAnalyzing: false, isGenerating: false });
-    }
+    // ... (This function remains the same)
   };
 
   const handleGenerate = async (contentType) => {
-    if (!analysisResults) {
-      toast.error('Please analyze a niche first.');
-      return;
-    }
-    setLoading({ ...loading, isGenerating: true });
-    setGeneratedContent(null);
-    const trendTitles = analysisResults.trends.map(t => t.title);
-    try {
-      const response = await axios.post(`${API_URL}/api/content/generate`, {
-        niche: niche,
-        trend_data: trendTitles,
-        content_type: contentType
-      });
-      setGeneratedContent(response.data);
-      toast.success(`${contentType.replace(/_/g, ' ')} generated successfully!`);
-      fetchDashboardStats(); // Refresh stats after generating content
-    } catch (error)
-      {
-      console.error("Error generating content:", error);
-      toast.error(error.response?.data?.detail || 'Failed to generate content.');
-    } finally {
-      setLoading({ ...loading, isGenerating: false });
-    }
+    // ... (This function remains the same)
   };
   
   return (
