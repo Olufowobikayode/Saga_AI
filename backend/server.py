@@ -13,7 +13,7 @@ import asyncio
 import google.generativeai as genai
 from pytrends.request import TrendReq
 import random
-import certifi # <-- ADDED: For MongoDB SSL connection
+import certifi
 
 # --- INITIAL SETUP ---
 ROOT_DIR = Path(__file__).parent
@@ -24,16 +24,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- DATABASE AND API CLIENTS ---
-# This block will now safely initialize clients or fail with a clear error
-# if environment variables are missing on Render.
 try:
     mongo_url = os.environ['MONGO_URL']
     db_name = os.environ['DB_NAME']
     gemini_api_key = os.environ['GEMINI_API_KEY']
 
-    # Use certifi to provide the SSL certificate authority file
+    # Use certifi to provide the SSL certificate authority file for MongoDB connection
     ca = certifi.where()
-    client = AsyncIOMotorClient(mongo_url, tlsCAFile=ca) # <-- MODIFIED: Added tlsCAFile
+    client = AsyncIOMotorClient(mongo_url, tlsCAFile=ca)
     
     db = client[db_name]
     
@@ -44,8 +42,7 @@ except KeyError as e:
     raise
 
 # --- Pydantic MODELS ---
-# Using timezone-aware datetimes
-defutcnow():
+def utcnow():
     return datetime.now(timezone.utc)
 
 class NicheRequest(BaseModel):
@@ -97,7 +94,6 @@ class OracleEngine:
             
             expanded_keywords = self._expand_niche_keywords(niche, keywords)
             
-            # Asynchronously run the synchronous pytrends library
             def fetch_trends_sync(kw_list):
                 pytrends.build_payload(kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
                 return pytrends.interest_over_time()
@@ -106,7 +102,6 @@ class OracleEngine:
                 keyword_batch = expanded_keywords[i:i+5]
                 try:
                     interest_data = await asyncio.to_thread(fetch_trends_sync, keyword_batch)
-                    
                     if not interest_data.empty:
                         for keyword in keyword_batch:
                             if keyword in interest_data.columns:
@@ -114,22 +109,18 @@ class OracleEngine:
                                 avg_score = sum(latest_values) / len(latest_values) if latest_values else 0
                                 velocity = self._calculate_velocity(latest_values)
                                 trends.append(TrendData(
-                                    niche=niche,
-                                    title=f"Trending: {keyword}",
-                                    content=f"Search interest for '{keyword}' showing momentum.",
-                                    source="Google Trends",
-                                    trend_score=round(avg_score / 100.0, 3),
+                                    niche=niche, title=f"Trending: {keyword}",
+                                    content=f"Search interest for '{keyword}' shows momentum.",
+                                    source="Google Trends", trend_score=round(avg_score / 100.0, 3),
                                     velocity=round(velocity, 3)
                                 ))
                 except Exception as e:
                     logging.warning(f"Could not fetch Google Trends for {keyword_batch}: {e}")
-                await asyncio.sleep(1) # Respect potential rate limits
-
+                await asyncio.sleep(1)
         except Exception as e:
             logging.error(f"Error in trend monitoring: {e}")
         
-        simulated_trends = self._generate_simulated_trends(niche)
-        trends.extend(simulated_trends)
+        trends.extend(self._generate_simulated_trends(niche))
         trends.sort(key=lambda x: (x.trend_score * x.velocity), reverse=True)
         return trends[:10]
 
@@ -151,32 +142,32 @@ class OracleEngine:
 
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
         niche_trends = {
-            'fitness': ["AI-powered fitness tracking", "Plant-based protein alternatives", "Cold plunge therapy"],
-            'crypto': ["Layer 2 scaling solutions", "Institutional Bitcoin accumulation", "DeFi yield farming"],
-            'saas': ["AI workflow automation tools", "No-code development platforms", "Customer success automation"]
+            'fitness': ["AI-powered fitness tracking wearables", "Plant-based protein alternatives", "Cold plunge therapy for recovery"],
+            'crypto': ["Layer 2 scaling solutions", "Institutional Bitcoin accumulation", "DeFi yield farming strategies"],
+            'saas': ["AI workflow automation tools", "No-code development platforms", "Customer success automation tools"]
         }
-        trends_list = niche_trends.get(niche.lower(), [f"Emerging {niche} opportunities"])
+        trends_list = niche_trends.get(niche.lower(), [f"Emerging {niche} market opportunities"])
         return [
             TrendData(
-                niche=niche, title=trend, content=f"High-velocity trend: {trend}",
+                niche=niche, title=trend, content=f"High-velocity trend detected: {trend}",
                 source="Oracle Intelligence", trend_score=random.uniform(0.7, 0.95), velocity=random.uniform(0.5, 0.85)
             ) for trend in trends_list
         ]
 
     async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
-        """Generates AI-powered content using the official Google Gemini SDK."""
         system_prompts = {
-            'ad_copy': "You are an expert direct-response copywriter...",
-            'social_post': "You are a social media expert and viral content strategist...",
-            'affiliate_review': "You are a trusted product reviewer and affiliate marketer..."
+            'ad_copy': "You are an expert direct-response copywriter specializing in high-converting ad copy. Create compelling, action-driven advertisements that follow proven frameworks. Focus on benefits, urgency, and clear calls-to-action.",
+            'social_post': "You are a social media expert and viral content strategist. Create engaging, shareable content that resonates with target audiences. Focus on storytelling, value delivery, and authentic connection.",
+            'affiliate_review': "You are a trusted product reviewer and affiliate marketer. Create honest, detailed reviews that help customers make informed decisions while naturally promoting products. Focus on benefits, addressing objections, and authentic recommendations."
         }
-        trend_context = "\n".join(f"- {trend}" for trend in trends)
-        full_prompt = f"{system_prompts.get(content_type, '')}\n\nCreate content for the '{niche}' niche based on these trends:\n{trend_context}"
+        trend_context = "\n".join([f"- {trend}" for trend in trends])
+        
+        full_prompt = f"{system_prompts.get(content_type, '')}\n\nTask: Create content for the '{niche}' niche based on these trends:\n{trend_context}"
 
         try:
             response = await self.model.generate_content_async(full_prompt)
-            if not response.text:
-                raise Exception("Empty response from Gemini API")
+            if not response or not hasattr(response, 'text') or not response.text:
+                raise Exception("Empty or invalid response from Gemini API")
             
             confidence = min(0.95, 0.75 + (len(response.text) / 2000) * 0.2)
             
@@ -215,12 +206,12 @@ async def analyze_niche(request: NicheRequest):
         except Exception as e:
             logging.warning(f"Forecast generation failed: {e}")
 
-        opportunities = [f"Capitalize on {trends[0].title}" if trends else f"Explore emerging {request.niche} trends", f"Create content for {request.niche} innovators"]
+        opportunities = [f"Capitalize on {trends[0].title}" if trends else f"Explore emerging {request.niche} trends", f"Create targeted content around {request.niche} innovation"]
         
         return TrendAnalysis(niche=request.niche, trends=trends, forecast_summary=forecast_summary, top_opportunities=opportunities)
     except Exception as e:
         logger.error(f"Error in analyze_niche: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 @api_router.post("/content/generate", response_model=GeneratedContent)
 async def generate_content_endpoint(request: ForecastRequest):
@@ -262,7 +253,7 @@ async def get_dashboard_stats():
             "system_status": "operational"
         }
     except Exception as e:
-        logging.error(f"Error fetching stats: {e}")
+        logger.error(f"Error fetching stats: {e}")
         return { "total_trends_monitored": 0, "content_pieces_generated": 0, "active_niches": [], "system_status": "degraded" }
 
 # --- APP CONFIGURATION ---
@@ -278,11 +269,8 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     try:
-        # Check database connection on startup
         await client.admin.command('ping')
         logger.info("Successfully connected to MongoDB.")
-        
-        # Create indexes
         await db.trends.create_index("niche")
         await db.generated_content.create_index("niche")
         logger.info("Database indexes ensured.")
