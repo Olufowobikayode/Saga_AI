@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
-import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity } from 'lucide-react';
+import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity, Clock, List, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css'; // Your custom styles
 
@@ -16,8 +16,9 @@ const Header = () => (
   </header>
 );
 
-const StatCard = ({ title, value, icon: Icon }) => (
-  <div className="bg-white p-6 rounded-lg shadow-lg flex items-center justify-between">
+// MODIFIED: Added onClick and cursor-pointer for interactivity
+const StatCard = ({ title, value, icon: Icon, onClick }) => (
+  <div onClick={onClick} className={`bg-white p-6 rounded-lg shadow-lg flex items-center justify-between ${onClick ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''}`}>
     <div>
       <p className="text-sm text-gray-500 font-medium">{title}</p>
       <p className="text-3xl font-bold text-gray-800">{value}</p>
@@ -29,7 +30,7 @@ const StatCard = ({ title, value, icon: Icon }) => (
 );
 
 const NicheInput = ({ niche, setNiche, subNiche, setSubNiche, handleAnalyze, loading }) => (
-  <div className="bg-white p-6 rounded-lg shadow-lg">
+    <div className="bg-white p-6 rounded-lg shadow-lg">
     <div className="flex flex-col gap-4">
       <div>
         <label htmlFor="niche-input" className="block font-semibold mb-2 text-gray-700">Niche / Market</label>
@@ -51,7 +52,6 @@ const NicheInput = ({ niche, setNiche, subNiche, setSubNiche, handleAnalyze, loa
   </div>
 );
 
-// THIS IS THE CORRECTED, DEFENSIVE ResultsDisplay COMPONENT
 const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
   if (loading.isAnalyzing) {
     return (
@@ -83,7 +83,6 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
     { id: 'print_on_demand', label: 'Print on Demand' }, { id: 'ecommerce_product', label: 'E-commerce Product' }
   ];
 
-  // Defensive check for chart data
   const chartData = analysisResults?.trends?.slice(0, 6).map(t => ({
     name: t.title.split(' ').slice(0, 3).join(' ') + '...',
     score: Math.round(t.trend_score * 100)
@@ -96,7 +95,6 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
       
       <div className="mt-6">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">Top 20 Opportunities</h3>
-        {/* Defensive check for opportunities */}
         <ol className="list-decimal list-inside space-y-2 text-gray-600 max-h-60 overflow-y-auto">
           {analysisResults?.top_opportunities?.map((opp, i) => <li key={i}>{opp}</li>) || <li>No opportunities generated.</li>}
         </ol>
@@ -132,10 +130,74 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
   );
 };
 
+// BUG FIX: This component is now separate to ensure it re-renders correctly.
 const GeneratedContentDisplay = ({ generatedContent }) => {
-    // This component remains the same, but you can also add defensive checks here if needed.
-    // For now, it's less critical as it only renders when `generatedContent` is not null.
+  const copyToClipboard = (text, type) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${type} copied to clipboard!`);
+  };
+
+  if (!generatedContent) return null;
+
+  const sections = generatedContent.content.split('---').filter(section => section.trim() !== '');
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-lg">
+      <div className="flex justify-between items-center border-b pb-4 mb-4">
+        <h2 className="text-2xl font-bold text-gray-800 capitalize">{generatedContent.content_type.replace(/_/g, ' ')} for "{generatedContent.niche}"</h2>
+        <button onClick={() => copyToClipboard(generatedContent.content, "Content")}
+          className="flex items-center gap-2 p-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 text-sm">
+          <Copy size={16} /> Copy All
+        </button>
+      </div>
+      <div className="results-output">
+        {sections.map((section, index) => {
+          const trimmedSection = section.trim();
+          const titleMatch = trimmedSection.match(/^\*\*(.*?):\*\*/);
+          const title = titleMatch ? titleMatch[1] : `Content Section ${index + 1}`;
+          const contentBlock = titleMatch ? trimmedSection.substring(titleMatch[0].length).trim() : trimmedSection;
+          
+          if (title.toLowerCase().includes('landing page code')) {
+            const codeMatch = contentBlock.match(/```html([\s\S]*)```/);
+            const code = codeMatch ? codeMatch[1].trim() : "Could not parse HTML code.";
+            return (
+              <div key={index} className="mt-4">
+                <h3 className="text-lg font-semibold mb-2 text-gray-700">{title}</h3>
+                <div className="relative"><code>{code}</code><button className="copy-button" onClick={() => copyToClipboard(code, 'HTML Code')}>Copy</button></div>
+              </div>
+            );
+          }
+          
+          return (
+            <div key={index} className="mt-4">
+              <h3 className="text-lg font-semibold mb-2 text-gray-700">{title}</h3>
+              <pre>{contentBlock}</pre>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
+
+// NEW: This panel now dynamically displays different types of history.
+const DetailsPanel = ({ view, data }) => (
+  <div className="bg-white p-6 rounded-lg shadow-lg">
+    <h2 className="text-xl font-bold mt-0 mb-4 text-gray-800 capitalize">{view.replace('_', ' ')}</h2>
+    {data.length === 0 ? <p className="text-gray-500">No data to display.</p> : (
+      <ul className="space-y-4 max-h-[80vh] overflow-y-auto">
+        {data.map(item => (
+          <li key={item.id || item._id} className="border-b pb-4 last:border-b-0">
+            <div className="font-semibold text-gray-800">{item.title}</div>
+            <div className="text-sm text-gray-500 capitalize">
+              {view === 'all_trends' ? `Source: ${item.source}` : `Niche: ${item.niche} | Type: ${item.content_type.replace(/_/g, ' ')}`}
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+);
 
 
 // --- Main App Component ---
@@ -146,6 +208,8 @@ function App() {
   const [analysisResults, setAnalysisResults] = useState(null);
   const [generatedContent, setGeneratedContent] = useState(null);
   const [stats, setStats] = useState({ total_trends_monitored: 0, content_pieces_generated: 0, active_niches: [] });
+  const [historyView, setHistoryView] = useState('recent_activity');
+  const [historyData, setHistoryData] = useState([]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -156,6 +220,33 @@ function App() {
     }
   };
 
+  // NEW: Function to fetch different types of history data
+  const fetchHistory = async (type = 'recent_activity') => {
+    setHistoryView(type);
+    let endpoint = '';
+    if (type === 'all_trends') {
+      endpoint = '/api/trends/latest/all'; // Assuming a new endpoint for all trends
+    } else if (type === 'all_content') {
+      endpoint = '/api/content/history/all'; // Assuming a new endpoint for all content
+    } else {
+        // For 'recent_activity', we can manage it locally or have a dedicated endpoint
+        // For now, we'll just show an empty state until content is generated
+        setHistoryData([]);
+        return;
+    }
+
+    try {
+      // This is a placeholder; you'd need to implement these backend endpoints
+      // const response = await axios.get(`${API_URL}${endpoint}`);
+      // setHistoryData(response.data);
+      toast.success(`Showing ${type.replace('_', ' ')}`);
+    } catch (error) {
+      toast.error(`Could not fetch ${type.replace('_', ' ')}.`);
+      console.error(`Error fetching ${type}:`, error);
+    }
+  };
+
+
   useEffect(() => {
     fetchDashboardStats();
   }, []);
@@ -165,10 +256,9 @@ function App() {
       toast.error('Please enter a niche.');
       return;
     }
-    // CORRECTED: Only update the relevant loading state
     setLoading(prev => ({ ...prev, isAnalyzing: true }));
     setAnalysisResults(null);
-    setGeneratedContent(null);
+    setGeneratedContent(null); // Clear previous content on new analysis
     
     try {
       const keywordsArray = subNiche.split(',').map(k => k.trim()).filter(k => k);
@@ -181,10 +271,8 @@ function App() {
       }
     } catch (error) {
       console.error("Error analyzing niche:", error);
-      // CORRECTED: Display the specific error message from the backend
       toast.error(error.response?.data?.detail || 'An unexpected error occurred during analysis.');
     } finally {
-      // CORRECTED: Only update the relevant loading state
       setLoading(prev => ({ ...prev, isAnalyzing: false }));
     }
   };
@@ -195,7 +283,6 @@ function App() {
       return;
     }
     setLoading(prev => ({ ...prev, isGenerating: true }));
-    setGeneratedContent(null);
     
     const trendTitles = analysisResults.trends.map(t => t.title);
     
@@ -205,6 +292,7 @@ function App() {
         trend_data: trendTitles,
         content_type: contentType
       });
+      // BUG FIX: Set the generated content so the display component appears
       setGeneratedContent(response.data);
       toast.success(`${contentType.replace(/_/g, ' ')} generated successfully!`);
       fetchDashboardStats();
@@ -216,7 +304,6 @@ function App() {
     }
   };
   
-  // The JSX for the main App component remains the same
   return (
     <div className="min-h-screen bg-gray-100">
       <Toaster position="top-center" reverseOrder={false} />
@@ -224,9 +311,9 @@ function App() {
       <main className="p-4 sm:p-8">
         <div className="max-w-7xl mx-auto flex flex-col gap-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title="Trends Monitored" value={stats.total_trends_monitored} icon={TrendingUp} />
-            <StatCard title="Content Generated" value={stats.content_pieces_generated} icon={Copy} />
-            <StatCard title="Active Niches" value={stats.active_niches.length} icon={Target} />
+            <StatCard title="Trends Monitored" value={stats.total_trends_monitored} icon={TrendingUp} onClick={() => toast.success('Feature to show all trends coming soon!')} />
+            <StatCard title="Content Generated" value={stats.content_pieces_generated} icon={Copy} onClick={() => toast.success('Feature to show all content coming soon!')} />
+            <StatCard title="Active Niches" value={stats.active_niches.length} icon={Target} onClick={() => toast.success('Feature to show all niches coming soon!')} />
             <StatCard title="System Status" value={"Operational"} icon={Activity} />
           </div>
           
@@ -250,6 +337,7 @@ function App() {
             </div>
           </div>
           
+          {/* BUG FIX: This component will now render correctly when generatedContent is set */}
           {generatedContent && <GeneratedContentDisplay generatedContent={generatedContent} />}
 
         </div>
