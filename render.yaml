@@ -19,12 +19,13 @@ services:
 
   # Frontend Service: React Static Site
   - type: static
-    name: oracle-engine-frontend
+    name: socialai-assist-frontend
     rootDir: frontend
     plan: free
     buildCommand: "npm install && npm run build"
     publishDir: build
     routes:
+      # Rewrite rule to proxy API requests to the backend
       - type: rewrite
         source: /api/:path
         destination: "https://socialai-assist-backend.onrender.com/api/:path"
