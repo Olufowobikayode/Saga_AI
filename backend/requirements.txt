@@ -7,4 +7,5 @@ motor
 dnspython
 pydantic
 pytrends
+emergentintegrations
 python-multipart
