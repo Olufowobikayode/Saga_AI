@@ -7,7 +7,6 @@ gunicorn==22.0.0
 pymongo==4.5.0
 motor==3.3.1
 dnspython # Required for mongodb+srv URIs
-certifi
 
 # AI and Data
 google-generativeai
