@@ -1,24 +1,27 @@
+```yaml
 services:
   # Backend Service: FastAPI
   - type: web
-    name: SocialAI-Assist-Backend
+    name: oracle-engine-backend
     runtime: python
     rootDir: backend
-    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker server:app"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
       - key: MONGO_URL
-        fromSecret: true # Mark as a secret to be entered in the dashboard
+        fromSecret: true
       - key: DB_NAME
-        fromSecret: true # Mark as a secret to be entered in the dashboard
+        fromSecret: true
       - key: GEMINI_API_KEY
-        fromSecret: true # Mark as a secret to be entered in the dashboard
+        fromSecret: true
 
   # Frontend Service: React Static Site
   - type: static
-    name: SocialAI-Assist-Frontend
+    name: oracle-engine-frontend
     rootDir: frontend
     buildCommand: "yarn install && yarn build"
     publishDir: build
@@ -26,8 +29,7 @@ services:
       # Rewrite rule to proxy API requests to the backend
       - type: rewrite
         source: /api/*
-        destination: https://oracle-engine-backend.onrender.com/*
+        destination: https://socialai-assist-backend.onrender.com/*
     envVars:
       - key: REACT_APP_BACKEND_URL
-        # This automatically uses the URL of the backend service defined above
         value: https://socialai-assist-backend.onrender.com
