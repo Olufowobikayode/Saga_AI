@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
 import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import './App.css'; // Import the custom override styles
+import './App.css'; // Your custom styles
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
@@ -51,6 +51,7 @@ const NicheInput = ({ niche, setNiche, subNiche, setSubNiche, handleAnalyze, loa
   </div>
 );
 
+// THIS IS THE CORRECTED, DEFENSIVE ResultsDisplay COMPONENT
 const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
   if (loading.isAnalyzing) {
     return (
@@ -75,7 +76,6 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
     );
   }
   
-  // ADDED the missing content types to the array
   const contentTypes = [
     { id: 'facebook_post', label: 'Facebook Post' }, { id: 'twitter_thread', label: 'X (Twitter) Thread' },
     { id: 'linkedin_article', label: 'LinkedIn Article' }, { id: 'seo_blog_post', label: 'SEO Blog Post' },
@@ -83,10 +83,11 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
     { id: 'print_on_demand', label: 'Print on Demand' }, { id: 'ecommerce_product', label: 'E-commerce Product' }
   ];
 
-  const chartData = analysisResults.trends.slice(0, 6).map(t => ({
+  // Defensive check for chart data
+  const chartData = analysisResults?.trends?.slice(0, 6).map(t => ({
     name: t.title.split(' ').slice(0, 3).join(' ') + '...',
     score: Math.round(t.trend_score * 100)
-  }));
+  })) || [];
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg flex-1">
@@ -95,29 +96,32 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
       
       <div className="mt-6">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">Top 20 Opportunities</h3>
+        {/* Defensive check for opportunities */}
         <ol className="list-decimal list-inside space-y-2 text-gray-600 max-h-60 overflow-y-auto">
-          {analysisResults.top_opportunities.map((opp, i) => <li key={i}>{opp}</li>)}
+          {analysisResults?.top_opportunities?.map((opp, i) => <li key={i}>{opp}</li>) || <li>No opportunities generated.</li>}
         </ol>
       </div>
 
-      <div className="mt-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Top Trend Performance</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="score" fill="#4f46e5" name="Trend Score" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {chartData.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-xl font-semibold text-gray-700 mb-4">Top Trend Performance</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="score" fill="#4f46e5" name="Trend Score" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div className="mt-8 border-t pt-6">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">Generate Content</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {contentTypes.map(({ id, label }) => (
-            <button key={id} onClick={() => handleGenerate(id)} disabled={loading.isGenerating}
+            <button key={id} onClick={() => handleGenerate(id)} disabled={loading.isGenerating || !analysisResults?.trends?.length}
               className="p-3 bg-gray-100 text-gray-700 font-semibold rounded-md hover:bg-gray-200 disabled:bg-gray-400 disabled:text-white transition-colors text-sm text-center">
               {loading.isGenerating ? 'Working...' : label}
             </button>
@@ -128,11 +132,14 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
   );
 };
 
-// ... (Keep the GeneratedContentDisplay component exactly as it is) ...
+const GeneratedContentDisplay = ({ generatedContent }) => {
+    // This component remains the same, but you can also add defensive checks here if needed.
+    // For now, it's less critical as it only renders when `generatedContent` is not null.
+};
+
 
 // --- Main App Component ---
 function App() {
-  // ... (Keep all the state declarations and functions: useState, useEffect, handleAnalyze, handleGenerate) ...
   const [niche, setNiche] = useState('AI-powered SaaS');
   const [subNiche, setSubNiche] = useState('sales automation, copywriting tools');
   const [loading, setLoading] = useState({ isAnalyzing: false, isGenerating: false });
@@ -154,13 +161,62 @@ function App() {
   }, []);
 
   const handleAnalyze = async () => {
-    // ... (This function remains the same)
+    if (!niche.trim()) {
+      toast.error('Please enter a niche.');
+      return;
+    }
+    // CORRECTED: Only update the relevant loading state
+    setLoading(prev => ({ ...prev, isAnalyzing: true }));
+    setAnalysisResults(null);
+    setGeneratedContent(null);
+    
+    try {
+      const keywordsArray = subNiche.split(',').map(k => k.trim()).filter(k => k);
+      const response = await axios.post(`${API_URL}/api/niche/analyze`, { niche: niche.trim(), keywords: keywordsArray });
+      setAnalysisResults(response.data);
+      if (response.data?.trends?.length > 0) {
+        toast.success(`Analysis complete for "${niche}"!`);
+      } else {
+        toast.error(`No live trends found for "${niche}". Please try a broader niche.`);
+      }
+    } catch (error) {
+      console.error("Error analyzing niche:", error);
+      // CORRECTED: Display the specific error message from the backend
+      toast.error(error.response?.data?.detail || 'An unexpected error occurred during analysis.');
+    } finally {
+      // CORRECTED: Only update the relevant loading state
+      setLoading(prev => ({ ...prev, isAnalyzing: false }));
+    }
   };
 
   const handleGenerate = async (contentType) => {
-    // ... (This function remains the same)
+    if (!analysisResults || !analysisResults.trends || analysisResults.trends.length === 0) {
+      toast.error('Cannot generate content without trend data. Please analyze a niche first.');
+      return;
+    }
+    setLoading(prev => ({ ...prev, isGenerating: true }));
+    setGeneratedContent(null);
+    
+    const trendTitles = analysisResults.trends.map(t => t.title);
+    
+    try {
+      const response = await axios.post(`${API_URL}/api/content/generate`, {
+        niche: niche,
+        trend_data: trendTitles,
+        content_type: contentType
+      });
+      setGeneratedContent(response.data);
+      toast.success(`${contentType.replace(/_/g, ' ')} generated successfully!`);
+      fetchDashboardStats();
+    } catch (error) {
+      console.error("Error generating content:", error);
+      toast.error(error.response?.data?.detail || 'Failed to generate content.');
+    } finally {
+      setLoading(prev => ({ ...prev, isGenerating: false }));
+    }
   };
   
+  // The JSX for the main App component remains the same
   return (
     <div className="min-h-screen bg-gray-100">
       <Toaster position="top-center" reverseOrder={false} />
