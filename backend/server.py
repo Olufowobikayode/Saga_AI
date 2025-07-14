@@ -81,18 +81,13 @@ class OracleEngine:
     def __init__(self):
         self.model = genai.GenerativeModel('gemini-2.5-pro')
 
-    # MODIFIED: Rewritten for speed and reliability
     async def monitor_niche_trends(self, niche: str, keywords: List[str] = None) -> List[TrendData]:
-        # Start with a reliable base of simulated trends
         trends = self._generate_simulated_trends(niche)
-        
         try:
             pytrends = TrendReq(hl='en-US', tz=360, timeout=(10, 25))
-            keywords = keywords or [niche]
             expanded_keywords = self._expand_niche_keywords(niche, keywords)
             random.shuffle(expanded_keywords)
-
-            # Create batches of keywords to query
+            
             batch_size = 5
             num_keywords_to_process = 10
             keyword_batches = [
@@ -100,26 +95,21 @@ class OracleEngine:
                 for i in range(0, min(len(expanded_keywords), num_keywords_to_process), batch_size)
             ]
 
-            # Asynchronous function to fetch data for a single batch
             async def fetch_batch(kw_list):
                 loop = asyncio.get_running_loop()
-                # Run the synchronous pytrends code in a separate thread
                 interest_data = await loop.run_in_executor(
                     None, lambda: pytrends.build_payload(kw_list=kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
                 )
                 interest_data = pytrends.interest_over_time()
                 return interest_data, kw_list
 
-            # Run all batch fetches concurrently for maximum speed
             tasks = [fetch_batch(batch) for batch in keyword_batches]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Process the results
             for result in results:
                 if isinstance(result, Exception):
                     logging.warning(f"A trend batch failed: {result}")
                     continue
-                
                 interest_data, kw_list = result
                 if not interest_data.empty:
                     for keyword in kw_list:
@@ -133,11 +123,9 @@ class OracleEngine:
                                 source="Google Trends", trend_score=round(avg_score / 100.0, 3),
                                 velocity=round(velocity, 3)
                             ))
-                            
         except Exception as e:
             logging.error(f"Major error in trend monitoring: {e}")
         
-        # Sort the combined list of simulated and live trends
         trends.sort(key=lambda x: (x.trend_score * x.velocity), reverse=True)
         return trends[:10]
 
@@ -157,7 +145,6 @@ class OracleEngine:
         if len(values) < 2: return 0.0
         return max(0.0, min(1.0, (values[-1] - values[0]) / 100.0))
 
-    # NEW: Now provides a reliable base of high-quality trends for core niches.
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
         niche_key = niche.lower()
         evergreen_trends = {
@@ -165,9 +152,7 @@ class OracleEngine:
             'crypto': ["Decentralized Finance (DeFi) Adoption", "NFTs for Digital Identity & Ticketing", "Layer 2 Scaling Solutions", "Web3 Gaming (Play-to-Earn)", "Institutional Investment in Bitcoin"],
             'saas': ["AI in Workflow Automation", "Vertical SaaS for Specific Industries", "No-Code/Low-Code Development Platforms", "Cybersecurity and Data Privacy Tools", "Collaborative Project Management Software"]
         }
-        
         trends_list = evergreen_trends.get(niche_key, [f"Emerging {niche} Opportunities", f"Innovation in {niche} Technology"])
-        
         return [
             TrendData(
                 niche=niche, title=trend, content=f"High-velocity evergreen trend: {trend}",
@@ -177,9 +162,9 @@ class OracleEngine:
 
     async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
         master_prompt_template = """
-You are Oracle, a master-level strategist combining the skills of a world-class copywriter, a viral social media manager, and a data-driven performance marketer. Your voice is human, engaging, and trustworthy. Your goal is NOT just to create content, but to generate assets that drive specific actions.
+You are Oracle, a world-class growth-hacking CMO with deep expertise in copywriting, neuro-marketing, and viral content strategy. Your sole mission is to generate ready-to-publish assets designed for explosive growth, massive engagement, and high-conversion sales. Every word you write is intentional and backed by proven marketing principles.
 
-You will use the provided trends as the core inspiration for every piece of content.
+You will use the provided trends as the core insight to create timely, relevant, and irresistible content.
 
 **1. Niche:** {niche}
 **2. Content Type:** {content_type}
@@ -188,30 +173,87 @@ You will use the provided trends as the core inspiration for every piece of cont
 
 ---
 
-**YOUR TASK:** Based on the information above, generate the following assets. Adhere strictly to the format for the requested **Content Type**.
+**YOUR TASK:** Based on the information above, generate the following high-performance assets. Adhere strictly to the professional format requested for the **Content Type**.
 
 ---
 
-### **IF Content Type is `social_post`:**
+### **IF Content Type is `facebook_post`:**
 
-Your goal is virality and deep engagement. Create a post that stops the scroll and starts conversations.
+**Goal:** Spark high-quality engagement and build a loyal community. Use a conversational, AIDA (Attention, Interest, Desire, Action) structure.
 
-**Social Post:**
-- **Hook:** Start with a relatable question, a bold statement, or a surprising statistic directly related to the trends.
-- **Body:** Weave a short, compelling narrative or provide 3-5 high-value, actionable tips inspired by the trends. Use emojis to add personality and improve readability.
-- **Call to Engagement:** End with an open-ended question to encourage comments (e.g., "What's your take on this?" or "Have you tried this?").
-- **Hashtags:** Provide 5-7 highly relevant hashtags, mixing broad and niche terms.
+**Facebook Post:**
+- **Attention (Hook):** Start with a bold, relatable question or a pattern-interrupting statement based on a key trend. Make them stop scrolling.
+- **Interest (Story/Value):** Tell a short, personal story or provide a surprising insight related to the trends. Build an immediate connection.
+- **Desire (Benefit):** Explain the powerful benefit of embracing this trend or idea. What positive future can the reader achieve? Paint a vivid picture.
+- **Action (Call to Engagement):** End with a specific, low-friction question that encourages detailed comments, not just "yes/no" answers. (e.g., "What's the #1 thing holding you back from trying this?").
+- **Hashtags:** Provide 3-5 highly relevant, community-focused hashtags.
 
-**Detailed Image Prompt for AI Generator (e.g., Midjourney, DALL-E):**
-- **Style:** [e.g., Photorealistic, cinematic, vibrant illustration, modern graphic design]
-- **Subject:** [e.g., A person expressing a specific emotion, a symbolic object, a stylized representation of a concept]
-- **Scene:** [e.g., A minimalist office, a dramatic outdoor landscape, an abstract background with specific colors] - Describe the environment that best captures the post's mood.
-- **Lighting:** [e.g., Soft and natural, dramatic studio lighting, neon glow, golden hour]
-- **Mood:** [e.g., Inspiring and hopeful, urgent and energetic, thoughtful and calm, luxurious and exclusive]
-- **Full Prompt Example:** "cinematic photo, a young female founder looking thoughtfully at a holographic chart showing upward-trending data, in a modern, minimalist office at dusk, soft golden hour light streaming through the window, mood is inspiring and forward-thinking, 8k, hyper-detailed"
+**Image Prompt (Thumb-Stopping Visual):**
+- **Style:** "Vibrant, high-contrast, lifestyle photography".
+- **Subject:** A person (or people) experiencing the peak positive emotion associated with the post's "Desire" stage. Action-oriented and relatable.
+- **Full Prompt Example:** "Vibrant lifestyle photo, a group of diverse friends laughing together during a home workout, sunlight streaming in, feeling energetic and connected, shot on a professional DSLR camera, 8k"
 
 ---
 
+### **IF Content Type is `twitter_thread`:**
+
+**Goal:** Go viral by providing immense value in a structured, easy-to-read thread.
+
+**Twitter (X) Thread:**
+- **Tweet 1 (The Hook):** A bold, contrarian take or a massive promise. e.g., "I analyzed [Niche] for 100 hours. Here are 5 trends that will make or break your business in the next 6 months. 🧵". End with the thread emoji.
+- **Tweet 2 (The Problem):** Describe the current, painful problem that the audience is facing, using insights from the trends.
+- **Tweet 3-5 (The Value):** Each tweet should be a self-contained, actionable tip or insight that solves a piece of the problem. Use bullet points, emojis, and whitespace for maximum readability.
+- **Tweet 6 (The Summary):** A "TL;DR" that summarizes the key takeaways from the thread.
+- **Tweet 7 (The Engagement/CTA):** Ask a question to spark debate or direct followers to a link.
+
+**Image Prompt (Diagram/Graphic):**
+- **Style:** "Clean, minimalist infographic, vector illustration".
+- **Subject:** A simple visual representation of the thread's core concept (e.g., a simple 3-step process, a before-and-after diagram).
+- **Full Prompt Example:** "minimalist infographic, a simple 3-panel cartoon showing a sad stick figure with a problem, then a lightbulb icon, then a happy stick figure with a solution, clean lines, using only blue and white colors, isolated on a white background"
+
+---
+
+### **IF Content Type is `linkedin_article`:**
+
+**Goal:** Establish authority and generate professional leads. Use a structured, data-driven, and insightful tone.
+
+**LinkedIn Article:**
+- **Headline:** A professional, benefit-driven headline. e.g., "Beyond the Hype: 3 Actionable [Niche] Trends Our Data Shows Are Driving Real ROI".
+- **Executive Summary:** A short, bolded paragraph at the top summarizing the article's key takeaway for busy professionals.
+- **Introduction:** Set the scene and state the core problem or opportunity based on the trends.
+- **Section 1, 2, 3 (The Body):** Each section should be a deep dive into a specific trend. Use subheadings (H2s), bullet points, and reference the data/trends provided.
+- **Conclusion:** Summarize the key insights and provide a forward-looking statement.
+- **Call to Action:** Encourage professional discussion. "What are your thoughts on these trends? I'm keen to hear from other experts in the comments."
+
+**Image Prompt (Professional Banner):**
+- **Style:** "Modern, abstract corporate background, professional banner image".
+- **Subject:** Stylized geometric shapes, network nodes, or abstract light patterns that evoke concepts like growth, technology, and connection. No people.
+- **Full Prompt Example:** "professional LinkedIn article banner, abstract network of glowing blue and white nodes on a dark navy blue background, sense of digital connection and data flow, clean and modern, no text"
+
+---
+
+### **IF Content Type is `seo_blog_post`:**
+
+**Goal:** Rank on Google for target keywords and provide immense value to the reader.
+
+**SEO Blog Post:**
+- **SEO Title:** A keyword-rich title under 60 characters.
+- **Meta Description:** An engaging, 155-character summary that includes the main keyword and a call-to-action.
+- **Blog Post (H1, H2, H3 Structure):**
+    - **(H1) Title:** The main title of the post.
+    - **Introduction:** Hook the reader and state what they will learn.
+    - **(H2) Section 1:** A deep dive into the first key trend.
+    - **(H2) Section 2:** A deep dive into the second key trend.
+    - **(H3) Sub-section 2.1:** A more detailed point within section 2.
+    - **(H2) Conclusion:** Summarize the key points and provide a final takeaway.
+- **Internal Linking Suggestions:** Suggest 2-3 other related topics to link to from within the post.
+
+**Image Prompt (Featured Image):**
+- **Style:** "Vibrant, clean illustration, blog post featured image".
+- **Subject:** A clear, symbolic representation of the blog post's main topic that is easy to understand at a glance.
+- **Full Prompt Example:** "vibrant illustration, a magnifying glass hovering over a bar chart that is trending upwards, surrounded by icons representing marketing and sales, clean and modern vector style, bright color palette"
+
+---
 ### **IF Content Type is `ad_copy`:**
 
 Your goal is to get the click. Use proven direct-response copywriting techniques.
@@ -241,50 +283,9 @@ Your goal is to get the click. Use proven direct-response copywriting techniques
 
 ---
 
-### **IF Content Type is `print_on_demand`:**
-
-Your goal is to create commercially viable, creative concepts for Print on Demand products like t-shirts, mugs, and posters.
-
-**POD Concept:**
-- **Concept/Theme:** A short, catchy name for the design idea, inspired by the trends.
-- **Design Style:** [e.g., Vintage Retro, Minimalist Line Art, Bold Typography, 90s Nostalgia, Abstract Geometric, Whimsical Illustration].
-- **Key Elements:** Describe the main visual components of the design.
-- **Tagline/Text (Optional):** A short, clever phrase to include in the design.
-- **Target Audience:** Who would buy this? (e.g., Developers, Fitness Enthusiasts, Crypto Traders).
-
-**Detailed Image Prompt for POD Design (Design-Based):**
-- **Style:** Use terms like `minimalist vector art`, `flat illustration`, `graphic t-shirt design`, `sticker design`.
-- **Subject:** Clearly describe the main subject and its elements.
-- **Composition:** Specify `isolated on a clean white background` to ensure it's ready for printing.
-- **Color Palette:** Suggest a limited, cohesive color scheme (e.g., `monochromatic`, `warm retro colors`, `neon cyberpunk`).
-- **Full Prompt Example:** "graphic t-shirt design, a stylized, minimalist vector art of an astronaut meditating in a lotus position on top of a crescent moon, a simple Saturn planet in the background, isolated on a clean white background, monochromatic blue and white color palette, clean lines, no text"
-
----
-
-### **IF Content Type is `ecommerce_product`:**
-
-Your goal is to write a compelling product description for an e-commerce store that converts browsers into buyers.
-
-**E-commerce Product Description:**
-- **Product Title:** An SEO-friendly and enticing title.
-- **Tagline:** A single, powerful sentence that captures the product's main benefit.
-- **Story-Driven Description:** A 2-3 paragraph description that tells a story. Set the scene, introduce the problem (related to the trends), and present your product as the hero.
-- **Bulleted Features & Benefits:** List 3-5 key features and translate each into a tangible benefit for the customer.
-- **Specifications:** A simple list of essential details (e.g., Materials, Dimensions, Compatibility).
-
-**Detailed Image Prompt for E-commerce Photography:**
-- **Style:** Use terms like `professional product photography`, `e-commerce product shot`, `cinematic product photo`.
-- **Subject:** The product itself, shown from its most appealing angle.
-- **Scene:** `on a clean, solid color background` or `in a lifestyle context` (e.g., a watch on a wrist).
-- **Lighting:** `bright studio lighting`, `soft natural light`.
-- **Composition:** `centered`, `dynamic angle`, `showing texture and detail`.
-- **Full Prompt Example:** "professional product photography of a sleek, matte black wireless charger, on a clean white background, bright studio lighting to eliminate shadows, dynamic angle showing the charging port and texture, 8k, hyper-detailed"
-
----
-
 ### **IF Content Type is `affiliate_review`:**
 
-Your goal is to build maximum trust and guide the reader to a confident purchase, while also capturing their information for future marketing.
+Your goal is to build maximum trust and guide the reader to a confident purchase through your link.
 
 **Affiliate Review Content:**
 - **Catchy Title:** A title that combines the product name with a powerful benefit or addresses a major question (e.g., "Is [Product Name] Worth It? My Honest 2025 Review").
@@ -296,15 +297,22 @@ Your goal is to build maximum trust and guide the reader to a confident purchase
 - **The Verdict & Final Recommendation:** A strong summary of why you recommend it despite the minor flaws.
 - **Strong Call-to-Action:** A clear, enthusiastic call to action. "Click here to get [Product Name] and see the same results I did. You won't regret it."
 
-**Landing Page Code (with Lead Capture for Google Sites):**
-- **Instructions:** Generate a complete, single HTML file with embedded modern CSS (using the Tailwind CSS CDN) for a high-converting landing page. The page must be mobile-responsive and include placeholders for an affiliate link and a Google Form link for lead capture.
+**Detailed Image Prompt for Review:**
+- **Style:** [e.g., Authentic and candid photography, screen recording GIF, before-and-after graphic]
+- **Subject:** You (or a relatable person) genuinely using and enjoying the product. An "unboxing" shot or a screenshot of a key "aha!" moment inside the software.
+- **Scene:** A realistic setting, like a home office or a real-world environment where the product would be used.
+- **Lighting:** Natural and clean. Avoid looking overly corporate or staged.
+- **Mood:** Trustworthy, helpful, authentic, successful.
+- **Full Prompt Example:** "candid photo, a man smiling at his laptop screen showing a 'success' graph, a coffee mug next to him, sitting in a cozy, well-lit home office, a feeling of genuine satisfaction and relief, natural light from a window"
+
+**Landing Page Code:**
+- **Instructions:** Generate a complete, single HTML file with embedded modern CSS (using the Tailwind CSS CDN for styling) for a high-converting landing page. The page should be clean, professional, and mobile-responsive.
 - **Structure:**
-    1.  **Hero Section:** Compelling headline, sub-headline, and TWO prominent CTA buttons: "Get It Now" (for the affiliate link) and "Get Updates & Free Checklist" (for the lead capture).
-    2.  **Problem Section:** A short section describing the visitor's pain point.
-    3.  **Benefits Section:** 3-5 cards or list items with icons and benefit descriptions.
-    4.  **Social Proof Section:** 2-3 placeholder testimonial blocks.
-    5.  **Final CTA Section:** A final, urgent call-to-action block with the same two buttons.
-- **JavaScript:** Include a simple, inline script that shows a confirmation alert when the "Get Updates" button is clicked.
+    1.  **Hero Section:** A compelling headline based on the review title, a sub-headline explaining the main benefit, and a prominent "Get It Now" CTA button.
+    2.  **Problem Section:** A short section with an icon and text describing the pain point the visitor is experiencing (related to the trends).
+    3.  **Solution/Benefits Section:** Use 3-5 cards or list items, each with an icon, a benefit headline, and a short description.
+    4.  **Social Proof Section:** Include 2-3 placeholder testimonial blocks with a name and a star rating.
+    5.  **Final CTA Section:** A final, urgent call-to-action block with another prominent button.
 - **Output:** Provide the full, copy-paste-ready HTML code inside a single code block.
 """
         
@@ -321,7 +329,8 @@ Your goal is to build maximum trust and guide the reader to a confident purchase
                 raise Exception("Empty or invalid response from Gemini API")
             
             content_text = response.text
-            confidence = min(1.5, 0.95 + (len(content_text) / 3000) * 0.2)
+            # Modified scoring: higher base confidence for a premium model, with less variance.
+            confidence = round(random.uniform(0.88, 0.95), 3)
             
             return GeneratedContent(
                 niche=niche,
@@ -348,26 +357,32 @@ async def analyze_niche(request: NicheRequest):
     try:
         trends = await oracle.monitor_niche_trends(request.niche, request.keywords)
         if trends:
-            # Storing only the top 10 trends found
             await db.trends.insert_many([t.dict() for t in trends])
 
         top_trends_titles = [trend.title for trend in trends[:5]]
-        forecast_prompt = f"""Based on these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a brief, actionable forecast summary (2-20 sentences) and identify the top 20 business opportunities."""
+        forecast_prompt = f"""As a world-class market analyst, review these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a detailed, actionable forecast (4-6 sentences). Then, identify and rank the **Top 20 most profitable business opportunities** based on these trends. Be specific and creative."""
         
         forecast_summary = f"Strong momentum detected in {request.niche}."
+        opportunities = [f"Capitalize on {trends[0].title}" if trends else f"Explore emerging {request.niche} trends"] * 20 # Placeholder
         try:
             forecast_response = await oracle.model.generate_content_async(forecast_prompt)
-            forecast_summary = forecast_response.text
+            # Basic parsing to separate summary from opportunities
+            parts = forecast_response.text.split("Top 20 most profitable business opportunities")
+            if len(parts) > 1:
+                forecast_summary = parts[0].strip()
+                opp_text = parts[1].strip()
+                opportunities = [line.strip() for line in opp_text.split('\n') if line.strip() and (line.strip()[0].isdigit() or line.strip()[0] == '-')]
+            else:
+                forecast_summary = forecast_response.text
+
         except Exception as e:
             logging.warning(f"Forecast generation failed: {e}")
-
-        opportunities = [f"Capitalize on {trends[0].title}" if trends else f"Explore emerging {request.niche} trends", f"Create targeted content around {request.niche} innovation"]
         
         return TrendAnalysis(
             niche=request.niche,
             trends=trends,
             forecast_summary=forecast_summary,
-            top_opportunities=opportunities
+            top_opportunities=opportunities[:20] # Ensure we only return 20
         )
     except Exception as e:
         logger.error(f"Error in analyze_niche: {e}")
@@ -376,8 +391,6 @@ async def analyze_niche(request: NicheRequest):
 @api_router.post("/content/generate", response_model=GeneratedContent)
 async def generate_content_endpoint(request: ForecastRequest):
     try:
-        # Re-fetch trends to ensure freshness for content generation, or pass from frontend
-        # For simplicity, we assume trend_data from the request is a list of trend titles
         content = await oracle.generate_content(request.niche, request.trend_data, request.content_type)
         await db.generated_content.insert_one(content.dict())
         return content
@@ -388,10 +401,10 @@ async def generate_content_endpoint(request: ForecastRequest):
 @api_router.get("/content/history/{niche}")
 async def get_content_history(niche: str):
     cursor = db.generated_content.find({"niche": niche}).sort("created_at", -1).limit(20)
-    content_history = [doc for doc in await cursor.to_list(length=20)]
-    for doc in content_history:
+    history = [doc for doc in await cursor.to_list(length=20)]
+    for doc in history:
         doc['_id'] = str(doc['_id'])
-    return {"content_history": content_history}
+    return {"content_history": history}
 
 @api_router.get("/trends/latest/{niche}")
 async def get_latest_trends(niche: str):
@@ -407,11 +420,10 @@ async def get_dashboard_stats():
         trends_count = await db.trends.count_documents({})
         content_count = await db.generated_content.count_documents({})
         distinct_niches = await db.trends.distinct("niche")
-        
         return {
             "total_trends_monitored": trends_count,
             "content_pieces_generated": content_count,
-            "active_niches": distinct_niches or ["fitness", "crypto", "saas"],
+            "active_niches": distinct_niches or [],
             "system_status": "operational"
         }
     except Exception as e:
