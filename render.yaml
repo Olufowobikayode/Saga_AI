@@ -1,4 +1,4 @@
-```yaml
+
 services:
   # Backend Service: FastAPI
   - type: web
