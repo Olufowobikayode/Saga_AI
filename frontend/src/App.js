@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
 import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity, List } from 'lucide-react';
@@ -7,7 +7,7 @@ import './App.css'; // Your custom styles
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
-// --- Reusable Components ---
+// --- Reusable Components with Tailwind CSS ---
 
 const Header = () => (
   <header className="bg-white shadow-md p-4 flex items-center gap-4">
@@ -208,6 +208,7 @@ const DetailsPanel = ({ view, data, loading }) => (
   </div>
 );
 
+
 // --- Main App Component ---
 function App() {
   const [niche, setNiche] = useState('AI-powered SaaS');
@@ -220,18 +221,25 @@ function App() {
   const [detailsView, setDetailsView] = useState('active_niches');
   const [detailsData, setDetailsData] = useState([]);
 
-  const fetchDashboardStats = async () => {
+  // CORRECTED: Wrapped in useCallback to prevent re-creation on every render
+  const fetchDashboardStats = useCallback(async (currentView) => {
     try {
       const response = await axios.get(`${API_URL}/api/dashboard/stats`);
-      setStats(response.data);
-      if (detailsView === 'active_niches') {
-        setDetailsData((response.data.active_niches || []).map(niche => ({ title: niche, id: niche })));
+      const newStats = response.data;
+      setStats(newStats);
+      if (currentView === 'active_niches') {
+        setDetailsData((newStats.active_niches || []).map(niche => ({ title: niche, id: niche })));
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
-  };
-  
+  }, []); // Empty dependency array means this function is created only once
+
+  useEffect(() => {
+    // This effect runs once on mount to fetch initial stats
+    fetchDashboardStats(detailsView);
+  }, [fetchDashboardStats, detailsView]); // Correctly depends on the memoized function
+
   const handleStatCardClick = async (viewType) => {
     if (!viewType) return;
     setDetailsView(viewType);
@@ -241,20 +249,19 @@ function App() {
     let endpoint = '';
     let dataKey = '';
 
-    switch (viewType) {
-      case 'all_trends':
-        endpoint = '/api/trends/all';
-        dataKey = 'all_trends';
-        break;
-      case 'all_content':
-        endpoint = '/api/content/all';
-        dataKey = 'all_content';
-        break;
-      case 'active_niches':
+    if (viewType === 'active_niches') {
         setDetailsData((stats.active_niches || []).map(niche => ({ title: niche, id: niche })));
         setLoading(prev => ({ ...prev, isFetchingDetails: false }));
         return;
-      default:
+    }
+
+    if (viewType === 'all_trends') {
+        endpoint = '/api/trends/all';
+        dataKey = 'all_trends';
+    } else if (viewType === 'all_content') {
+        endpoint = '/api/content/all';
+        dataKey = 'all_content';
+    } else {
         setLoading(prev => ({ ...prev, isFetchingDetails: false }));
         return;
     }
@@ -262,7 +269,6 @@ function App() {
     try {
       const response = await axios.get(`${API_URL}${endpoint}`);
       setDetailsData(response.data[dataKey] || []);
-      toast.success(`Showing all ${viewType.split('_')[1]}`);
     } catch (error) {
       toast.error(`Could not fetch data. Please try again.`);
       console.error(`Error fetching ${viewType}:`, error);
@@ -271,17 +277,12 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    fetchDashboardStats();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleAnalyze = async () => {
     if (!niche.trim()) {
       toast.error('Please enter a niche.');
       return;
     }
-    setLoading(prev => ({ ...prev, isAnalyzing: true }));
+    setLoading({ isAnalyzing: true, isGenerating: false, isFetchingDetails: false });
     setAnalysisResults(null);
     setGeneratedContent(null);
     try {
@@ -297,7 +298,7 @@ function App() {
       console.error("Error analyzing niche:", error);
       toast.error(error.response?.data?.detail || 'An unexpected error occurred during analysis.');
     } finally {
-      setLoading(prev => ({ ...prev, isAnalyzing: false }));
+      setLoading(prev => ({...prev, isAnalyzing: false}));
     }
   };
 
@@ -307,7 +308,7 @@ function App() {
       return;
     }
     setLoading(prev => ({ ...prev, isGenerating: true }));
-    setGeneratedContent(null); // Clear previous content before generating new
+    setGeneratedContent(null);
     const trendTitles = analysisResults.trends.map(t => t.title);
     try {
       const response = await axios.post(`${API_URL}/api/content/generate`, {
@@ -317,12 +318,12 @@ function App() {
       });
       setGeneratedContent(response.data);
       toast.success(`${contentType.replace(/_/g, ' ')} generated successfully!`);
-      fetchDashboardStats();
+      fetchDashboardStats(detailsView); // Refresh stats after generating content
     } catch (error) {
       console.error("Error generating content:", error);
       toast.error(error.response?.data?.detail || 'Failed to generate content.');
     } finally {
-      setLoading(prev => ({ ...prev, isGenerating: false }));
+      setLoading(prev => ({...prev, isGenerating: false}));
     }
   };
   
@@ -340,7 +341,7 @@ function App() {
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 flex flex-col gap-8">
+            <div className="lg:col-span-1 flex flex-col gap-8">
               <NicheInput
                 niche={niche}
                 setNiche={setNiche}
@@ -349,25 +350,17 @@ function App() {
                 handleAnalyze={handleAnalyze}
                 loading={loading}
               />
+               <DetailsPanel view={detailsView} data={detailsData} loading={loading.isFetchingDetails} />
+            </div>
+            <div className="lg:col-span-2">
               <ResultsDisplay
                 analysisResults={analysisResults}
                 handleGenerate={handleGenerate}
                 loading={loading}
               />
-            </div>
-            <div className="lg:col-span-1">
-              <DetailsPanel view={detailsView} data={detailsData} loading={loading.isFetchingDetails} />
+              {generatedContent && <div className="mt-8"><GeneratedContentDisplay generatedContent={generatedContent} /></div>}
             </div>
           </div>
-          
-          {generatedContent && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 lg:col-start-1">
-                    <GeneratedContentDisplay generatedContent={generatedContent} />
-                </div>
-            </div>
-          )}
-
         </div>
       </main>
     </div>
