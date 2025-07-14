@@ -1,180 +1,226 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
-import { Target, Search, Wand2 } from 'lucide-react';
+import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css'; // Import the custom override styles
 
-// Setup the base URL for the API from environment variables
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
 // --- Reusable Components with Tailwind CSS ---
 
 const Header = () => (
   <header className="bg-white shadow-md p-4 flex items-center gap-4">
-    <Target size={32} className="text-blue-600" />
+    <Target size={32} className="text-indigo-600" />
     <h1 className="text-2xl font-bold text-gray-800">Oracle Engine</h1>
   </header>
 );
 
-const NicheSelector = ({ niche, setNiche, contentType, setContentType, handleAnalyze, handleGenerate, loading, analysisResults }) => {
-  const niches = ["Fitness", "Crypto", "SaaS", "Marketing", "E-commerce", "Health", "AI", "Real Estate"];
-  const contentTypes = ["Social Post", "Ad Copy", "Affiliate Review", "Print on Demand", "E-commerce Product"];
+const StatCard = ({ title, value, icon: Icon }) => (
+  <div className="bg-white p-6 rounded-lg shadow-lg flex items-center justify-between">
+    <div>
+      <p className="text-sm text-gray-500 font-medium">{title}</p>
+      <p className="text-3xl font-bold text-gray-800">{value}</p>
+    </div>
+    <div className="bg-indigo-100 p-3 rounded-full">
+      <Icon className="h-6 w-6 text-indigo-600" />
+    </div>
+  </div>
+);
+
+const NicheInput = ({ niche, setNiche, subNiche, setSubNiche, handleAnalyze, loading }) => (
+  <div className="bg-white p-6 rounded-lg shadow-lg">
+    <div className="flex flex-col gap-4">
+      <div>
+        <label htmlFor="niche-input" className="block font-semibold mb-2 text-gray-700">Niche / Market</label>
+        <input id="niche-input" type="text" className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+          value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="e.g., AI-powered SaaS" />
+      </div>
+      <div>
+        <label htmlFor="subniche-input" className="block font-semibold mb-2 text-gray-700">Sub-Niche / Keywords (Optional)</label>
+        <input id="subniche-input" type="text" className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+          value={subNiche} onChange={(e) => setSubNiche(e.target.value)} placeholder="e.g., sales automation, copywriting tools" />
+      </div>
+      <button
+        className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:bg-gray-400 transition-colors"
+        onClick={handleAnalyze} disabled={loading.isAnalyzing}>
+        <Brain size={18} />
+        {loading.isAnalyzing ? 'Analyzing...' : 'Analyze Niche'}
+      </button>
+    </div>
+  </div>
+);
+
+const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
+  if (loading.isAnalyzing) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-lg flex-1 min-h-[400px] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-semibold">Analyzing niche... this may take a moment.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analysisResults) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-lg flex-1 min-h-[400px] flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <Brain size={48} className="mx-auto mb-4" />
+          <p className="font-semibold">Your results will appear here.</p>
+          <p>Start by analyzing a niche.</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const contentTypes = [
+    { id: 'facebook_post', label: 'Facebook Post' }, { id: 'twitter_thread', label: 'X (Twitter) Thread' },
+    { id: 'linkedin_article', label: 'LinkedIn Article' }, { id: 'seo_blog_post', label: 'SEO Blog Post' },
+    { id: 'social_post', label: 'Generic Social Post' }, { id: 'ad_copy', label: 'Ad Copy' },
+    { id: 'affiliate_review', label: 'Affiliate Review' }
+  ];
+
+  const chartData = analysisResults.trends.slice(0, 6).map(t => ({
+    name: t.title.split(' ').slice(0, 3).join(' ') + '...',
+    score: Math.round(t.trend_score * 100)
+  }));
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-col gap-4">
-        <div>
-          <label htmlFor="niche-select" className="block font-semibold mb-2 text-gray-700">
-            1. Choose Your Niche
-          </label>
-          <select id="niche-select" className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500" value={niche} onChange={(e) => setNiche(e.target.value)}>
-            {niches.map(n => <option key={n} value={n.toLowerCase()}>{n}</option>)}
-          </select>
-        </div>
-        
-        <button
-          className="w-full flex items-center justify-center gap-2 p-3 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
-          onClick={handleAnalyze} disabled={!niche || loading.isAnalyzing}
-        >
-          <Search size={18} />
-          {loading.isAnalyzing ? 'Analyzing Niche...' : 'Analyze Niche'}
-        </button>
+    <div className="bg-white p-6 rounded-lg shadow-lg flex-1">
+      <h2 className="text-2xl font-bold text-gray-800">Analysis for "{analysisResults.niche}"</h2>
+      <p className="mt-2 text-gray-600">{analysisResults.forecast_summary}</p>
+      
+      <div className="mt-6">
+        <h3 className="text-xl font-semibold text-gray-700 mb-4">Top 20 Opportunities</h3>
+        <ol className="list-decimal list-inside space-y-2 text-gray-600 max-h-60 overflow-y-auto">
+          {analysisResults.top_opportunities.map((opp, i) => <li key={i}>{opp}</li>)}
+        </ol>
+      </div>
 
-        {analysisResults && (
-          <>
-            <div className="border-t border-gray-200 my-2"></div>
-            <div>
-              <label htmlFor="content-type-select" className="block font-semibold mb-2 text-gray-700">
-                2. Select Content Type
-              </label>
-              <select id="content-type-select" className="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500" value={contentType} onChange={(e) => setContentType(e.target.value)}>
-                {contentTypes.map(type => <option key={type} value={type.toLowerCase().replace(/ /g, '_')}>{type}</option>)}
-              </select>
-            </div>
-            <button
-              className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:bg-gray-400 transition-colors"
-              onClick={handleGenerate} disabled={!contentType || loading.isGenerating}
-            >
-              <Wand2 size={18} />
-              {loading.isGenerating ? 'Generating Content...' : 'Generate Content'}
+      <div className="mt-6">
+        <h3 className="text-xl font-semibold text-gray-700 mb-4">Top Trend Performance</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="score" fill="#4f46e5" name="Trend Score" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-8 border-t pt-6">
+        <h3 className="text-xl font-semibold text-gray-700 mb-4">Generate Content</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {contentTypes.map(({ id, label }) => (
+            <button key={id} onClick={() => handleGenerate(id)} disabled={loading.isGenerating}
+              className="p-3 bg-gray-100 text-gray-700 font-semibold rounded-md hover:bg-gray-200 disabled:bg-gray-400 disabled:text-white transition-colors text-sm text-center">
+              {loading.isGenerating ? 'Working...' : label}
             </button>
-          </>
-        )}
+          ))}
+        </div>
       </div>
     </div>
   );
 };
 
-const ResultsDisplay = ({ analysisResults, generatedContent }) => {
+const GeneratedContentDisplay = ({ generatedContent }) => {
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
     toast.success(`${type} copied to clipboard!`);
   };
 
-  const ContentViewer = ({ content }) => {
-    if (!content) return null;
-    const sections = content.split('---').filter(section => section.trim() !== '');
+  if (!generatedContent) return null;
 
-    return sections.map((section, index) => {
-      const trimmedSection = section.trim();
-      
-      // Look for a title in the format of `**Title:**`
-      const titleMatch = trimmedSection.match(/^\*\*(.*?):\*\*/);
-      const title = titleMatch ? titleMatch[1] : `Generated Content Section ${index + 1}`;
-      
-      const contentBlock = titleMatch ? trimmedSection.substring(titleMatch[0].length).trim() : trimmedSection;
-
-      const isCodeBlock = title.toLowerCase().includes('landing page code');
-      if (isCodeBlock) {
-        const codeMatch = contentBlock.match(/```html([\s\S]*)```/);
-        const code = codeMatch ? codeMatch[1].trim() : "Could not parse HTML code.";
-        return (
-          <div key={index} className="mt-6">
-            <h3 className="text-lg font-semibold border-b-2 pb-2 mb-3 text-gray-700">{title}</h3>
-            <div className="relative">
-              <code>{code}</code>
-              <button className="copy-button" onClick={() => copyToClipboard(code, 'HTML Code')}>Copy</button>
-            </div>
-          </div>
-        );
-      }
-      
-      return (
-        <div key={index} className="mt-6">
-          <h3 className="text-lg font-semibold border-b-2 pb-2 mb-3 text-gray-700">{title}</h3>
-          <pre>{contentBlock}</pre>
-        </div>
-      );
-    });
-  };
+  const sections = generatedContent.content.split('---').filter(section => section.trim() !== '');
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg flex-1 min-h-[400px]">
-      <h2 className="text-xl font-bold mt-0 border-b-2 pb-3 mb-3 text-gray-800">Results</h2>
-      <div className="results-container bg-gray-50 border rounded-md p-4 max-h-[70vh] overflow-y-auto">
-        {analysisResults && !generatedContent && (
-          <div>
-            <h3 className="text-lg font-semibold text-gray-700">Trend Analysis for "{analysisResults.niche}"</h3>
-            <p className="mt-2"><strong>Forecast Summary:</strong> {analysisResults.forecast_summary}</p>
-            <strong className="block mt-4">Top Opportunities:</strong>
-            <ul className="list-disc list-inside mt-2 space-y-1">{analysisResults.top_opportunities.map((opp, i) => <li key={i}>{opp}</li>)}</ul>
-            <strong className="block mt-4">Top Trends:</strong>
-            <ul className="list-disc list-inside mt-2 space-y-1">{analysisResults.trends.map(trend => <li key={trend.id}>{trend.title} <span className="text-gray-500 text-sm">({trend.source})</span></li>)}</ul>
-          </div>
-        )}
-        {generatedContent && <ContentViewer content={generatedContent.content} />}
-        {!analysisResults && !generatedContent && <p className="text-gray-500">Your analysis and generated content will appear here.</p>}
+    <div className="bg-white p-6 rounded-lg shadow-lg mt-8">
+      <div className="flex justify-between items-center border-b pb-4 mb-4">
+        <h2 className="text-2xl font-bold text-gray-800 capitalize">{generatedContent.content_type.replace(/_/g, ' ')} for "{generatedContent.niche}"</h2>
+        <button onClick={() => copyToClipboard(generatedContent.content, "Content")}
+          className="flex items-center gap-2 p-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 text-sm">
+          <Copy size={16} /> Copy All
+        </button>
+      </div>
+      <div className="results-output">
+        {sections.map((section, index) => {
+          const trimmedSection = section.trim();
+          const firstLine = trimmedSection.split('\n')[0];
+          const titleMatch = trimmedSection.match(/^\*\*(.*?):\*\*/);
+          const title = titleMatch ? titleMatch[1] : `Content Section ${index + 1}`;
+          const contentBlock = titleMatch ? trimmedSection.substring(titleMatch[0].length).trim() : trimmedSection;
+          
+          if (title.toLowerCase().includes('landing page code')) {
+            const codeMatch = contentBlock.match(/```html([\s\S]*)```/);
+            const code = codeMatch ? codeMatch[1].trim() : "Could not parse HTML code.";
+            return (
+              <div key={index} className="mt-4">
+                <h3 className="text-lg font-semibold mb-2 text-gray-700">{title}</h3>
+                <div className="relative"><code>{code}</code><button className="copy-button" onClick={() => copyToClipboard(code, 'HTML Code')}>Copy</button></div>
+              </div>
+            );
+          }
+          
+          return (
+            <div key={index} className="mt-4">
+              <h3 className="text-lg font-semibold mb-2 text-gray-700">{title}</h3>
+              <pre>{contentBlock}</pre>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
 
-const HistoryPanel = ({ history }) => (
-  <div className="bg-white p-6 rounded-lg shadow-lg">
-    <h2 className="text-xl font-bold mt-0 mb-4 text-gray-800">Recent Activity</h2>
-    {history.length === 0 ? <p className="text-gray-500">No recent activity.</p> : (
-      <ul className="space-y-4">
-        {history.map(item => (
-          <li key={item.id} className="border-b pb-4 last:border-b-0">
-            <div className="font-semibold text-gray-800">{item.title}</div>
-            <div className="text-sm text-gray-500 capitalize">{item.niche} | {item.content_type.replace(/_/g, ' ')}</div>
-          </li>
-        ))}
-      </ul>
-    )}
-  </div>
-);
-
 // --- Main App Component ---
 function App() {
-  const [niche, setNiche] = useState('fitness');
-  const [contentType, setContentType] = useState('social_post');
+  const [niche, setNiche] = useState('AI-powered SaaS');
+  const [subNiche, setSubNiche] = useState('sales automation, copywriting tools');
   const [loading, setLoading] = useState({ isAnalyzing: false, isGenerating: false });
   const [analysisResults, setAnalysisResults] = useState(null);
   const [generatedContent, setGeneratedContent] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [stats, setStats] = useState({ total_trends_monitored: 0, content_pieces_generated: 0, active_niches: [] });
+
+  const fetchDashboardStats = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/dashboard/stats`);
+      setStats(response.data);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
 
   const handleAnalyze = async () => {
-    if (!niche) {
-      toast.error('Please select a niche first.');
+    if (!niche.trim()) {
+      toast.error('Please enter a niche.');
       return;
     }
     setLoading({ isAnalyzing: true, isGenerating: false });
     setAnalysisResults(null);
     setGeneratedContent(null);
     try {
-      const response = await axios.post(`${API_URL}/api/niche/analyze`, { niche });
+      const keywordsArray = subNiche.split(',').map(k => k.trim()).filter(k => k);
+      const response = await axios.post(`${API_URL}/api/niche/analyze`, { niche: niche.trim(), keywords: keywordsArray });
       setAnalysisResults(response.data);
-      toast.success(`Successfully analyzed the ${niche} niche!`);
+      toast.success(`Analysis complete for "${niche}"!`);
     } catch (error) {
       console.error("Error analyzing niche:", error);
-      toast.error(error.response?.data?.detail || 'Failed to analyze niche. Please try again.');
+      toast.error(error.response?.data?.detail || 'Failed to analyze niche.');
     } finally {
       setLoading({ isAnalyzing: false, isGenerating: false });
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (contentType) => {
     if (!analysisResults) {
       toast.error('Please analyze a niche first.');
       return;
@@ -188,15 +234,15 @@ function App() {
         trend_data: trendTitles,
         content_type: contentType
       });
-      const newContent = response.data;
-      setGeneratedContent(newContent);
-      setHistory(prevHistory => [newContent, ...prevHistory].slice(0, 5));
-      toast.success('Content generated successfully!');
-    } catch (error) {
+      setGeneratedContent(response.data);
+      toast.success(`${contentType.replace(/_/g, ' ')} generated successfully!`);
+      fetchDashboardStats(); // Refresh stats after generating content
+    } catch (error)
+      {
       console.error("Error generating content:", error);
-      toast.error(error.response?.data?.detail || 'Failed to generate content. Please try again.');
+      toast.error(error.response?.data?.detail || 'Failed to generate content.');
     } finally {
-      setLoading({ isAnalyzing: false, isGenerating: false });
+      setLoading({ ...loading, isGenerating: false });
     }
   };
   
@@ -205,26 +251,36 @@ function App() {
       <Toaster position="top-center" reverseOrder={false} />
       <Header />
       <main className="p-4 sm:p-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 flex flex-col gap-8">
-            <NicheSelector
-              niche={niche}
-              setNiche={setNiche}
-              contentType={contentType}
-              setContentType={setContentType}
-              handleAnalyze={handleAnalyze}
-              handleGenerate={handleGenerate}
-              loading={loading}
-              analysisResults={analysisResults}
-            />
-            <ResultsDisplay
-              analysisResults={analysisResults}
-              generatedContent={generatedContent}
-            />
+        <div className="max-w-7xl mx-auto flex flex-col gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard title="Trends Monitored" value={stats.total_trends_monitored} icon={TrendingUp} />
+            <StatCard title="Content Generated" value={stats.content_pieces_generated} icon={Copy} />
+            <StatCard title="Active Niches" value={stats.active_niches.length} icon={Target} />
+            <StatCard title="System Status" value={"Operational"} icon={Activity} />
           </div>
-          <div className="lg:col-span-1">
-            <HistoryPanel history={history} />
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <NicheInput
+                niche={niche}
+                setNiche={setNiche}
+                subNiche={subNiche}
+                setSubNiche={setSubNiche}
+                handleAnalyze={handleAnalyze}
+                loading={loading}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <ResultsDisplay
+                analysisResults={analysisResults}
+                handleGenerate={handleGenerate}
+                loading={loading}
+              />
+            </div>
           </div>
+          
+          {generatedContent && <GeneratedContentDisplay generatedContent={generatedContent} />}
+
         </div>
       </main>
     </div>
