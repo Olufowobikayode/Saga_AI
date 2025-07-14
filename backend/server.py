@@ -83,7 +83,7 @@ class TrendAnalysis(BaseModel):
 class OracleEngine:
     def __init__(self):
         # Initialize the model once for reuse.
-        self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        self.model = genai.GenerativeModel('gemini-2.5-pro')
 
     async def monitor_niche_trends(self, niche: str, keywords: List[str] = None) -> List[TrendData]:
         trends = []
@@ -98,8 +98,8 @@ class OracleEngine:
                 pytrends.build_payload(kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
                 return pytrends.interest_over_time()
 
-            for i in range(0, min(len(expanded_keywords), 10), 5):
-                keyword_batch = expanded_keywords[i:i+5]
+            for i in range(0, min(len(expanded_keywords), 40), 20):
+                keyword_batch = expanded_keywords[i:i+20]
                 try:
                     interest_data = await asyncio.to_thread(fetch_trends_sync, keyword_batch)
                     if not interest_data.empty:
@@ -126,9 +126,9 @@ class OracleEngine:
 
     def _expand_niche_keywords(self, niche: str, base_keywords: List[str]) -> List[str]:
         niche_expansions = {
-            'fitness': ['workout', 'nutrition', 'supplements', 'training', 'wellness', 'exercise', 'protein', 'cardio'],
-            'crypto': ['bitcoin', 'ethereum', 'defi', 'nft', 'blockchain', 'trading', 'altcoins', 'web3'],
-            'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud', 'api', 'integration'],
+            'fitness': ['workout', 'nutrition', 'supplements', 'training', 'wellness', 'exercise', 'protein', 'cardio', 'HIIT', 'yoga', 'weight loss', 'strength training', 'bodybuilding', 'running', 'home workouts', 'gym near me', 'personal trainer', 'fitness classes', 'diet', 'calories', 'creatine', 'BCAAs', 'pre-workout', 'whey protein', 'fat burner', 'vitamins', 'minerals', 'healthy eating', 'meal plan', 'vegan diet', 'keto diet', 'paleo diet', 'intermittent fasting', 'meditation', 'mindfulness', 'stress management', 'recovery', 'stretching', 'flexibility', 'Pilates', 'Zumba', 'CrossFit', 'cycling', 'swimming', 'functional fitness', 'bodyweight exercise', 'resistance training', 'kettlebell', 'dumbbell', 'barbell', 'calisthenics', 'endurance', 'mobility', 'active recovery', 'foam rolling', 'sports nutrition', 'hydration', 'electrolytes', 'gut health', 'sleep', 'biohacking', 'wearable technology', 'fitness apps', 'corporate wellness', 'senior fitness', 'prenatal fitness', 'postnatal fitness', 'mental health', 'self-care', 'holistic health'],
+            'crypto': ['bitcoin', 'ethereum', 'defi', 'nft', 'blockchain', 'trading', 'altcoins', 'web3', 'cryptocurrency', 'BTC', 'ETH', 'decentralized finance', 'non-fungible token', 'smart contract', 'wallet', 'crypto exchange', 'Binance', 'Coinbase', 'Kraken', 'Solana', 'Cardano', 'Ripple', 'XRP', 'Dogecoin', 'Shiba Inu', 'metaverse', 'dApps', 'yield farming', 'staking', 'liquidity pool', 'mining', 'crypto mining', 'gas fees', 'airdrop', 'ICO', 'initial coin offering', 'stablecoin', 'USDT', 'USDC', 'DAO', 'decentralized autonomous organization', 'Layer 2', 'scalability', 'halving', 'bull market', 'bear market', 'HODL', 'FUD', 'FOMO', 'DYOR', 'technical analysis', 'charting', 'cold storage', 'hot wallet', 'Ledger', 'Trezor', 'public key', 'private key', 'seed phrase', 'tokenomics', 'whitepaper', 'roadmap', 'crypto regulations', 'SEC', 'crypto news', 'crypto influencers', 'play-to-earn', 'P2E', 'move-to-earn', 'M2E', 'NFT marketplace', 'OpenSea', 'Blur', 'memecoin', 'governance token', 'altcoin season', 'crypto portfolio', 'dollar-cost averaging', 'DCA', 'on-chain analysis', 'EVM'],
+            'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud', 'api', 'integration', 'SaaS', 'subscription', 'CRM', 'customer relationship management', 'marketing automation', 'email marketing', 'project management', 'collaboration software', 'HR software', 'accounting software', 'invoicing', 'helpdesk', 'customer support', 'live chat', 'analytics', 'business intelligence', 'dashboard', 'B2B', 'enterprise software', 'SMB', 'small business software', 'startup tools', 'product-led growth', 'PLG', 'freemium', 'free trial', 'demo', 'user onboarding', 'UX', 'UI', 'ARR', 'MRR', 'churn rate', 'customer lifetime value', 'CLV', 'lead generation', 'sales funnel', 'DevOps', 'CI/CD', 'platform as a service', 'PaaS', 'infrastructure as a service', 'IaaS', 'cloud hosting', 'AWS', 'Google Cloud', 'Azure', 'no-code', 'low-code', 'workflow automation', 'API first', 'single sign-on', 'SSO', 'data security', 'uptime', 'SLA', 'vertical SaaS', 'horizontal SaaS', 'microservices', 'ERP', 'enterprise resource planning', 'supply chain management', 'ecommerce platform', 'payment gateway', 'subscription management', 'customer success', 'user retention'],
         }
         expanded = list(set(base_keywords))
         if niche.lower() in niche_expansions:
@@ -142,22 +142,22 @@ class OracleEngine:
 
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
         niche_trends = {
-            'fitness': ["AI-powered fitness tracking wearables", "Plant-based protein alternatives", "Cold plunge therapy for recovery"],
-            'crypto': ["Layer 2 scaling solutions", "Institutional Bitcoin accumulation", "DeFi yield farming strategies"],
-            'saas': ["AI workflow automation tools", "No-code development platforms", "Customer success automation tools"]
+            'fitness': [],
+            'crypto': [],
+            'saas': []
         }
         trends_list = niche_trends.get(niche.lower(), [f"Emerging {niche} market opportunities"])
         return [
             TrendData(
                 niche=niche, title=trend, content=f"High-velocity trend detected: {trend}",
-                source="Oracle Intelligence", trend_score=random.uniform(0.7, 0.95), velocity=random.uniform(0.5, 0.85)
+                source="Oracle Intelligence", trend_score=random.uniform(0.95, 1.5), velocity=random.uniform(0.85, 1)
             ) for trend in trends_list
         ]
 
     async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
         system_prompts = {
             'ad_copy': "You are an expert direct-response copywriter specializing in high-converting ad copy. Create compelling, action-driven advertisements that follow proven frameworks. Focus on benefits, urgency, and clear calls-to-action.",
-            'social_post': "You are a social media expert and viral content strategist. Create engaging, shareable content that resonates with target audiences. Focus on storytelling, value delivery, and authentic connection.",
+            'social_post': "You are a social media expert, graphic design expert, and viral content strategist. Create engaging, shareable content that resonates with target audiences. Focus on storytelling, value delivery, and authentic connection.",
             'affiliate_review': "You are a trusted product reviewer and affiliate marketer. Create honest, detailed reviews that help customers make informed decisions while naturally promoting products. Focus on benefits, addressing objections, and authentic recommendations."
         }
         trend_context = "\n".join([f"- {trend}" for trend in trends])
@@ -169,7 +169,7 @@ class OracleEngine:
             if not response or not hasattr(response, 'text') or not response.text:
                 raise Exception("Empty or invalid response from Gemini API")
             
-            confidence = min(0.95, 0.75 + (len(response.text) / 2000) * 0.2)
+            confidence = min(1.5, 0.95 + (len(response.text) / 3000) * 0.2)
             
             return GeneratedContent(
                 niche=niche, content_type=content_type,
@@ -197,7 +197,7 @@ async def analyze_niche(request: NicheRequest):
             await db.trends.insert_many([t.dict() for t in trends])
 
         top_trends_titles = [trend.title for trend in trends[:5]]
-        forecast_prompt = f"""Based on these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a brief, actionable forecast summary (2-3 sentences) and identify the top 3 business opportunities."""
+        forecast_prompt = f"""Based on these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a brief, actionable forecast summary (2-20 sentences) and identify the top 20 business opportunities."""
         
         forecast_summary = f"Strong momentum detected in {request.niche}."
         try:
@@ -233,8 +233,8 @@ async def get_content_history(niche: str):
 
 @api_router.get("/trends/latest/{niche}")
 async def get_latest_trends(niche: str):
-    cursor = db.trends.find({"niche": niche}).sort("created_at", -1).limit(10)
-    trends = [doc for doc in await cursor.to_list(length=10)]
+    cursor = db.trends.find({"niche": niche}).sort("created_at", -1).limit(20)
+    trends = [doc for doc in await cursor.to_list(length=20)]
     for doc in trends:
         doc['_id'] = str(doc['_id'])
     return {"trends": trends}
