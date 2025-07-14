@@ -435,6 +435,34 @@ async def get_latest_trends(niche: str):
     for doc in trends:
         doc['_id'] = str(doc['_id'])
     return {"trends": trends}
+    
+    # --- ADD THESE TWO NEW ENDPOINTS TO YOUR server.py FILE ---
+
+@api_router.get("/content/all")
+async def get_all_content():
+    """Get all generated content pieces, sorted by most recent."""
+    try:
+        cursor = db.generated_content.find({}).sort("created_at", -1).limit(50)
+        all_content = [doc for doc in await cursor.to_list(length=50)]
+        for doc in all_content:
+            doc['_id'] = str(doc['_id'])
+        return {"all_content": all_content}
+    except Exception as e:
+        logger.error(f"Error fetching all content: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch content history.")
+
+@api_router.get("/trends/all")
+async def get_all_trends():
+    """Get all monitored trends, sorted by most recent."""
+    try:
+        cursor = db.trends.find({}).sort("created_at", -1).limit(100)
+        all_trends = [doc for doc in await cursor.to_list(length=100)]
+        for doc in all_trends:
+            doc['_id'] = str(doc['_id'])
+        return {"all_trends": all_trends}
+    except Exception as e:
+        logger.error(f"Error fetching all trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch trend history.")
 
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats():
