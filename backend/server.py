@@ -8,11 +8,12 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import google.generativeai as genai
 from pytrends.request import TrendReq
 import random
+import certifi # <-- ADDED: For MongoDB SSL connection
 
 # --- INITIAL SETUP ---
 ROOT_DIR = Path(__file__).parent
@@ -30,7 +31,10 @@ try:
     db_name = os.environ['DB_NAME']
     gemini_api_key = os.environ['GEMINI_API_KEY']
 
-    client = AsyncIOMotorClient(mongo_url)
+    # Use certifi to provide the SSL certificate authority file
+    ca = certifi.where()
+    client = AsyncIOMotorClient(mongo_url, tlsCAFile=ca) # <-- MODIFIED: Added tlsCAFile
+    
     db = client[db_name]
     
     genai.configure(api_key=gemini_api_key)
@@ -40,6 +44,10 @@ except KeyError as e:
     raise
 
 # --- Pydantic MODELS ---
+# Using timezone-aware datetimes
+defutcnow():
+    return datetime.now(timezone.utc)
+
 class NicheRequest(BaseModel):
     niche: str
     keywords: List[str] = []
@@ -52,12 +60,12 @@ class TrendData(BaseModel):
     source: str
     trend_score: float
     velocity: float
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 class ForecastRequest(BaseModel):
     niche: str
     trend_data: List[str]
-    content_type: str  # 'ad_copy', 'social_post', 'affiliate_review'
+    content_type: str
 
 class GeneratedContent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -66,7 +74,7 @@ class GeneratedContent(BaseModel):
     title: str
     content: str
     confidence_score: float
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 class TrendAnalysis(BaseModel):
     niche: str
@@ -77,7 +85,7 @@ class TrendAnalysis(BaseModel):
 # --- ORACLE ENGINE CORE ---
 class OracleEngine:
     def __init__(self):
-        # Initialize the Gemini model once for reuse across the application.
+        # Initialize the model once for reuse.
         self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
     async def monitor_niche_trends(self, niche: str, keywords: List[str] = None) -> List[TrendData]:
@@ -89,12 +97,15 @@ class OracleEngine:
             
             expanded_keywords = self._expand_niche_keywords(niche, keywords)
             
+            # Asynchronously run the synchronous pytrends library
+            def fetch_trends_sync(kw_list):
+                pytrends.build_payload(kw_list, cat=0, timeframe='now 1-d', geo='', gprop='')
+                return pytrends.interest_over_time()
+
             for i in range(0, min(len(expanded_keywords), 10), 5):
                 keyword_batch = expanded_keywords[i:i+5]
                 try:
-                    # Using asyncio.to_thread to run the synchronous pytrends library in a non-blocking way
-                    interest_data = await asyncio.to_thread(pytrends.build_payload, keyword_batch, cat=0, timeframe='now 1-d', geo='', gprop='')
-                    interest_data = pytrends.interest_over_time()
+                    interest_data = await asyncio.to_thread(fetch_trends_sync, keyword_batch)
                     
                     if not interest_data.empty:
                         for keyword in keyword_batch:
@@ -105,14 +116,15 @@ class OracleEngine:
                                 trends.append(TrendData(
                                     niche=niche,
                                     title=f"Trending: {keyword}",
-                                    content=f"Search interest for '{keyword}' showing momentum in the {niche} space.",
+                                    content=f"Search interest for '{keyword}' showing momentum.",
                                     source="Google Trends",
-                                    trend_score=avg_score / 100.0,
-                                    velocity=velocity
+                                    trend_score=round(avg_score / 100.0, 3),
+                                    velocity=round(velocity, 3)
                                 ))
                 except Exception as e:
-                    logging.warning(f"Error fetching Google Trends for {keyword_batch}: {e}")
-                await asyncio.sleep(1) # Respect rate limits
+                    logging.warning(f"Could not fetch Google Trends for {keyword_batch}: {e}")
+                await asyncio.sleep(1) # Respect potential rate limits
+
         except Exception as e:
             logging.error(f"Error in trend monitoring: {e}")
         
@@ -127,7 +139,7 @@ class OracleEngine:
             'crypto': ['bitcoin', 'ethereum', 'defi', 'nft', 'blockchain', 'trading', 'altcoins', 'web3'],
             'saas': ['software', 'automation', 'productivity', 'business tools', 'cloud', 'api', 'integration'],
         }
-        expanded = base_keywords.copy()
+        expanded = list(set(base_keywords))
         if niche.lower() in niche_expansions:
             expanded.extend(niche_expansions[niche.lower()])
         return list(set(expanded))
@@ -135,7 +147,7 @@ class OracleEngine:
     def _calculate_velocity(self, values: List[float]) -> float:
         if len(values) < 2: return 0.0
         recent_change = values[-1] - values[0]
-        return max(0, min(1.0, recent_change / 100.0))
+        return max(0.0, min(1.0, recent_change / 100.0))
 
     def _generate_simulated_trends(self, niche: str) -> List[TrendData]:
         niche_trends = {
@@ -154,12 +166,12 @@ class OracleEngine:
     async def generate_content(self, niche: str, trends: List[str], content_type: str) -> GeneratedContent:
         """Generates AI-powered content using the official Google Gemini SDK."""
         system_prompts = {
-            'ad_copy': "You are an expert direct-response copywriter specializing in high-converting ad copy...",
+            'ad_copy': "You are an expert direct-response copywriter...",
             'social_post': "You are a social media expert and viral content strategist...",
             'affiliate_review': "You are a trusted product reviewer and affiliate marketer..."
         }
         trend_context = "\n".join(f"- {trend}" for trend in trends)
-        full_prompt = f"{system_prompts[content_type]}\n\nCreate content for the '{niche}' niche based on these trends:\n{trend_context}"
+        full_prompt = f"{system_prompts.get(content_type, '')}\n\nCreate content for the '{niche}' niche based on these trends:\n{trend_context}"
 
         try:
             response = await self.model.generate_content_async(full_prompt)
@@ -174,7 +186,7 @@ class OracleEngine:
                 content=response.text, confidence_score=confidence
             )
         except Exception as e:
-            logger.error(f"Error generating content with Gemini: {e}")
+            logger.error(f"Error generating content: {e}")
             raise HTTPException(status_code=500, detail="Content generation failed.")
 
 # --- FASTAPI APP AND ROUTER ---
@@ -191,10 +203,10 @@ async def analyze_niche(request: NicheRequest):
     try:
         trends = await oracle.monitor_niche_trends(request.niche, request.keywords)
         if trends:
-            await db.trends.insert_many([trend.dict() for trend in trends])
+            await db.trends.insert_many([t.dict() for t in trends])
 
         top_trends_titles = [trend.title for trend in trends[:5]]
-        forecast_prompt = f"""Based on these top trends in {request.niche}: {', '.join(top_trends_titles)}, provide a brief, actionable forecast summary (2-3 sentences) and identify the top 3 business opportunities."""
+        forecast_prompt = f"""Based on these top trends in '{request.niche}': {', '.join(top_trends_titles)}. Provide a brief, actionable forecast summary (2-3 sentences) and identify the top 3 business opportunities."""
         
         forecast_summary = f"Strong momentum detected in {request.niche}."
         try:
@@ -266,11 +278,16 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     try:
+        # Check database connection on startup
+        await client.admin.command('ping')
+        logger.info("Successfully connected to MongoDB.")
+        
+        # Create indexes
         await db.trends.create_index("niche")
         await db.generated_content.create_index("niche")
-        logger.info("Oracle Engine startup complete - MongoDB initialized.")
+        logger.info("Database indexes ensured.")
     except Exception as e:
-        logger.error(f"Startup error during index creation: {e}")
+        logger.error(f"Startup error: Could not connect to MongoDB or create indexes. {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
