@@ -65,11 +65,21 @@ class TrendAnalysis(BaseModel):
 
 # --- ORACLE ENGINE CORE ---
 class OracleEngine:
+    def class OracleEngine:
     def __init__(self):
         self.gemini_key = os.environ.get('GEMINI_API_KEY')
         if not self.gemini_key:
-            logging.warning("Gemini API key not found")
-        
+            logging.warning("GEMINI_API_KEY environment variable not set.")
+        else:
+            genai.configure(api_key=self.gemini_key)
+        # Initialize Gemini Model
+        self.gemini_model = genai.GenerativeModel('gemini-pro') # Using gemini-pro as a common model
+        # You can also set a specific model for chat if needed:
+        self.chat_model = genai.GenerativeModel('gemini-pro') # Or gemini-pro
+
+        # Initialize Google Places API if you intend to use it later
+        # self.google_places_api_key = os.environ.get('GOOGLE_PLACES_API_KEY')
+        # self.google_places = GooglePlaces(self.google_places_api_key) if self.google_places_api_key else None
     async def monitor_niche_trends(self, niche: str, keywords: List[str] = None) -> List[TrendData]:
         """Monitor trends for a specific niche using Google Trends and simulated data"""
         trends = []
