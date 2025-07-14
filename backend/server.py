@@ -10,7 +10,8 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
 import asyncio
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+fromimport google.generativeai as genai
+from google_places import GooglePlaces, GooglePlacesError # Assuming a typical import structure for this lib
 from pytrends.request import TrendReq
 import random
 import json
