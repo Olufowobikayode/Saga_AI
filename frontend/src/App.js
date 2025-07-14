@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
-import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity, Clock, List, FileText } from 'lucide-react';
+import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css'; // Your custom styles
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
-// --- Reusable Components with Tailwind CSS ---
+// --- Reusable Components ---
 
 const Header = () => (
   <header className="bg-white shadow-md p-4 flex items-center gap-4">
@@ -16,9 +16,8 @@ const Header = () => (
   </header>
 );
 
-// MODIFIED: Added onClick and cursor-pointer for interactivity
-const StatCard = ({ title, value, icon: Icon, onClick }) => (
-  <div onClick={onClick} className={`bg-white p-6 rounded-lg shadow-lg flex items-center justify-between ${onClick ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''}`}>
+const StatCard = ({ title, value, icon: Icon, onClick, active }) => (
+  <div onClick={onClick} className={`bg-white p-6 rounded-lg shadow-lg flex items-center justify-between transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-xl hover:-translate-y-1' : ''} ${active ? 'ring-2 ring-indigo-500' : ''}`}>
     <div>
       <p className="text-sm text-gray-500 font-medium">{title}</p>
       <p className="text-3xl font-bold text-gray-800">{value}</p>
@@ -30,7 +29,7 @@ const StatCard = ({ title, value, icon: Icon, onClick }) => (
 );
 
 const NicheInput = ({ niche, setNiche, subNiche, setSubNiche, handleAnalyze, loading }) => (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
+  <div className="bg-white p-6 rounded-lg shadow-lg">
     <div className="flex flex-col gap-4">
       <div>
         <label htmlFor="niche-input" className="block font-semibold mb-2 text-gray-700">Niche / Market</label>
@@ -95,7 +94,7 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
       
       <div className="mt-6">
         <h3 className="text-xl font-semibold text-gray-700 mb-4">Top 20 Opportunities</h3>
-        <ol className="list-decimal list-inside space-y-2 text-gray-600 max-h-60 overflow-y-auto">
+        <ol className="list-decimal list-inside space-y-2 text-gray-600 max-h-60 overflow-y-auto pr-2">
           {analysisResults?.top_opportunities?.map((opp, i) => <li key={i}>{opp}</li>) || <li>No opportunities generated.</li>}
         </ol>
       </div>
@@ -130,7 +129,6 @@ const ResultsDisplay = ({ analysisResults, handleGenerate, loading }) => {
   );
 };
 
-// BUG FIX: This component is now separate to ensure it re-renders correctly.
 const GeneratedContentDisplay = ({ generatedContent }) => {
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
@@ -180,17 +178,28 @@ const GeneratedContentDisplay = ({ generatedContent }) => {
   );
 };
 
-// NEW: This panel now dynamically displays different types of history.
-const DetailsPanel = ({ view, data }) => (
+const DetailsPanel = ({ view, data, loading }) => (
   <div className="bg-white p-6 rounded-lg shadow-lg">
-    <h2 className="text-xl font-bold mt-0 mb-4 text-gray-800 capitalize">{view.replace('_', ' ')}</h2>
-    {data.length === 0 ? <p className="text-gray-500">No data to display.</p> : (
-      <ul className="space-y-4 max-h-[80vh] overflow-y-auto">
+    <h2 className="text-xl font-bold mt-0 mb-4 text-gray-800 capitalize flex items-center gap-2">
+      <List size={20} />
+      {view.replace(/_/g, ' ')}
+    </h2>
+    {loading ? (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+        <p className="mt-3 text-gray-500">Fetching data...</p>
+      </div>
+    ) : data.length === 0 ? (
+      <p className="text-gray-500">No data to display.</p>
+    ) : (
+      <ul className="space-y-4 max-h-[65vh] overflow-y-auto pr-2">
         {data.map(item => (
-          <li key={item.id || item._id} className="border-b pb-4 last:border-b-0">
-            <div className="font-semibold text-gray-800">{item.title}</div>
+          <li key={item._id || item.id} className="border-b pb-4 last:border-b-0">
+            <div className="font-semibold text-gray-800">{item.title || item}</div>
             <div className="text-sm text-gray-500 capitalize">
-              {view === 'all_trends' ? `Source: ${item.source}` : `Niche: ${item.niche} | Type: ${item.content_type.replace(/_/g, ' ')}`}
+              {view === 'all_trends' && `Source: ${item.source}`}
+              {view === 'all_content' && `Niche: ${item.niche} | Type: ${item.content_type.replace(/_/g, ' ')}`}
+              {view === 'active_niches' && `Niche`}
             </div>
           </li>
         ))}
@@ -199,56 +208,72 @@ const DetailsPanel = ({ view, data }) => (
   </div>
 );
 
-
 // --- Main App Component ---
 function App() {
   const [niche, setNiche] = useState('AI-powered SaaS');
   const [subNiche, setSubNiche] = useState('sales automation, copywriting tools');
-  const [loading, setLoading] = useState({ isAnalyzing: false, isGenerating: false });
+  const [loading, setLoading] = useState({ isAnalyzing: false, isGenerating: false, isFetchingDetails: false });
   const [analysisResults, setAnalysisResults] = useState(null);
   const [generatedContent, setGeneratedContent] = useState(null);
   const [stats, setStats] = useState({ total_trends_monitored: 0, content_pieces_generated: 0, active_niches: [] });
-  const [historyView, setHistoryView] = useState('recent_activity');
-  const [historyData, setHistoryData] = useState([]);
+  
+  const [detailsView, setDetailsView] = useState('active_niches');
+  const [detailsData, setDetailsData] = useState([]);
 
   const fetchDashboardStats = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/dashboard/stats`);
       setStats(response.data);
+      if (detailsView === 'active_niches') {
+        setDetailsData((response.data.active_niches || []).map(niche => ({ title: niche, id: niche })));
+      }
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
   };
+  
+  const handleStatCardClick = async (viewType) => {
+    if (!viewType) return;
+    setDetailsView(viewType);
+    setLoading(prev => ({ ...prev, isFetchingDetails: true }));
+    setDetailsData([]);
 
-  // NEW: Function to fetch different types of history data
-  const fetchHistory = async (type = 'recent_activity') => {
-    setHistoryView(type);
     let endpoint = '';
-    if (type === 'all_trends') {
-      endpoint = '/api/trends/latest/all'; // Assuming a new endpoint for all trends
-    } else if (type === 'all_content') {
-      endpoint = '/api/content/history/all'; // Assuming a new endpoint for all content
-    } else {
-        // For 'recent_activity', we can manage it locally or have a dedicated endpoint
-        // For now, we'll just show an empty state until content is generated
-        setHistoryData([]);
+    let dataKey = '';
+
+    switch (viewType) {
+      case 'all_trends':
+        endpoint = '/api/trends/all';
+        dataKey = 'all_trends';
+        break;
+      case 'all_content':
+        endpoint = '/api/content/all';
+        dataKey = 'all_content';
+        break;
+      case 'active_niches':
+        setDetailsData((stats.active_niches || []).map(niche => ({ title: niche, id: niche })));
+        setLoading(prev => ({ ...prev, isFetchingDetails: false }));
+        return;
+      default:
+        setLoading(prev => ({ ...prev, isFetchingDetails: false }));
         return;
     }
 
     try {
-      // This is a placeholder; you'd need to implement these backend endpoints
-      // const response = await axios.get(`${API_URL}${endpoint}`);
-      // setHistoryData(response.data);
-      toast.success(`Showing ${type.replace('_', ' ')}`);
+      const response = await axios.get(`${API_URL}${endpoint}`);
+      setDetailsData(response.data[dataKey] || []);
+      toast.success(`Showing all ${viewType.split('_')[1]}`);
     } catch (error) {
-      toast.error(`Could not fetch ${type.replace('_', ' ')}.`);
-      console.error(`Error fetching ${type}:`, error);
+      toast.error(`Could not fetch data. Please try again.`);
+      console.error(`Error fetching ${viewType}:`, error);
+    } finally {
+      setLoading(prev => ({ ...prev, isFetchingDetails: false }));
     }
   };
 
-
   useEffect(() => {
     fetchDashboardStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAnalyze = async () => {
@@ -258,8 +283,7 @@ function App() {
     }
     setLoading(prev => ({ ...prev, isAnalyzing: true }));
     setAnalysisResults(null);
-    setGeneratedContent(null); // Clear previous content on new analysis
-    
+    setGeneratedContent(null);
     try {
       const keywordsArray = subNiche.split(',').map(k => k.trim()).filter(k => k);
       const response = await axios.post(`${API_URL}/api/niche/analyze`, { niche: niche.trim(), keywords: keywordsArray });
@@ -283,16 +307,14 @@ function App() {
       return;
     }
     setLoading(prev => ({ ...prev, isGenerating: true }));
-    
+    setGeneratedContent(null); // Clear previous content before generating new
     const trendTitles = analysisResults.trends.map(t => t.title);
-    
     try {
       const response = await axios.post(`${API_URL}/api/content/generate`, {
         niche: niche,
         trend_data: trendTitles,
         content_type: contentType
       });
-      // BUG FIX: Set the generated content so the display component appears
       setGeneratedContent(response.data);
       toast.success(`${contentType.replace(/_/g, ' ')} generated successfully!`);
       fetchDashboardStats();
@@ -311,14 +333,14 @@ function App() {
       <main className="p-4 sm:p-8">
         <div className="max-w-7xl mx-auto flex flex-col gap-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title="Trends Monitored" value={stats.total_trends_monitored} icon={TrendingUp} onClick={() => toast.success('Feature to show all trends coming soon!')} />
-            <StatCard title="Content Generated" value={stats.content_pieces_generated} icon={Copy} onClick={() => toast.success('Feature to show all content coming soon!')} />
-            <StatCard title="Active Niches" value={stats.active_niches.length} icon={Target} onClick={() => toast.success('Feature to show all niches coming soon!')} />
+            <StatCard title="Trends Monitored" value={stats.total_trends_monitored} icon={TrendingUp} onClick={() => handleStatCardClick('all_trends')} active={detailsView === 'all_trends'} />
+            <StatCard title="Content Generated" value={stats.content_pieces_generated} icon={Copy} onClick={() => handleStatCardClick('all_content')} active={detailsView === 'all_content'} />
+            <StatCard title="Active Niches" value={stats.active_niches.length} icon={Target} onClick={() => handleStatCardClick('active_niches')} active={detailsView === 'active_niches'} />
             <StatCard title="System Status" value={"Operational"} icon={Activity} />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-2 flex flex-col gap-8">
               <NicheInput
                 niche={niche}
                 setNiche={setNiche}
@@ -327,18 +349,24 @@ function App() {
                 handleAnalyze={handleAnalyze}
                 loading={loading}
               />
-            </div>
-            <div className="lg:col-span-2">
               <ResultsDisplay
                 analysisResults={analysisResults}
                 handleGenerate={handleGenerate}
                 loading={loading}
               />
             </div>
+            <div className="lg:col-span-1">
+              <DetailsPanel view={detailsView} data={detailsData} loading={loading.isFetchingDetails} />
+            </div>
           </div>
           
-          {/* BUG FIX: This component will now render correctly when generatedContent is set */}
-          {generatedContent && <GeneratedContentDisplay generatedContent={generatedContent} />}
+          {generatedContent && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 lg:col-start-1">
+                    <GeneratedContentDisplay generatedContent={generatedContent} />
+                </div>
+            </div>
+          )}
 
         </div>
       </main>
