@@ -237,7 +237,7 @@ Format as: **Headline** | Body Copy | **CTA**
 
 Make it irresistible and action-oriented.""",
 
-            'social_post': f"""Create viral social media content for the {niche} niche based on these trends:
+            'social_post': f"""Create viral social media content for the {niche} niche based on these trends::
 {trend_context}
 
 Requirements:
@@ -267,38 +267,33 @@ Requirements:
 
 Format as structured review with clear sections and compelling conclusion."""
         }
-        
-        try:
-            # Initialize Gemini chat
-            chat = LlmChat(
-                api_key=self.gemini_key,
-                session_id=f"{content_type}-{uuid.uuid4()}",
-                system_message=system_prompts[content_type]
-            ).with_model("gemini", "gemini-2.5-flash-preview-04-17").with_max_tokens(4096)
-            
-            # Generate content
-            user_message = UserMessage(text=content_prompts[content_type])
-            response = await chat.send_message(user_message)
-            
-            # Check if response is valid
-            if not response:
-                raise Exception("Empty response from Gemini API")
-            
-            # Calculate confidence score based on response length and quality indicators
-            confidence = min(0.95, 0.75 + (len(response) / 2000) * 0.20)
-            
-            return GeneratedContent(
-                niche=niche,
-                content_type=content_type,
-                title=f"{content_type.replace('_', ' ').title()} for {niche}",
-                content=response,
-                confidence_score=confidence
-            )
-            
-        except Exception as e:
-            logging.error(f"Error generating content: {e}")
-            raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
-
+     try:
+                # Use Gemini API directly
+                chat_session = self.chat_model.start_chat(history=[
+                    {"role": "user", "parts": [system_prompts[content_type]]}
+                ])
+                response_obj = await chat_session.send_message(content_prompts[content_type])
+                response_text = response_obj.text # Access the text attribute
+                
+                # Check if response is valid
+                if not response_text:
+                    raise Exception("Empty response from Gemini API")
+                
+                # Calculate confidence score based on response length and quality indicators
+                confidence = min(0.95, 0.75 + (len(response_text) / 2000) * 0.20)
+                
+                return GeneratedContent(
+                    niche=niche,
+                    content_type=content_type,
+                    title=f"{content_type.replace('_', ' ').title()} for {niche}",
+                    content=response_text,
+                    confidence_score=confidence
+                )
+                
+            except Exception as e:
+                logging.error(f"Error generating content: {e}")
+                raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
+    ```
 # Initialize Oracle Engine
 oracle = OracleEngine()
 
@@ -309,7 +304,7 @@ async def root():
     return {"message": "Oracle Engine - AI-Powered Trend Prediction & Content Generation"}
 
 @api_router.post("/niche/analyze", response_model=TrendAnalysis)
-async def analyze_niche(request: NicheRequest):
+    async def analyze_niche(request: NicheRequest):
     """Analyze trends for a specific niche"""
     try:
         # Get trend data
@@ -322,20 +317,19 @@ async def analyze_niche(request: NicheRequest):
         
         # Generate forecast summary using Gemini
         top_trends = [trend.title for trend in trends[:5]]
-        forecast_prompt = f"""Based on these top trends in {request.niche}: {', '.join(top_trends)}, provide a brief, actionable forecast summary (2-3 sentences) and identify the top 3 business opportunities."""
+        forecast_prompt = f"""Based on these top trends in {request.niche}: {', '.join(top_trends)}, provide a brief, actionable forecast summary (2-20 sentences) and identify the top 20 business opportunities."""
         
+        tryforecast_response = ""
         try:
-            chat = LlmChat(
-                api_key=oracle.gemini_key,
-                session_id=f"forecast-{uuid.uuid4()}",
-                system_message="You are a business trend analyst providing concise, actionable insights."
-            ).with_model("gemini", "gemini-2.5-flash-preview-04-17")
-            
-            forecast_response = await chat.send_message(UserMessage(text=forecast_prompt))
+            # Use Gemini API directly for forecast
+            chat_session_forecast = oracle.chat_model.start_chat(history=[
+                {"role": "user", "parts": ["You are a business trend analyst providing concise, actionable insights."]}
+            ])
+            forecast_response_obj = await chat_session_forecast.send_message(forecast_prompt)
+            forecast_response = forecast_response_obj.text # Access the text attribute
         except Exception as e:
             logging.warning(f"Forecast generation failed: {e}")
             forecast_response = f"Strong momentum detected in {request.niche} with {len(trends)} high-velocity trends identified."
-        
         # Extract opportunities
         opportunities = [
             f"Capitalize on {trends[0].title if trends else 'emerging trends'}",
