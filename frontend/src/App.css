@@ -1,16 +1,28 @@
-/* Custom CSS for Oracle Engine - Works with Tailwind */
+/* Custom CSS for Oracle Engine v2 - Works with Tailwind */
 
-/* This ensures that the AI-generated text respects newlines and formatting */
-.results-container pre {
+/* Base overrides for recharts library to match the theme */
+.recharts-wrapper .recharts-cartesian-axis-tick-value {
+  font-size: 0.8rem;
+  fill: #4b5563; /* Tailwind gray-600 */
+}
+
+.recharts-wrapper .recharts-tooltip-wrapper {
+  border-radius: 0.5rem !important;
+  border: 1px solid #e5e7eb !important; /* Tailwind gray-200 */
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+/* This ensures the AI-generated text respects newlines and formatting */
+.results-output pre {
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: inherit; /* Use the same font as the rest of the app */
+  font-family: inherit;
   font-size: 0.95rem;
   line-height: 1.6;
 }
 
-/* Custom styling for the generated code block inside results */
-.results-container code {
+/* Custom styling for the generated code block */
+.results-output code {
   display: block;
   background-color: #1f2937; /* Tailwind gray-800 */
   color: #d1d5db; /* Tailwind gray-300 */
