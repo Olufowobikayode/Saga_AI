@@ -6,6 +6,5 @@ pymongo
 motor
 dnspython
 pydantic
-emergentintegrations
 pytrends
 python-multipart
