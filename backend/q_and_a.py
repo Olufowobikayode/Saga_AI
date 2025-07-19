@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+backend/q_and_a.py
 
 import asyncio
 import logging
