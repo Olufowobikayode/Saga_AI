@@ -8,7 +8,7 @@ from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Optional # Added Optional
 
 # --- MongoDB Imports ---
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 # These define the data structure for our API.
 class NicheStackRequest(BaseModel):
     interest: str
-    product_name: str = None # Optional, for Commerce Stack
+    product_name: Optional[str] = None # Optional, for Commerce Stack
+    user_content_text: Optional[str] = None # New: Optional field for direct text input
+    user_content_url: Optional[str] = None  # New: Optional field for URL input
     # Add other potential inputs here as stacks evolve, e.g., blog_url: str = None
 
 class NicheStackResponse(BaseModel):
@@ -41,7 +43,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-api_router = APIRouter(prefix="/api")
+api_router = APOUTER(prefix="/api") # Corrected typo: APIRouter
 
 # Global variable for MongoDB client and database (initialized in startup event)
 db_client: AsyncIOMotorClient = None
@@ -69,7 +71,11 @@ async def get_idea_stack(request: NicheStackRequest):
         raise HTTPException(status_code=400, detail="The 'interest' field cannot be empty for the Idea Stack.")
     
     logger.info(f"Received Idea Stack request for: {request.interest}")
-    data = await engine.run_idea_stack(request.interest)
+    data = await engine.run_idea_stack(
+        request.interest,
+        user_content_text=request.user_content_text, # Passed new field
+        user_content_url=request.user_content_url   # Passed new field
+    )
     
     # Optional: Save the results to your MongoDB database here
     try:
@@ -95,7 +101,11 @@ async def get_content_stack(request: NicheStackRequest):
         raise HTTPException(status_code=400, detail="The 'interest' field cannot be empty for the Content Stack.")
     
     logger.info(f"Received Content Stack request for: {request.interest}")
-    data = await engine.run_content_stack(request.interest)
+    data = await engine.run_content_stack(
+        request.interest,
+        user_content_text=request.user_content_text, # Passed new field
+        user_content_url=request.user_content_url   # Passed new field
+    )
     
     # Optional: Save the results to your MongoDB database here
     try:
@@ -120,7 +130,11 @@ async def get_commerce_stack(request: NicheStackRequest):
         raise HTTPException(status_code=400, detail="The 'product_name' field is required for the Commerce Stack.")
         
     logger.info(f"Received Commerce Stack request for: {request.product_name}")
-    data = await engine.run_commerce_stack(request.product_name)
+    data = await engine.run_commerce_stack(
+        request.product_name,
+        user_content_text=request.user_content_text, # Passed new field
+        user_content_url=request.user_content_url   # Passed new field
+    )
 
     # Optional: Save the results to your MongoDB database here
     try:
@@ -146,7 +160,11 @@ async def get_strategy_stack(request: NicheStackRequest):
         raise HTTPException(status_code=400, detail="The 'interest' field is required for the Strategy Stack.")
         
     logger.info(f"Received Strategy Stack request for: {request.interest}")
-    data = await engine.run_strategy_stack(request.interest)
+    data = await engine.run_strategy_stack(
+        request.interest,
+        user_content_text=request.user_content_text, # Passed new field
+        user_content_url=request.user_content_url   # Passed new field
+    )
 
     # Optional: Save the results to your MongoDB database here
     try:
