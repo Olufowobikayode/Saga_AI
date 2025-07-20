@@ -1,5 +1,4 @@
-# file: backend/global_ecommerce_scraper.py
-
+--- START OF FILE backend/global_ecommerce_scraper.py ---
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
@@ -99,17 +98,18 @@ class GlobalEcommerceScraper:
         try:
             driver = self._get_driver()
             logger.info(f"Fetching HTML content for {url} via Selenium...")
-            driver.get(url)
+            await asyncio.to_thread(driver.get, url)
             # Wait for some common body element to ensure page is loaded
-            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
+            await asyncio.to_thread(WebDriverWait(driver, 15).until,
+                                   EC.presence_of_element_located((By.TAG_NAME, 'body')))
             await asyncio.sleep(3) # Give extra time for dynamic content
-            return driver.page_source
+            return await asyncio.to_thread(lambda: driver.page_source)
         except Exception as e:
             logger.error(f"Failed to fetch HTML content for {url} with Selenium: {e}")
             return None
         finally:
             if driver:
-                driver.quit()
+                await asyncio.to_thread(driver.quit)
 
     async def _fetch_text_content_aiohttp(self, url: str) -> Optional[str]:
         """Fetches plain text content from a URL using aiohttp."""
@@ -133,6 +133,7 @@ class GlobalEcommerceScraper:
                 full_price_str += '.' + fraction_str.strip()
             return float(full_price_str)
         except (ValueError, TypeError):
+            logger.debug(f"Could not parse price from '{price_str}' (fraction: '{fraction_str}')")
             return 0.0 # Return 0.0 or a sentinel for unparseable prices
 
     def _parse_rating(self, rating_str: str) -> float:
@@ -147,6 +148,7 @@ class GlobalEcommerceScraper:
                 return 4.0 if count > 50 else (3.0 if count > 10 else 0.0) # Heuristic
             return float(rating_str)
         except (ValueError, TypeError):
+            logger.debug(f"Could not parse rating from '{rating_str}'")
             return 0.0
 
     def _parse_sales_history(self, sales_str: str) -> int:
@@ -155,6 +157,7 @@ class GlobalEcommerceScraper:
             sales_str = sales_str.lower().replace('sold', '').replace('+', '').strip()
             return int(sales_str)
         except (ValueError, TypeError):
+            logger.debug(f"Could not parse sales history from '{sales_str}'")
             return 0
 
 
@@ -178,7 +181,8 @@ class GlobalEcommerceScraper:
             if marketplace_domain:
                 # Find the matching config for the provided domain
                 for site_key, config in ECOMMERCE_SITE_CONFIGS.items():
-                    if config["status"] == "enabled" and any(domain_part in marketplace_domain for domain_part in config["domains"]):
+                    # Check if any part of the domain in config matches the provided domain
+                    if config["status"] == "enabled" and any(d in marketplace_domain for d in config["domains"]):
                         target_configs[site_key] = config
                         identified_marketplace = site_key # Track which marketplace was targeted
                         break # Only target one specific marketplace if provided
@@ -194,7 +198,7 @@ class GlobalEcommerceScraper:
                 identified_marketplace = "Multiple (Scraped top results)" # Indicate general search
 
             for site_key, config in target_configs.items():
-                if not config["base_url_template"] or not config["product_item_selector"]:
+                if not config.get("base_url_template") or not config.get("product_item_selector"):
                     logger.warning(f"Skipping {site_key}: Incomplete configuration.")
                     continue
 
@@ -208,48 +212,61 @@ class GlobalEcommerceScraper:
 
                 while len(products_from_site) < max_products and pages_scraped < max_pages_per_site:
                     try:
-                        driver.get(current_url)
-                        WebDriverWait(driver, 20).until(
-                            EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["product_wait_selector"]))
-                        )
+                        await asyncio.to_thread(driver.get, current_url)
+                        await asyncio.to_thread(WebDriverWait(driver, 20).until,
+                                               EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["product_wait_selector"])))
                         await asyncio.sleep(3) # Allow JS to render fully
 
-                        product_elements = driver.find_elements(By.CSS_SELECTOR, config["product_item_selector"])
+                        product_elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["product_item_selector"])
 
                         for el in product_elements:
                             if len(products_from_site) >= max_products:
                                 break
                             
                             try:
-                                title_el = el.find_element(By.CSS_SELECTOR, config["product_title_selector"])
-                                title = title_el.text.strip()
-                                link = title_el.get_attribute(config["product_link_attr"])
+                                title_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_title_selector"])
+                                title = await asyncio.to_thread(lambda: title_els[0].text.strip()) if title_els else "N/A"
+                                link = await asyncio.to_thread(title_els[0].get_attribute, config["product_link_attr"]) if title_els else "N/A"
 
-                                # Price parsing
-                                price_main_el = el.find_elements(By.CSS_SELECTOR, config["product_price_selector"])
-                                price_fraction_el = el.find_elements(By.CSS_SELECTOR, config.get("product_price_fraction_selector", ''))
                                 price = 0.0
-                                if price_main_el:
-                                    price_fraction = price_fraction_el[0].text if price_fraction_el else None
-                                    price = self._parse_price(price_main_el[0].text, price_fraction)
-                                elif config.get("product_price_range_selector"): # For AliExpress style price ranges
-                                     price_range_el = el.find_elements(By.CSS_SELECTOR, config["product_price_range_selector"])
-                                     if price_range_el:
-                                         price_text = price_range_el[0].text.strip()
-                                         # Attempt to extract lowest price from range if present
+                                # Price parsing logic
+                                price_main_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_price_selector"])
+                                if price_main_els:
+                                    price_fraction_els = []
+                                    if config.get("product_price_fraction_selector"):
+                                        price_fraction_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_price_fraction_selector"])
+                                    price_fraction = await asyncio.to_thread(lambda: price_fraction_els[0].text) if price_fraction_els else None
+                                    price = self._parse_price(await asyncio.to_thread(lambda: price_main_els[0].text), price_fraction)
+                                elif config.get("product_price_range_selector"):
+                                     price_range_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_price_range_selector"])
+                                     if price_range_els:
+                                         price_text = await asyncio.to_thread(lambda: price_range_els[0].text.strip())
                                          if '-' in price_text:
                                              price = self._parse_price(price_text.split('-')[0])
                                          else:
                                              price = self._parse_price(price_text)
 
-                                rating_el = el.find_elements(By.CSS_SELECTOR, config["product_rating_selector"])
-                                rating = self._parse_rating(rating_el[0].get_attribute('aria-label') if 'aria-label' in rating_el[0].get_property('outerHTML') else rating_el[0].text) if rating_el else 0.0
+                                rating_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_rating_selector"])
+                                rating = 0.0
+                                if rating_els:
+                                    # Attempt to get aria-label first, then text
+                                    aria_label = await asyncio.to_thread(rating_els[0].get_attribute, 'aria-label')
+                                    if aria_label:
+                                        rating = self._parse_rating(aria_label)
+                                    else:
+                                        rating = self._parse_rating(await asyncio.to_thread(lambda: rating_els[0].text))
                                 
-                                sales_history_el = el.find_elements(By.CSS_SELECTOR, config["product_sales_history_selector"]) if config["product_sales_history_selector"] else []
-                                sales_history = self._parse_sales_history(sales_history_el[0].text) if sales_history_el else 0
+                                sales_history = 0
+                                if config["product_sales_history_selector"]:
+                                    sales_history_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_sales_history_selector"])
+                                    if sales_history_els:
+                                        sales_history = self._parse_sales_history(await asyncio.to_thread(lambda: sales_history_els[0].text))
 
-                                seller_name_el = el.find_elements(By.CSS_SELECTOR, config["seller_name_selector"]) if config["seller_name_selector"] else []
-                                seller_name = seller_name_el[0].text.strip() if seller_name_el else "N/A"
+                                seller_name = "N/A"
+                                if config["seller_name_selector"]:
+                                    seller_name_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["seller_name_selector"])
+                                    if seller_name_els:
+                                        seller_name = await asyncio.to_thread(lambda: seller_name_els[0].text.strip())
 
                                 products_from_site.append({
                                     "title": title,
@@ -261,37 +278,42 @@ class GlobalEcommerceScraper:
                                     "source_marketplace": site_key
                                 })
                             except Exception as item_e:
-                                # logger.debug(f"Could not parse all details for a product item on {site_key}: {item_e}")
+                                logger.debug(f"Could not parse all details for a product item on {site_key}: {item_e}")
                                 continue # Skip malformed product entries
                         
                         pages_scraped += 1
                         # Check for next page
-                        next_page_elements = driver.find_elements(By.CSS_SELECTOR, config["next_page_selector"])
-                        if next_page_elements and next_page_elements[0].is_displayed() and next_page_elements[0].get_attribute('href'):
-                            current_url = next_page_elements[0].get_attribute('href')
+                        next_page_elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["next_page_selector"])
+                        if next_page_elements and await asyncio.to_thread(next_page_elements[0].is_displayed) and await asyncio.to_thread(next_page_elements[0].get_attribute, 'href'):
+                            current_url = await asyncio.to_thread(next_page_elements[0].get_attribute, 'href')
                             logger.info(f"Navigating to next page on {site_key}: {current_url}")
                         else:
                             logger.info(f"No more pages found or last page reached on {site_key}.")
                             break # No next page
                         
                     except Exception as e_page:
-                        logger.error(f"Error scraping page {pages_scraped+1} on {site_key}: {e_page}")
+                        logger.error(f"Error scraping page {pages_scraped+1} on {site_key} for query '{product_query}'. Error: {e_page}")
                         break # Stop if page scraping fails
 
                 all_products.extend(products_from_site)
 
         except Exception as e:
-            logger.error(f"Overall error during marketplace scraping: {e}")
+            logger.error(f"Overall error during marketplace scraping for '{product_query}': {e}")
         finally:
             if driver:
-                driver.quit()
+                await asyncio.to_thread(driver.quit)
         
         # Filter for at least 4-star rating and sort:
         # Sort by rating (desc), then sales history (desc), then price (asc)
-        filtered_products = [p for p in all_products if p['rating'] >= 4.0]
+        filtered_products = [p for p in all_products if p['rating'] >= 4.0 and p['price'] > 0] # Ensure price is valid
         sorted_products = sorted(filtered_products, 
                                  key=lambda x: (x['rating'], x['sales_history_count'], x['price']), 
-                                 reverse=True) # Reverse rating and sales history, price asc (implicitly)
+                                 reverse=True) # Reverse rating and sales history, price asc (implicitly because it's last in tuple and reverse=True only applies to entire tuple)
+        
+        # Correct sorting for price (ascending) while others are descending
+        # We need a custom sort key or sort in multiple passes
+        sorted_products = sorted(filtered_products, 
+                                 key=lambda x: (-x['rating'], -x['sales_history_count'], x['price']))
         
         return {
             "products": sorted_products[:max_products], # Return up to max_products
@@ -305,13 +327,15 @@ class GlobalEcommerceScraper:
         Uses aiohttp for lighter fetching, but falls back to Selenium if needed.
         """
         logger.info(f"Attempting to fetch user store content from: {user_store_url}")
+        
+        # First attempt with aiohttp for performance
         content = await self._fetch_text_content_aiohttp(user_store_url)
         if content:
             # Use BeautifulSoup to clean up HTML tags for AI readability
             soup = BeautifulSoup(content, 'html.parser')
             for script_or_style in soup(["script", "style"]): # Remove script and style tags
                 script_or_style.decompose()
-            text = soup.get_text()
+            text = await asyncio.to_thread(lambda: soup.get_text())
             # Break into lines and remove leading/trailing space on each.
             lines = (line.strip() for line in text.splitlines())
             # Break multi-headlines into a line each.
@@ -321,12 +345,13 @@ class GlobalEcommerceScraper:
             return text_content[:15000] # Return first 15KB of cleaned text
         else:
             logger.warning(f"Could not fetch user store content with aiohttp, attempting Selenium for {user_store_url}")
+            # Fallback to Selenium if aiohttp fails (e.g., for JS-rendered content)
             content = await self._fetch_html_content_selenium(user_store_url)
             if content:
                 soup = BeautifulSoup(content, 'html.parser')
                 for script_or_style in soup(["script", "style"]):
                     script_or_style.decompose()
-                text = soup.get_text()
+                text = await asyncio.to_thread(lambda: soup.get_text())
                 lines = (line.strip() for line in text.splitlines())
                 chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
                 text_content = '\n'.join(chunk for chunk in chunks if chunk)
@@ -335,6 +360,10 @@ class GlobalEcommerceScraper:
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
+    import os # Added import
+    from dotenv import load_dotenv # Added import
+    load_dotenv() # Load .env for local testing
+
     scraper = GlobalEcommerceScraper()
     
     print("\n--- Scraping Amazon.com for 'Bluetooth headphones' ---")
@@ -359,3 +388,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+--- END OF FILE backend/global_ecommerce_scraper.py ---
