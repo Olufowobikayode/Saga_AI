@@ -1,10 +1,11 @@
-# file: backend/ecommerce_audit_analyzer.py
-
+--- START OF FILE backend/ecommerce_audit_analyzer.py ---
 import asyncio
 import logging
 import json
+import os # Added import for os
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
+from urllib.parse import urlparse # Added import for urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -18,7 +19,7 @@ class EcommerceAuditAnalyzer:
     and publicly available scraped data. It does NOT process private financial files.
     """
     def __init__(self, gemini_api_key: str):
-        genai.configure(api_key=gemini_api_key)
+        genai.configure(api_key=gemini_api_key) # Corrected typo from previous version
         self.model = genai.GenerativeModel('gemini-2.5-pro')
         self.global_scraper = GlobalEcommerceScraper() # Use the dedicated global scraper
 
@@ -28,12 +29,15 @@ class EcommerceAuditAnalyzer:
             response = await self.model.generate_content_async(prompt)
             json_str = response.text.strip().removeprefix('```json').removesuffix('```').strip()
             return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"AI response was not valid JSON: {json_str[:500]}... Error: {e}")
+            return {"error": "AI response parsing failed: Invalid JSON.", "details": str(e), "raw_response_snippet": json_str[:500]}
         except Exception as e:
-            logger.error(f"Failed to generate or parse AI JSON response: {e}")
-            return {"error": "AI generation or parsing failed.", "details": str(e)}
+            logger.error(f"Failed to generate AI response: {e}")
+            return {"error": "AI generation failed.", "details": str(e)}
 
     async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
-        """Helper to generate AI instruction for mimicking user tone."""
+        """Helper to generate AI instruction for mimicking user tone by fetching and processing user content."""
         user_input_content_for_ai = None
         if user_content_text:
             user_input_content_for_ai = user_content_text
@@ -69,7 +73,7 @@ class EcommerceAuditAnalyzer:
                                      ads_daily_budget: Optional[float] = 10.0,
                                      number_of_days: Optional[int] = 30,
                                      amount_to_buy: Optional[int] = None, # Quantity for profitability calc
-                                     email_for_report: Optional[str] = None) -> Dict:
+                                     email_for_report: Optional[str] = None) -> Dict: # Kept for API consistency
         """
         Orchestrates the AI-driven audit and strategy generation for an e-commerce business.
         """
@@ -87,15 +91,20 @@ class EcommerceAuditAnalyzer:
 
         marketplace_sourcing_data = {"products": [], "identified_marketplace": "N/A"}
         if marketplace_link:
-            parsed_url = urlparse(marketplace_link)
-            domain = parsed_url.netloc
-            marketplace_sourcing_data = await self.global_scraper.scrape_marketplace_listings(
-                product_name, domain, max_products=10 # Get top 10 for sourcing suggestions
-            )
-            logger.info(f"Retrieved {len(marketplace_sourcing_data['products'])} products from marketplace.")
+            try:
+                parsed_url = urlparse(marketplace_link)
+                domain = parsed_url.netloc
+                marketplace_sourcing_data = await self.global_scraper.scrape_marketplace_listings(
+                    product_name, domain, max_products=10 # Get top 10 for sourcing suggestions
+                )
+                logger.info(f"Retrieved {len(marketplace_sourcing_data['products'])} products from marketplace '{marketplace_sourcing_data['identified_marketplace']}'.")
+            except Exception as e:
+                logger.error(f"Failed to scrape marketplace link {marketplace_link}: {e}")
+        else:
+            logger.info("No marketplace link provided for sourcing analysis.")
         
         # --- Basic Profitability Calculation (Conceptual, not real audit) ---
-        total_ad_spend = ads_daily_budget * number_of_days if ads_daily_budget and number_of_days else 0
+        total_ad_spend = (ads_daily_budget or 0.0) * (number_of_days or 0)
         
         potential_revenue = 0.0
         potential_cost_of_goods = 0.0
@@ -103,12 +112,21 @@ class EcommerceAuditAnalyzer:
         # Use the lowest cost product found as potential sourcing price
         lowest_sourcing_price = float('inf')
         if marketplace_sourcing_data['products']:
-            lowest_sourcing_price = min(p['price'] for p in marketplace_sourcing_data['products'] if p['price'] > 0)
+            valid_prices = [p['price'] for p in marketplace_sourcing_data['products'] if p['price'] > 0]
+            if valid_prices:
+                lowest_sourcing_price = min(valid_prices)
+            else:
+                logger.warning("No valid product prices found in scraped marketplace data.")
         
-        if product_selling_price and amount_to_buy:
+        # Ensure product_selling_price and amount_to_buy are not None before multiplication
+        if product_selling_price is not None and amount_to_buy is not None:
             potential_revenue = product_selling_price * amount_to_buy
             if lowest_sourcing_price != float('inf'):
                 potential_cost_of_goods = lowest_sourcing_price * amount_to_buy
+            else:
+                logger.warning("Lowest sourcing price not available, cost of goods set to 0.")
+        else:
+            logger.warning("Product selling price or amount to buy not provided, profitability calculation skipped.")
         
         estimated_gross_profit = potential_revenue - potential_cost_of_goods
         estimated_net_profit_before_fees = estimated_gross_profit - total_ad_spend
@@ -120,10 +138,10 @@ class EcommerceAuditAnalyzer:
         --- USER'S BUSINESS CONTEXT ---
         Product Name: {product_name}
         User's Store URL (for general content audit): {user_store_url if user_store_url else 'Not provided'}
-        User's Desired Selling Price: ${product_selling_price if product_selling_price else 'N/A'}
+        User's Desired Selling Price: ${product_selling_price if product_selling_price is not None else 'N/A'}
         Planned Social Platforms for Selling: {', '.join(social_platforms_to_sell) if social_platforms_to_sell else 'N/A'}
-        Planned Ad Spend: ${ads_daily_budget} daily for {number_of_days} days (Total estimated ad spend: ${total_ad_spend})
-        Desired Quantity to Buy (from supplier): {amount_to_buy if amount_to_buy else 'N/A'}
+        Planned Ad Spend: ${ads_daily_budget} daily for {number_of_days} days (Total estimated ad spend: ${total_ad_spend:.2f})
+        Desired Quantity to Buy (from supplier): {amount_to_buy if amount_to_buy is not None else 'N/A'}
 
         --- SCRAPED MARKETPLACE SOURCING DATA ---
         Identified Sourcing Marketplace: {marketplace_sourcing_data['identified_marketplace']}
@@ -133,8 +151,8 @@ class EcommerceAuditAnalyzer:
         --- BASIC FINANCIAL PROJECTION (CONCEPTUAL AUDIT) ---
         **IMPORTANT NOTE: This is a simplified, theoretical projection based ONLY on the numbers you provided and scraped public data. It is NOT a real financial audit from private account files (PDFs, CSVs). Real audit requires structured accounting data.**
         Estimated Lowest Sourcing Cost per Unit (from scraped data): ${lowest_sourcing_price:.2f} (if available, else N/A)
-        Estimated Total Revenue (if all {amount_to_buy if amount_to_buy else 'N/A'} units sell at ${product_selling_price if product_selling_price else 'N/A'}): ${potential_revenue:.2f}
-        Estimated Total Cost of Goods (if buying {amount_to_buy if amount_to_buy else 'N/A'} units): ${potential_cost_of_goods:.2f}
+        Estimated Total Revenue (if all {amount_to_buy if amount_to_buy is not None else 'N/A'} units sell at ${product_selling_price if product_selling_price is not None else 'N/A'}): ${potential_revenue:.2f}
+        Estimated Total Cost of Goods (if buying {amount_to_buy if amount_to_buy is not None else 'N/A'} units): ${potential_cost_of_goods:.2f}
         Estimated Gross Profit (before ads/fees): ${estimated_gross_profit:.2f}
         Estimated Net Profit (after ads, before other fees like marketplace commissions, shipping, payment processing): ${estimated_net_profit_before_fees:.2f}
 
@@ -158,7 +176,7 @@ class EcommerceAuditAnalyzer:
             }},
             "marketing_sales_strategy": {{
                 "market_opportunity": "Identify potential market gaps or high-demand areas for the product.",
-                "social_platform_strategy": "Detailed strategy for selling on {social_platforms_to_sell} including content ideas, engagement tactics, and funnel stages.",
+                "social_platform_strategy": "Detailed strategy for selling on {', '.join(social_platforms_to_sell) if social_platforms_to_sell else 'N/A'} including content ideas, engagement tactics, and funnel stages.",
                 "ads_optimization": "Advice on optimizing the ${ads_daily_budget} daily ad spend for {number_of_days} days, targeting, and A/B testing.",
                 "scaling_strategies": "Recommendations to scale sales beyond initial projections."
             }},
@@ -174,25 +192,18 @@ class EcommerceAuditAnalyzer:
         """
         
         response_data = await self._generate_json_response(prompt)
-
-        # In a real application, you would now trigger the email sending.
-        # This is a placeholder for that functionality.
-        if email_for_report and "report_summary_text" in response_data:
-            logger.info(f"Simulating sending e-commerce audit report to {email_for_report}...")
-            # Here, you'd integrate with an email sending service/library (e.g., SendGrid, Mailgun, smtplib)
-            # You would need to configure email credentials securely.
-            # Example: await send_email(email_for_report, "Your E-commerce Audit Report", response_data["report_summary_text"])
-            logger.warning(f"Email sending functionality is a placeholder. Report text for {email_for_report} would be sent.")
+        
+        # The frontend will be responsible for displaying 'report_summary_text'
+        # or other parts of the JSON response for copying.
         
         return response_data
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
     # Make sure you have your GEMINI_API_KEY set as an environment variable
-    # For local testing, you might need to install python-dotenv and load_dotenv()
-    # import os
-    # from dotenv import load_dotenv
-    # load_dotenv()
+    from dotenv import load_dotenv # Added import
+    load_dotenv() # Load .env file
+    
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
         print("GEMINI_API_KEY not found. Please set it as an environment variable.")
@@ -210,13 +221,20 @@ async def main():
         "ads_daily_budget": 15.0,
         "number_of_days": 60,
         "amount_to_buy": 100,
-        "email_for_report": "testuser@example.com"
+        # "email_for_report": "testuser@example.com" # Removed as email sending is no longer handled here
     }
 
     print(f"Running E-commerce Audit for: {user_request_data['product_name']}")
     audit_results = await analyzer.run_audit_and_strategy(**user_request_data)
     print("\n--- E-commerce Audit Results ---")
     print(json.dumps(audit_results, indent=2))
+    
+    # Display the summary text for copying in the example usage
+    if "report_summary_text" in audit_results:
+        print("\n--- Report Summary (for copying) ---")
+        print(audit_results["report_summary_text"])
+
 
 if __name__ == "__main__":
     asyncio.run(main())
+--- END OF FILE backend/ecommerce_audit_analyzer.py ---
