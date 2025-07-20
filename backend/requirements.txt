@@ -13,6 +13,8 @@ certifi
 google-generativeai
 pytrends>=4.9.0
 pandas>=2.2.0
+selenium # Added explicitly for clarity, though webdriver-manager installs it
+webdriver-manager # Used for managing Chrome driver versions
 
 # Utilities
 python-dotenv>=1.0.1
