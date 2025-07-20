@@ -3,18 +3,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
-import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity, List } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Target, Search, Wand2, TrendingUp, Copy, Brain, Activity, List, Home } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import '../App.css'; // Import custom styles for recharts and code blocks
+import '../App.css'; // Import custom styles
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
-// --- Reusable Components (Defined within this file for simplicity) ---
+// --- Reusable Components (Defined within this file for clarity) ---
 
-const Header = () => (
-  <header className="bg-white shadow-md p-4 flex items-center gap-4">
-    <Target size={32} className="text-indigo-600" />
-    <h1 className="text-2xl font-bold text-gray-800">NicheStack AI - App</h1>
+const AppHeader = () => (
+  <header className="bg-white shadow-md p-4 flex items-center justify-between">
+    <div className="flex items-center gap-4">
+      <Brain size={32} className="text-indigo-600" />
+      <h1 className="text-2xl font-bold text-gray-800">NicheStack AI App</h1>
+    </div>
+    <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-indigo-600 font-semibold transition-colors">
+      <Home size={18} />
+      <span>Back to Homepage</span>
+    </Link>
   </header>
 );
 
@@ -254,7 +261,7 @@ function AppPage() {
         setLoading(prev => ({ ...prev, isFetchingDetails: false }));
         return;
     }
-
+    
     if (viewType === 'all_trends') {
         endpoint = '/api/trends/all';
         dataKey = 'all_trends';
@@ -329,7 +336,7 @@ function AppPage() {
   
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header />
+      <AppHeader />
       <main className="p-4 sm:p-8">
         <div className="max-w-7xl mx-auto flex flex-col gap-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
