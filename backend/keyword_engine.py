@@ -1,10 +1,10 @@
-# file: backend/keyword_engine.py
-
+--- START OF FILE backend/keyword_engine.py ---
 import asyncio
 import logging
+import json # Added for potential future JSON parsing in errors, or if _generate_json_response were here
 from typing import List, Dict, Any
 from urllib.parse import quote_plus
-import os
+import os # Added import for os
 import aiohttp # Asynchronous HTTP client for API calls
 
 from pytrends.request import TrendReq
@@ -12,8 +12,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait # Corrected: Added import for WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC # Corrected: Added import for expected_conditions (EC)
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +39,12 @@ class KeywordEngine:
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
+        options.add_experimental_option('excludeSwitches', ['enable-logging']) # Suppress console logs from Chrome
         service = Service(ChromeDriverManager().install())
         return webdriver.Chrome(service=service, options=options)
 
     async def _run_in_executor(self, sync_func, *args, **kwargs) -> Any:
-        """Runs a synchronous function in a separate thread."""
+        """Runs a synchronous function in a separate thread to prevent blocking the event loop."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: sync_func(*args, **kwargs))
     
@@ -65,7 +66,8 @@ class KeywordEngine:
             if rising is not None and not rising.empty:
                 data["rising"] = rising['query'].tolist()[:5]
         except Exception as e:
-            logger.error(f"Pytrends API failed: {e}")
+            logger.error(f"Pytrends API failed for interest '{interest}': {e}")
+            data["error"] = str(e)
         return data
 
     # --- Data Source Method: KeywordTool.io (API) ---
@@ -76,7 +78,7 @@ class KeywordEngine:
         """
         api_key = API_KEYS.get("KEYWORDTOOL_IO_API_KEY")
         if not api_key:
-            logger.warning("KeywordTool.io API key not found. Skipping.")
+            logger.warning("KeywordTool.io API key not found. Skipping KeywordTool.io suggestions.")
             return []
             
         logger.info(f"Fetching data from KeywordTool.io API for '{interest}'...")
@@ -85,14 +87,16 @@ class KeywordEngine:
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return [item['string'] for item in data.get('results', {}).get('suggestions', [])[:10]]
-                    else:
-                        logger.error(f"KeywordTool.io API error: {response.status} - {await response.text()}")
+                async with session.get(url, headers=headers, timeout=10) as response:
+                    response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+                    data = await response.json()
+                    return [item['string'] for item in data.get('results', {}).get('suggestions', [])[:10]]
+        except aiohttp.ClientError as e:
+            logger.error(f"KeywordTool.io API request failed for '{interest}': {e}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response from KeywordTool.io API for '{interest}': {e}")
         except Exception as e:
-            logger.error(f"Failed to call KeywordTool.io API: {e}")
+            logger.error(f"An unexpected error occurred calling KeywordTool.io API for '{interest}': {e}")
         return []
 
     # --- Data Source Method: AnswerThePublic (Scraping) ---
@@ -102,21 +106,26 @@ class KeywordEngine:
         NOTE: This site is heavily protected and this scraper is fragile.
         """
         logger.info(f"Scraping AnswerThePublic for '{interest}'...")
-        driver = self._get_driver()
+        driver = None
         questions = []
         try:
+            driver = self._get_driver()
             # The URL structure is simple
-            driver.get(f"https://answerthepublic.com/{quote_plus(interest)}")
+            await asyncio.to_thread(driver.get, f"https://answerthepublic.com/{quote_plus(interest)}")
             # This site uses complex JS, so we wait for a specific data visualization element
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.search-vis-list__item'))
-            )
-            question_elements = driver.find_elements(By.CSS_SELECTOR, '.search-vis-list__item')
-            questions = [el.text for el in question_elements[:10] if el.text]
+            await asyncio.to_thread(WebDriverWait(driver, 20).until,
+                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.search-vis-list__item')))
+            
+            await asyncio.sleep(2) # Allow for final JS rendering
+
+            question_elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, '.search-vis-list__item')
+            questions = [await asyncio.to_thread(lambda: el.text) for el in question_elements[:10] if await asyncio.to_thread(lambda: el.text)]
+            logger.info(f"Found {len(questions)} questions from AnswerThePublic.")
         except Exception as e:
-            logger.warning(f"Failed to scrape AnswerThePublic. This is common due to their anti-bot measures. Error: {e}")
+            logger.warning(f"Failed to scrape AnswerThePublic for '{interest}'. This is common due to their anti-bot measures. Error: {e}")
         finally:
-            driver.quit()
+            if driver:
+                await asyncio.to_thread(driver.quit)
         return questions
 
     # --- Orchestrator Method ---
@@ -146,9 +155,10 @@ class KeywordEngine:
         final_data = {}
         for task_name, result in zip(tasks.keys(), results):
             if isinstance(result, Exception):
-                logger.error(f"Task '{task_name}' failed with an exception: {result}")
+                logger.error(f"Task '{task_name}' failed with an exception for '{interest}': {result}")
                 final_data[task_name] = {"error": str(result)}
             else:
                 final_data[task_name] = result
         
         return final_data
+--- END OF FILE backend/keyword_engine.py ---
