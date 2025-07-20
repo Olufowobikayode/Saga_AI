@@ -1,24 +1,11 @@
 /* file: frontend/src/App.css */
-/* Custom CSS for NicheStack AI App Page - Works with Tailwind */
-
-/* Base overrides for recharts library to match the theme */
-.recharts-wrapper .recharts-cartesian-axis-tick-value {
-  font-size: 0.8rem;
-  fill: #4b5563; /* Tailwind gray-600 */
-}
-
-.recharts-wrapper .recharts-tooltip-wrapper {
-  border-radius: 0.5rem !important;
-  border: 1px solid #e5e7eb !important; /* Tailwind gray-200 */
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  background-color: white !important;
-}
+/* Custom global styles for NicheStack AI */
 
 /* This ensures the AI-generated text in <pre> tags respects newlines and formatting */
 .results-output pre {
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: inherit; /* Use the same font as the rest of the app */
+  font-family: inherit;
   font-size: 0.95rem;
   line-height: 1.6;
   color: #374151; /* Tailwind gray-700 */
