@@ -1,4 +1,5 @@
-/* Custom CSS for Oracle Engine v2 - Works with Tailwind */
+/* file: frontend/src/App.css */
+/* Custom CSS for NicheStack AI App Page - Works with Tailwind */
 
 /* Base overrides for recharts library to match the theme */
 .recharts-wrapper .recharts-cartesian-axis-tick-value {
@@ -10,18 +11,20 @@
   border-radius: 0.5rem !important;
   border: 1px solid #e5e7eb !important; /* Tailwind gray-200 */
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  background-color: white !important;
 }
 
-/* This ensures the AI-generated text respects newlines and formatting */
+/* This ensures the AI-generated text in <pre> tags respects newlines and formatting */
 .results-output pre {
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: inherit;
+  font-family: inherit; /* Use the same font as the rest of the app */
   font-size: 0.95rem;
   line-height: 1.6;
+  color: #374151; /* Tailwind gray-700 */
 }
 
-/* Custom styling for the generated code block */
+/* Custom styling for the generated code block inside results */
 .results-output code {
   display: block;
   background-color: #1f2937; /* Tailwind gray-800 */
