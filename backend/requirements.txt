@@ -16,6 +16,7 @@ pandas>=2.2.0
 selenium
 webdriver-manager
 aiohttp # <--- ADD THIS LINE
+beautifulsoup4
 
 # Utilities
 python-dotenv>=1.0.1
