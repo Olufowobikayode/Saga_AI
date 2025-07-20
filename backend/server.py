@@ -10,6 +10,9 @@ from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any
 
+# --- MongoDB Imports ---
+from motor.motor_asyncio import AsyncIOMotorClient
+
 # --- IMPORT THE MASTER ENGINE ---
 # This is the single point of contact for all application logic.
 from engine import NicheStackEngine
@@ -31,17 +34,6 @@ class NicheStackResponse(BaseModel):
     stack: str
     data: Any
 
-# --- INITIALIZE THE MASTER ENGINE ---
-# This single line creates an instance of your entire application's logic.
-# It reads the API key and initializes all underlying scrapers and AI models.
-gemini_api_key = os.environ.get('GEMINI_API_KEY')
-if not gemini_api_key:
-    logger.error("FATAL: GEMINI_API_KEY environment variable is not set. The engine cannot start.")
-    # Set engine to None so we can handle this gracefully in the API calls.
-    engine = None
-else:
-    engine = NicheStackEngine(gemini_api_key=gemini_api_key)
-
 # --- FastAPI APP AND ROUTER ---
 app = FastAPI(
     title="NicheStack AI",
@@ -50,6 +42,11 @@ app = FastAPI(
 )
 
 api_router = APIRouter(prefix="/api")
+
+# Global variable for MongoDB client and database (initialized in startup event)
+db_client: AsyncIOMotorClient = None
+database = None
+engine: NicheStackEngine = None # Initialize engine as None globally
 
 # --- API HEALTH CHECK ---
 @api_router.get("/")
@@ -60,7 +57,7 @@ async def root():
 # --- STACK ENDPOINTS ---
 # Each endpoint is a clean, simple interface to a complex backend process.
 
-@api_outer.post("/idea-stack", response_model=NicheStackResponse, tags=["Stacks"])
+@api_router.post("/idea-stack", response_model=NicheStackResponse, tags=["Stacks"])
 async def get_idea_stack(request: NicheStackRequest):
     """
     Runs the Idea Stack to discover and validate new business opportunities
@@ -75,7 +72,14 @@ async def get_idea_stack(request: NicheStackRequest):
     data = await engine.run_idea_stack(request.interest)
     
     # Optional: Save the results to your MongoDB database here
-    # await db.idea_results.insert_one({"request": request.dict(), "response": data})
+    try:
+        if database: # Ensure database connection is active
+            await database.idea_results.insert_one({"request": request.dict(), "response": data})
+            logger.info("Idea Stack results saved to MongoDB.")
+        else:
+            logger.warning("MongoDB database not connected. Skipping save operation.")
+    except Exception as e:
+        logger.error(f"Failed to save Idea Stack results to MongoDB: {e}")
     
     return NicheStackResponse(stack="idea", data=data)
 
@@ -92,6 +96,17 @@ async def get_content_stack(request: NicheStackRequest):
     
     logger.info(f"Received Content Stack request for: {request.interest}")
     data = await engine.run_content_stack(request.interest)
+    
+    # Optional: Save the results to your MongoDB database here
+    try:
+        if database:
+            await database.content_results.insert_one({"request": request.dict(), "response": data})
+            logger.info("Content Stack results saved to MongoDB.")
+        else:
+            logger.warning("MongoDB database not connected. Skipping save operation.")
+    except Exception as e:
+        logger.error(f"Failed to save Content Stack results to MongoDB: {e}")
+
     return NicheStackResponse(stack="content", data=data)
 
 @api_router.post("/commerce-stack", response_model=NicheStackResponse, tags=["Stacks"])
@@ -106,6 +121,17 @@ async def get_commerce_stack(request: NicheStackRequest):
         
     logger.info(f"Received Commerce Stack request for: {request.product_name}")
     data = await engine.run_commerce_stack(request.product_name)
+
+    # Optional: Save the results to your MongoDB database here
+    try:
+        if database:
+            await database.commerce_results.insert_one({"request": request.dict(), "response": data})
+            logger.info("Commerce Stack results saved to MongoDB.")
+        else:
+            logger.warning("MongoDB database not connected. Skipping save operation.")
+    except Exception as e:
+        logger.error(f"Failed to save Commerce Stack results to MongoDB: {e}")
+
     return NicheStackResponse(stack="commerce", data=data)
 
 @api_router.post("/strategy-stack", response_model=NicheStackResponse, tags=["Stacks"])
@@ -121,6 +147,17 @@ async def get_strategy_stack(request: NicheStackRequest):
         
     logger.info(f"Received Strategy Stack request for: {request.interest}")
     data = await engine.run_strategy_stack(request.interest)
+
+    # Optional: Save the results to your MongoDB database here
+    try:
+        if database:
+            await database.strategy_results.insert_one({"request": request.dict(), "response": data})
+            logger.info("Strategy Stack results saved to MongoDB.")
+        else:
+            logger.warning("MongoDB database not connected. Skipping save operation.")
+    except Exception as e:
+        logger.error(f"Failed to save Strategy Stack results to MongoDB: {e}")
+
     return NicheStackResponse(stack="strategy", data=data)
 
 # --- Final App Configuration ---
@@ -135,8 +172,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# You can add startup/shutdown events here if needed, for things like connecting to a database
-# @app.on_event("startup")
-# async def startup_event():
-#     # This is where you would traditionally connect to your MongoDB client
-#     pass
+# --- MongoDB Connection Events ---
+@app.on_event("startup")
+async def startup_event():
+    """
+    Connects to MongoDB and initializes the NicheStackEngine when the FastAPI app starts.
+    """
+    global db_client, database, engine
+
+    # 1. Initialize MongoDB Connection
+    mongo_uri = os.environ.get('MONGO_URI')
+    if not mongo_uri:
+        logger.error("FATAL: MONGO_URI environment variable is not set. Database connection skipped.")
+        db_client = None
+        database = None
+    else:
+        try:
+            db_client = AsyncIOMotorClient(mongo_uri)
+            database = db_client.get_database("nichestack_db") # Or your chosen database name
+            # Optional: Ping the database to ensure connection
+            await database.command("ping")
+            logger.info("Successfully connected to MongoDB.")
+        except Exception as e:
+            logger.error(f"Failed to connect to MongoDB: {e}")
+            db_client = None
+            database = None # Ensure database is None if connection fails
+
+    # 2. Initialize the NicheStackEngine
+    gemini_api_key = os.environ.get('GEMINI_API_KEY')
+    if not gemini_api_key:
+        logger.error("FATAL: GEMINI_API_KEY environment variable is not set. AI Engine will not be available.")
+        engine = None
+    else:
+        try:
+            engine = NicheStackEngine(gemini_api_key=gemini_api_key)
+            logger.info("NicheStack AI Engine initialized.")
+        except Exception as e:
+            logger.error(f"Failed to initialize NicheStack AI Engine: {e}")
+            engine = None
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Closes the MongoDB connection when the FastAPI app shuts down.
+    """
+    global db_client
+    if db_client:
+        db_client.close()
+        logger.info("MongoDB connection closed.")
