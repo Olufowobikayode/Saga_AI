@@ -1,3 +1,4 @@
+--- START OF FILE backend/scraper.py ---
 import asyncio
 import logging
 from urllib.parse import quote_plus
@@ -212,4 +213,4 @@ class SagaWebOracle:
         ]
 
         return successful_results
-```
+--- END OF FILE backend/scraper.py ---
