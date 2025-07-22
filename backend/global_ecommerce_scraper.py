@@ -1,6 +1,7 @@
 --- START OF FILE backend/global_ecommerce_scraper.py ---
 import asyncio
 import logging
+import re
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse, quote_plus
 from bs4 import BeautifulSoup
@@ -16,15 +17,11 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 # --- SAGA'S ATLAS OF COMMERCE REALMS ---
-# This sacred scroll maps the pathways and runes needed to divine wisdom from global marketplaces.
-# Saga's Insight: The stability of these runes varies. Those bound to data attributes are strong,
-# while those tied to fleeting styles are as fickle as the winds. They must be checked often.
 ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
-    "amazon": { # A general key for all Amazonian realms
+    "amazon": {
         "status": "enabled",
         "base_url_template": "https://www.amazon.{domain}/s?k={query}",
         "domains": ["com", "co.uk", "de", "fr", "es", "it", "ca", "in", "jp"],
-        # ROBUST SELECTORS: Based on data attributes, less likely to change.
         "product_wait_selector": '[data-cel-widget="search_result_s-result-list"]',
         "product_item_selector": 'div.s-result-item[data-asin]',
         "product_title_selector": 'h2 a.a-link-normal',
@@ -38,7 +35,6 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "status": "enabled",
         "base_url_template": "https://www.ebay.com/sch/i.html?_nkw={query}",
         "domains": ["com"],
-        # STABLE SELECTORS: Based on core item wrappers and info sections.
         "product_wait_selector": '.s-item__info',
         "product_item_selector": '.s-item__wrapper',
         "product_title_selector": '.s-item__title',
@@ -51,23 +47,26 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "status": "enabled",
         "base_url_template": "https://www.aliexpress.com/wholesale?SearchText={query}",
         "domains": ["com"],
-        # FRAGILE SELECTORS: These are auto-generated and will likely break often. High maintenance required.
         "product_wait_selector": 'div[data-role="product-item"]',
         "product_item_selector": 'div[data-role="product-item"]',
-        "product_title_selector": '.manhattan--titleText--2S8kGjB', # Example of fragile, auto-gen class
+        "product_title_selector": 'h3.manhattan--titleText--2S8kGjB', # Class names are fragile
+        "product_link_selector": 'a.manhattan--container--1lP57Ag', # Must select 'a' tag for href
         "product_link_attr": 'href',
-        "product_price_selector": '.manhattan--price-sale--1CCSZfK', # Example of fragile, auto-gen class
-        "product_sales_history_selector": '.manhattan--trade--2cIXdEw', # Example of fragile, auto-gen class
+        "product_price_selector": '.manhattan--price-sale--1CCSZfK',
+        "product_sales_history_selector": '.manhattan--trade--2cIXdEw',
     }
 }
 
 
 class GlobalMarketplaceOracle:
     """
-    A specialized oracle within the SagaEngine, whose sight pierces the veils
-    of global marketplaces. It divines the value, history, and standing of
-    commercial artifacts (products) and their purveyors.
+    A specialized oracle within the SagaEngine. It divines the value, history, and
+    standing of commercial artifacts (products) from global marketplaces.
     """
+
+    def __init__(self):
+        # The __init__ method is now cleaner, as the driver is summoned only when needed.
+        pass
 
     def _get_driver(self) -> webdriver.Chrome:
         """Summons a Chrome spirit for its journey into the realms of commerce."""
@@ -89,7 +88,7 @@ class GlobalMarketplaceOracle:
             logger.info(f"Dispatching Chrome spirit to read the scroll at {url}...")
             await asyncio.to_thread(driver.get, url)
             await asyncio.to_thread(WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, 'body'))))
-            await asyncio.sleep(3) # Allow time for the final verses of the scroll to be written (JS rendering).
+            await asyncio.sleep(3)
             return await asyncio.to_thread(lambda: driver.page_source)
         except Exception as e:
             logger.error(f"The Chrome spirit failed to read the scroll at {url}: {e}")
@@ -98,10 +97,13 @@ class GlobalMarketplaceOracle:
             if driver:
                 await asyncio.to_thread(driver.quit)
 
-    async def _fetch_text_with_aiohttp(self, url: str) -> Optional[str]:
-        """Fetches the raw text of a scroll using a swift raven (aiohttp)."""
+    async def _fetch_html_with_aiohttp(self, url: str) -> Optional[str]:
+        """Fetches the raw HTML of a scroll using a swift raven (aiohttp)."""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+        }
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.get(url, timeout=15) as response:
                     response.raise_for_status()
                     return await response.text()
@@ -113,124 +115,136 @@ class GlobalMarketplaceOracle:
             return None
 
     def _parse_value(self, price_str: str, fraction_str: Optional[str] = None) -> float:
-        """A rune to decipher the value from strings of text."""
+        """A more resilient rune to decipher the value from strings of text."""
+        if not price_str: return 0.0
         try:
-            full_price_str = price_str.replace(',', '').replace('$', '').strip()
+            # Remove all non-digit characters except the decimal point
+            price_text = re.sub(r'[^\d.]', '', price_str)
             if fraction_str:
-                full_price_str += '.' + fraction_str.strip()
-            return float(full_price_str)
+                price_text += '.' + re.sub(r'[^\d]', '', fraction_str)
+            return float(price_text) if price_text else 0.0
         except (ValueError, TypeError):
             logger.debug(f"The value of an artifact was shrouded in mystery: '{price_str}'")
             return 0.0
 
     def _parse_rating(self, rating_str: str) -> float:
         """A rune to decipher the greatness of an artifact from text."""
+        if not rating_str: return 0.0
         try:
-            # Handles "4.5 out of 5 stars" format
-            if "out of 5" in rating_str:
-                return float(rating_str.split(' ')[0])
-            return float(rating_str)
+            # Find the first number (integer or float) in the string
+            match = re.search(r'(\d[\d,.]*)', rating_str.replace(',', '.'))
+            return float(match.group(1)) if match else 0.0
         except (ValueError, TypeError):
             logger.debug(f"The greatness of an artifact was indecipherable: '{rating_str}'")
             return 0.0
 
     def _parse_sales_history(self, sales_str: str) -> int:
-        """A rune to decipher the sales saga of an artifact."""
+        """A more resilient rune to decipher the sales saga of an artifact."""
+        if not sales_str: return 0
         try:
             sales_str = sales_str.lower().replace('sold', '').replace('+', '').replace(',', '').strip()
-            return int(sales_str.split(' ')[0]) # Handle cases like "5k sold"
+            num_part = re.search(r'(\d[\d,.]*)', sales_str)
+            if not num_part: return 0
+            
+            num = float(num_part.group(1))
+            if 'k' in sales_str:
+                num *= 1000
+            elif 'm' in sales_str:
+                num *= 1_000_000
+            return int(num)
         except (ValueError, TypeError):
             logger.debug(f"The sales saga of an artifact was unclear: '{sales_str}'")
             return 0
 
-    async def divine_from_marketplaces(self,
+    async def divine_marketplace_sagas(self, # RENAMED
                                        product_query: str,
                                        marketplace_domain: Optional[str] = None,
-                                       max_products: int = 20,
+                                       max_products: int = 10,
                                        target_country_code: Optional[str] = None) -> Dict:
         """
-        Casts its sight upon one or more configured marketplaces to read the sagas of their artifacts.
+        Casts its sight upon a configured marketplace to read the sagas of its artifacts.
         """
-        driver = None
         all_products = []
         identified_marketplace = "N/A"
 
-        try:
-            driver = self._get_driver()
-            target_configs = {}
-            domain_key = marketplace_domain.split('.')[-1] if marketplace_domain and '.' in marketplace_domain else marketplace_domain
-            
-            # Find the matching config for the provided domain
-            for site_key, config in ECOMMERCE_SITE_CONFIGS.items():
-                if marketplace_domain and site_key in marketplace_domain:
-                    target_configs[site_key] = config
-                    identified_marketplace = site_key
+        # Find the matching config for the provided domain
+        target_config = None
+        if marketplace_domain:
+            for key, config in ECOMMERCE_SITE_CONFIGS.items():
+                if key in marketplace_domain:
+                    target_config = config
+                    identified_marketplace = key
                     break
-            
-            if not target_configs:
-                 logger.warning(f"No configured realm of commerce found for domain: {marketplace_domain}")
-                 return {"products": [], "identified_marketplace": "Unknown Realm"}
+        
+        if not target_config or target_config['status'] != 'enabled':
+             logger.warning(f"No enabled realm of commerce found for domain: {marketplace_domain}")
+             return {"products": [], "identified_marketplace": "Unknown Realm"}
 
-            for site_key, config in target_configs.items():
-                domain_to_use = domain_key if domain_key in config["domains"] else config["domains"][0]
-                url = config["base_url_template"].format(query=quote_plus(product_query), domain=domain_to_use)
-                logger.info(f"Casting gaze upon the realm of {site_key} for artifacts matching '{product_query}'...")
+        domain_parts = urlparse(f"http://{marketplace_domain}").hostname.split('.')
+        tld = domain_parts[-1]
+        domain_to_use = tld if tld in target_config.get("domains", []) else target_config.get("domains", ["com"])[0]
+
+        url = target_config["base_url_template"].format(query=quote_plus(product_query), domain=domain_to_use)
+        logger.info(f"Casting gaze upon the realm of {identified_marketplace} for artifacts matching '{product_query}'...")
+        
+        # UPDATED: Use lighter magic first
+        html = await self._fetch_html_with_aiohttp(url)
+        if not html:
+            html = await self._fetch_html_with_selenium(url)
+        
+        if not html:
+            logger.error(f"Both raven and spirit failed to read the scroll from {url}.")
+            return {"products": [], "identified_marketplace": identified_marketplace}
+
+        soup = BeautifulSoup(html, 'html.parser')
+        product_elements = soup.select(target_config["product_item_selector"])
+
+        for el in product_elements[:max_products]:
+            try:
+                title_el = el.select_one(target_config["product_title_selector"])
+                title = title_el.text.strip() if title_el else "An artifact with no name"
+
+                link_el = el.select_one(target_config.get("product_link_selector", target_config["product_title_selector"]))
+                link = ""
+                if link_el and link_el.has_attr(target_config["product_link_attr"]):
+                    link = link_el[target_config["product_link_attr"]]
                 
-                await asyncio.to_thread(driver.get, url)
-                await asyncio.to_thread(WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["product_wait_selector"]))))
-                await asyncio.sleep(3)
+                # Ensure link is absolute
+                if link and not link.startswith('http'):
+                    base_url = f"https://www.{identified_marketplace}.{domain_to_use}"
+                    link = f"{base_url}{link}"
 
-                product_elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["product_item_selector"])
+                price_main_el = el.select_one(target_config["product_price_selector"])
+                price_fraction_el = el.select_one(target_config.get("product_price_fraction_selector", ""))
+                price_main_text = price_main_el.text if price_main_el else ""
+                price_fraction_text = price_fraction_el.text if price_fraction_el else ""
+                price = self._parse_value(price_main_text, price_fraction_text)
 
-                for el in product_elements[:max_products]:
-                    try:
-                        title_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_title_selector"])
-                        title = await asyncio.to_thread(lambda: title_els[0].text.strip()) if title_els else "An artifact with no name"
-                        link = await asyncio.to_thread(lambda: title_els[0].get_attribute(config["product_link_attr"])) if title_els else "A path unknown"
+                rating_el = el.select_one(target_config.get("product_rating_selector", ""))
+                rating = self._parse_rating(rating_el.text) if rating_el else 0.0
 
-                        # Value (Price) Divination
-                        price_main_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_price_selector"])
-                        price_fraction_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config.get("product_price_fraction_selector", " ")))
-                        price_fraction = await asyncio.to_thread(lambda: price_fraction_els[0].text) if price_fraction_els else None
-                        price = self._parse_value(await asyncio.to_thread(lambda: price_main_els[0].text), price_fraction) if price_main_els else 0.0
+                sales_el = el.select_one(target_config.get("product_sales_history_selector", ""))
+                sales_history = self._parse_sales_history(sales_el.text) if sales_el else 0
 
-                        # Greatness (Rating) Divination
-                        rating_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config.get("product_rating_selector", " ")))
-                        rating_text = await asyncio.to_thread(lambda: rating_els[0].text) if rating_els else ""
-                        rating = self._parse_rating(rating_text)
+                seller_el = el.select_one(target_config.get("seller_name_selector", ""))
+                seller_name = seller_el.text.strip() if seller_el else "An unknown purveyor"
 
-                        # Sales Saga Divination
-                        sales_history = 0
-                        if config.get("product_sales_history_selector"):
-                            sales_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["product_sales_history_selector"]))
-                            sales_text = await asyncio.to_thread(lambda: sales_els[0].text) if sales_els else ""
-                            sales_history = self._parse_sales_history(sales_text)
-                        
-                        seller_name = "An unknown purveyor"
-                        if config.get("seller_name_selector"):
-                            seller_els = await asyncio.to_thread(el.find_elements, By.CSS_SELECTOR, config["seller_name_selector"]))
-                            seller_name = await asyncio.to_thread(lambda: seller_els[0].text.strip()) if seller_els else seller_name
+                if price > 0: # Only add artifacts with a valid price
+                    all_products.append({
+                        "title": title, "price": price, "rating": rating,
+                        "sales_history_count": sales_history, "seller_name": seller_name,
+                        "link": link, "source_marketplace": identified_marketplace
+                    })
+            except Exception as item_e:
+                logger.debug(f"Failed to divine all details for one artifact in {identified_marketplace}: {item_e}")
+                continue
 
-                        all_products.append({
-                            "title": title, "price": price, "rating": rating,
-                            "sales_history_count": sales_history, "seller_name": seller_name,
-                            "link": link, "source_marketplace": site_key
-                        })
-                    except Exception as item_e:
-                        logger.debug(f"Failed to divine all details for one artifact in {site_key}: {item_e}")
-                        continue
-        except Exception as e:
-            logger.error(f"A great disturbance clouded the vision of the marketplaces for '{product_query}': {e}")
-        finally:
-            if driver:
-                await asyncio.to_thread(driver.quit)
-
-        # Saga's Judgment: Filter for worthy artifacts and sort them by greatness, then sales, then value.
-        worthy_artifacts = [p for p in all_products if p['rating'] >= 4.0 and p['price'] > 0]
+        # Sort worthy artifacts by greatness, then sales, then value.
+        worthy_artifacts = [p for p in all_products if p['rating'] >= 4.0]
         sorted_artifacts = sorted(worthy_artifacts, key=lambda x: (-x['rating'], -x['sales_history_count'], x['price']))
         
         return {
-            "products": sorted_artifacts[:max_products],
+            "products": sorted_artifacts,
             "identified_marketplace": identified_marketplace,
             "raw_artifacts_found_count": len(all_products)
         }
@@ -238,24 +252,21 @@ class GlobalMarketplaceOracle:
     async def read_user_store_scroll(self, user_store_url: str) -> Optional[str]:
         """
         Reads the general text from a user's store scroll for the AI to analyze its tone and style.
-        Uses a swift raven (aiohttp) first, falling back to a Chrome spirit for complex scrolls.
         """
         logger.info(f"Attempting to read the user's store scroll from: {user_store_url}")
         
-        content = await self._fetch_text_with_aiohttp(user_store_url)
+        # Use the lighter, faster method first.
+        content = await self._fetch_html_with_aiohttp(user_store_url)
         if not content:
             logger.warning(f"The raven could not read the scroll, dispatching a more powerful Chrome spirit to {user_store_url}")
             content = await self._fetch_html_with_selenium(user_store_url)
 
         if content:
             soup = BeautifulSoup(content, 'html.parser')
-            for script_or_style in soup(["script", "style"]):
-                script_or_style.decompose()
-            text = soup.get_text()
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            clean_text = '\n'.join(chunk for chunk in chunks if chunk)
-            return clean_text[:15000] # Return the first 15,000 characters of the scroll.
+            for tag in soup(["script", "style", "nav", "footer", "header"]):
+                tag.decompose()
+            text = soup.get_text(separator=' ', strip=True)
+            return text[:15000]
         
         return None
 --- END OF FILE backend/global_ecommerce_scraper.py ---
