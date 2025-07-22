@@ -2,10 +2,10 @@
 import asyncio
 import logging
 import json
-import os # Added import for os
+import os
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
-from urllib.parse import urlparse # Added import for urlparse
+from urllib.parse import urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -18,10 +18,11 @@ class EcommerceAuditAnalyzer:
     Performs an AI-driven strategic and operational audit based on user inputs
     and publicly available scraped data. It does NOT process private financial files.
     """
-    def __init__(self, gemini_api_key: str):
-        genai.configure(api_key=gemini_api_key) # Corrected typo from previous version
+    def __init__(self, gemini_api_key: str, global_scraper: Optional[GlobalEcommerceScraper] = None):
+        genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-2.5-pro')
-        self.global_scraper = GlobalEcommerceScraper() # Use the dedicated global scraper
+        # Use provided global_scraper instance if available, otherwise create a new one
+        self.global_scraper = global_scraper if global_scraper else GlobalEcommerceScraper()
 
     async def _generate_json_response(self, prompt: str) -> Dict:
         """Helper to get a structured JSON response from the AI model."""
@@ -36,50 +37,34 @@ class EcommerceAuditAnalyzer:
             logger.error(f"Failed to generate AI response: {e}")
             return {"error": "AI generation failed.", "details": str(e)}
 
-    async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
-        """Helper to generate AI instruction for mimicking user tone by fetching and processing user content."""
-        user_input_content_for_ai = None
-        if user_content_text:
-            user_input_content_for_ai = user_content_text
-            logger.info("Using provided user content text for tone analysis.")
-        elif user_content_url:
-            scraped_content = await self.global_scraper.get_user_store_content(user_content_url) # Use global scraper
-            if scraped_content:
-                user_input_content_for_ai = scraped_content
-                logger.info(f"Using scraped content from URL {user_content_url} for tone analysis.")
-            else:
-                logger.warning(f"Could not fetch content from URL: {user_content_url}. Skipping tone analysis from URL.")
-        
-        if user_input_content_for_ai:
-            return f"""
-            **USER'S WRITING STYLE REFERENCE:**
-            Below is content provided by the user. Carefully analyze its tone, style, vocabulary, sentence structure, and overall communication approach. When generating your response, mimic this writing style to make the output sound more personal, human, and aligned with the user's voice. Pay attention to formality, enthusiasm, directness, and any specific quirks.
-            ---
-            {user_input_content_for_ai}
-            ---
-            """
-        else:
-            logger.info("No user content provided for tone analysis. Using default AI tone.")
-            return ""
+    # Removed _get_user_tone_instruction as it's centralized in engine.py now
+    # This method will now receive the tone instruction string directly.
 
     async def run_audit_and_strategy(self, 
                                      product_name: str,
-                                     user_content_text: Optional[str] = None, 
-                                     user_content_url: Optional[str] = None,
-                                     user_store_url: Optional[str] = None, # User's store for general content audit
-                                     marketplace_link: Optional[str] = None, # For sourcing analysis
+                                     # Tone instruction received directly
+                                     user_tone_instruction: str = "", # New parameter
+                                     # Country context received directly
+                                     target_country_code: Optional[str] = None, # New parameter
+                                     country_name_for_ai: Optional[str] = None, # New parameter
+                                     is_global_search: Optional[bool] = False, # New parameter
+                                     # Original parameters
+                                     user_content_text: Optional[str] = None, # Retained for potential logging/reference, though tone string is primary
+                                     user_content_url: Optional[str] = None,  # Retained for potential logging/reference
+                                     user_store_url: Optional[str] = None,
+                                     marketplace_link: Optional[str] = None,
                                      product_selling_price: Optional[float] = None,
                                      social_platforms_to_sell: Optional[List[str]] = None,
                                      ads_daily_budget: Optional[float] = 10.0,
                                      number_of_days: Optional[int] = 30,
-                                     amount_to_buy: Optional[int] = None, # Quantity for profitability calc
-                                     email_for_report: Optional[str] = None) -> Dict: # Kept for API consistency
+                                     amount_to_buy: Optional[int] = None) -> Dict:
         """
         Orchestrates the AI-driven audit and strategy generation for an e-commerce business.
         """
         logger.info(f"Starting E-commerce Audit & Strategy for product: '{product_name}'")
 
-        user_tone_instruction = await self._get_user_tone_instruction(user_content_text, user_content_url)
+        # user_tone_instruction is now passed directly from the engine.
+        # The user_content_text/url are kept as parameters but are not directly used here for tone analysis.
         
         # --- Data Gathering ---
         user_store_content_sample = "Not provided or could not be scraped."
@@ -95,7 +80,8 @@ class EcommerceAuditAnalyzer:
                 parsed_url = urlparse(marketplace_link)
                 domain = parsed_url.netloc
                 marketplace_sourcing_data = await self.global_scraper.scrape_marketplace_listings(
-                    product_name, domain, max_products=10 # Get top 10 for sourcing suggestions
+                    product_name, domain, max_products=10, # Pass domain directly
+                    target_country_code=target_country_code # Pass country code for localized search
                 )
                 logger.info(f"Retrieved {len(marketplace_sourcing_data['products'])} products from marketplace '{marketplace_sourcing_data['identified_marketplace']}'.")
             except Exception as e:
@@ -109,7 +95,6 @@ class EcommerceAuditAnalyzer:
         potential_revenue = 0.0
         potential_cost_of_goods = 0.0
         
-        # Use the lowest cost product found as potential sourcing price
         lowest_sourcing_price = float('inf')
         if marketplace_sourcing_data['products']:
             valid_prices = [p['price'] for p in marketplace_sourcing_data['products'] if p['price'] > 0]
@@ -118,7 +103,6 @@ class EcommerceAuditAnalyzer:
             else:
                 logger.warning("No valid product prices found in scraped marketplace data.")
         
-        # Ensure product_selling_price and amount_to_buy are not None before multiplication
         if product_selling_price is not None and amount_to_buy is not None:
             potential_revenue = product_selling_price * amount_to_buy
             if lowest_sourcing_price != float('inf'):
@@ -131,9 +115,17 @@ class EcommerceAuditAnalyzer:
         estimated_gross_profit = potential_revenue - potential_cost_of_goods
         estimated_net_profit_before_fees = estimated_gross_profit - total_ad_spend
 
+        # Determine country phrase for AI prompt
+        country_phrase = ""
+        if country_name_for_ai:
+            if is_global_search:
+                country_phrase = "for a global market"
+            else:
+                country_phrase = f"for the {country_name_for_ai} market"
+
         # --- AI Prompt Construction ---
         prompt = f"""
-        You are an experienced e-commerce business consultant and market analyst. Your goal is to provide a detailed audit and actionable strategy for the user's e-commerce venture, based on their provided context and publicly available scraped data.
+        You are an experienced e-commerce business consultant and market analyst. Your goal is to provide a detailed audit and actionable strategy for the user's e-commerce venture, based on their provided context and publicly available scraped data {country_phrase}.
 
         --- USER'S BUSINESS CONTEXT ---
         Product Name: {product_name}
@@ -193,23 +185,23 @@ class EcommerceAuditAnalyzer:
         
         response_data = await self._generate_json_response(prompt)
         
-        # The frontend will be responsible for displaying 'report_summary_text'
-        # or other parts of the JSON response for copying.
-        
         return response_data
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
-    # Make sure you have your GEMINI_API_KEY set as an environment variable
-    from dotenv import load_dotenv # Added import
-    load_dotenv() # Load .env file
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
     
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
         print("GEMINI_API_KEY not found. Please set it as an environment variable.")
         return
 
-    analyzer = EcommerceAuditAnalyzer(gemini_api_key=gemini_api_key)
+    # In standalone testing, we instantiate GlobalEcommerceScraper for the analyzer
+    # In the full app, the engine will pass its shared instance.
+    global_scraper_instance = GlobalEcommerceScraper()
+    analyzer = EcommerceAuditAnalyzer(gemini_api_key=gemini_api_key, global_scraper=global_scraper_instance)
 
     user_request_data = {
         "product_name": "Ergonomic Office Chair",
@@ -221,7 +213,10 @@ async def main():
         "ads_daily_budget": 15.0,
         "number_of_days": 60,
         "amount_to_buy": 100,
-        # "email_for_report": "testuser@example.com" # Removed as email sending is no longer handled here
+        "user_tone_instruction": "Welcome to my store! We sell high-quality, comfortable office furniture designed for productivity and well-being. Our mission is to make your workspace a haven.", # Simulate engine passing tone
+        "target_country_code": "US", # Simulate engine passing country
+        "country_name_for_ai": "United States", # Simulate engine passing country
+        "is_global_search": False, # Simulate engine passing global flag
     }
 
     print(f"Running E-commerce Audit for: {user_request_data['product_name']}")
@@ -229,7 +224,6 @@ async def main():
     print("\n--- E-commerce Audit Results ---")
     print(json.dumps(audit_results, indent=2))
     
-    # Display the summary text for copying in the example usage
     if "report_summary_text" in audit_results:
         print("\n--- Report Summary (for copying) ---")
         print(audit_results["report_summary_text"])
