@@ -1,9 +1,8 @@
-# file: backend/q_and_a.py
-
+--- START OF FILE backend/q_and_a.py ---
 import asyncio
 import logging
-import json
-from typing import List, Dict, Any
+import json # Used for json.dump in main and potentially in AI response helper
+from typing import List, Dict, Any, Callable
 from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
@@ -15,6 +14,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
@@ -65,8 +65,12 @@ class UniversalScraper:
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        service = Service(ChromeDriverManager().install())
-        return webdriver.Chrome(service=service, options=options)
+        try:
+            service = Service(ChromeDriverManager().install())
+            return webdriver.Chrome(service=service, options=options)
+        except Exception as e:
+            logger.error(f"Failed to initialize Chrome driver: {e}")
+            raise
 
     async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 5) -> Dict:
         """Scrapes a single site using a shared, pre-initialized browser instance."""
@@ -74,18 +78,27 @@ class UniversalScraper:
         results = []
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Navigating to {site_key}...")
-            driver.get(url)
+            logger.info(f"Navigating to {site_key} at URL: {url}...")
+            await asyncio.to_thread(driver.get, url)
             
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))
-            )
+            await asyncio.to_thread(WebDriverWait(driver, 15).until,
+                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"])))
             
             await asyncio.sleep(2) # Allow for final JS rendering
             
-            elements = driver.find_elements(By.CSS_SELECTOR, config["item_selector"])
-            results = [el.text.strip() for el in elements[:max_items] if el.text.strip()]
+            elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
+            
+            # Using a list comprehension to process elements, ensuring text retrieval is offloaded
+            for el in elements[:max_items]:
+                text = await asyncio.to_thread(lambda: el.text.strip())
+                if text:
+                    results.append(text)
+            
             logger.info(f"-> Found {len(results)} items from {site_key}.")
+        except TimeoutException:
+            logger.warning(f"-> Timed out waiting for elements on {site_key}. URL: {driver.current_url}")
+        except NoSuchElementException:
+            logger.warning(f"-> Expected elements not found on {site_key}. Selector: {config['wait_selector']} or {config['item_selector']}")
         except Exception as e:
             logger.error(f"-> Failed to scrape {site_key}. Error: {e}")
         
@@ -93,29 +106,38 @@ class UniversalScraper:
 
     async def run_scraping_tasks(self, interest: str) -> List[Dict]:
         """Initializes a single browser and runs scrapers for all enabled sites."""
-        driver = self._get_driver()
-        tasks = []
-        
-        query = f'"{interest}" problem OR "how to"'
-
-        for site_key, config in SITE_CONFIGS.items():
-            if config["status"] == "enabled":
-                tasks.append(self.scrape_site(driver, site_key, query))
-            else:
-                logger.warning(f"Skipping '{site_key}': {config['reason']}")
-
+        driver = None
+        scraped_data = []
         try:
-            scraped_data = await asyncio.gather(*tasks)
+            driver = self._get_driver()
+            tasks = []
+            
+            # A common query string for problem/Q&A sites
+            query = f'"{interest}" problem OR "how to" OR "I need help with" OR "{interest}" issues'
+
+            for site_key, config in SITE_CONFIGS.items():
+                if config["status"] == "enabled":
+                    tasks.append(self.scrape_site(driver, site_key, query))
+                else:
+                    logger.warning(f"Skipping '{site_key}': {config['reason']}")
+
+            scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
+            # Filter out exceptions, keep only successful results
+            scraped_data = [res for res in scraped_data if not isinstance(res, Exception) and res.get('results')]
+
+        except Exception as e:
+            logger.critical(f"Failed to initialize or run universal scraper: {e}")
         finally:
-            logger.info("All scraping tasks complete. Closing browser.")
-            driver.quit()
+            if driver:
+                logger.info("All scraping tasks complete. Closing browser.")
+                await asyncio.to_thread(driver.quit) # Ensure driver is quit in a separate thread
         
-        return [result for result in scraped_data if result.get('results')]
+        return scraped_data
 
 
 async def main(keyword: str):
     """
-    Main orchestrator function.
+    Main orchestrator function for standalone execution.
     """
     logger.info(f"--- STARTING NICHESTACK AI UNIVERSAL SCRAPER ---")
     logger.info(f"Researching keyword: '{keyword}'")
@@ -133,9 +155,12 @@ async def main(keyword: str):
     pprint(final_report)
     
     filename = f"intelligence_report_{keyword.replace(' ', '_')}.json"
-    with open(filename, "w", encoding='utf-8') as f:
-        json.dump(final_report, f, indent=2, ensure_ascii=False)
-    logger.info(f"--- REPORT SAVED TO {filename} ---")
+    try:
+        with open(filename, "w", encoding='utf-8') as f:
+            json.dump(final_report, f, indent=2, ensure_ascii=False)
+        logger.info(f"--- REPORT SAVED TO {filename} ---")
+    except IOError as e:
+        logger.error(f"Failed to save report to file {filename}: {e}")
 
 
 if __name__ == "__main__":
@@ -145,3 +170,4 @@ if __name__ == "__main__":
     
     # This ensures the async main function is run correctly
     asyncio.run(main(args.keyword))
+--- END OF FILE backend/q_and_a.py ---
