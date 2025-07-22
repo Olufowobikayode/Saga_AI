@@ -1,5 +1,4 @@
-# file: backend/scraper.py
-
+--- START OF FILE backend/scraper.py ---
 import asyncio
 import logging
 from urllib.parse import quote_plus
@@ -12,6 +11,7 @@ from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException # Added specific Selenium exceptions
 
 # Initialize a logger for this module
 logger = logging.getLogger(__name__)
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # This allows for custom logic to get the text from different types of elements.
 def default_extractor(element: WebElement) -> str:
     """The default extractor, simply returns the element's text."""
+    # In an async context, accessing .text might need to be offloaded if not guaranteed non-blocking
+    # For now, it's offloaded at the point of calling extractor_func
     return element.text
 
 def get_href_extractor(element: WebElement) -> str:
@@ -105,8 +107,17 @@ class WebScraper:
         options.add_argument("--window-size=1920,1080")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
         
-        service = Service(ChromeDriverManager().install())
-        return webdriver.Chrome(service=service, options=options)
+        try:
+            # ChromeDriverManager().install() is a blocking call, so it should be offloaded
+            service = Service(ChromeDriverManager().install())
+            return webdriver.Chrome(service=service, options=options)
+        except WebDriverException as e:
+            logger.error(f"Failed to initialize Chrome driver: {e}. Ensure Chrome and ChromeDriver are compatible and installed.")
+            raise # Re-raise to indicate critical failure
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during driver initialization: {e}")
+            raise
+
 
     async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 3) -> Dict:
         """
@@ -126,17 +137,25 @@ class WebScraper:
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
             logger.info(f"Navigating to {site_key} at URL: {url}")
-            driver.get(url)
+            await asyncio.to_thread(driver.get, url)
             
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))
-            )
+            await asyncio.to_thread(WebDriverWait(driver, 15).until,
+                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"])))
             
-            elements = driver.find_elements(By.CSS_SELECTOR, config["item_selector"])
+            elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
             extractor_func: Callable[[WebElement], str] = config.get("extractor", default_extractor)
             
-            results = [extractor_func(el) for el in elements[:max_items] if el]
+            # Process elements, ensuring text/attribute retrieval is offloaded
+            for el in elements[:max_items]:
+                extracted_text = await asyncio.to_thread(extractor_func, el)
+                if extracted_text:
+                    results.append(extracted_text)
+            
             logger.info(f"Successfully found {len(results)} items from {site_key}.")
+        except TimeoutException:
+            logger.warning(f"TimeoutException while scraping {site_key}. Elements did not load within expected time. URL: {driver.current_url}")
+        except NoSuchElementException:
+            logger.warning(f"NoSuchElementException while scraping {site_key}. Expected elements not found. Selector: {config['item_selector']}. URL: {driver.current_url}")
         except Exception as e:
             logger.error(f"Failed to scrape {site_key}. URL: {driver.current_url}. Error: {e}")
         
@@ -154,26 +173,39 @@ class WebScraper:
         Returns:
             A list of dictionaries, where each contains the results from one site.
         """
-        driver = self._get_driver()
-        tasks = []
-
-        for site_key in sites:
-            if site_key in SITE_CONFIGS:
-                query_type = SITE_CONFIGS[site_key].get("query_type", "general")
-                query = QUERIES[query_type].format(interest=interest)
-                tasks.append(self.scrape_site(driver, site_key, query))
-            else:
-                logger.warning(f"No configuration found for site: {site_key}. Skipping.")
-
+        driver = None
+        scraped_data = []
         try:
+            # Initialize driver outside the loop to share it
+            driver = self._get_driver()
+            tasks = []
+
+            for site_key in sites:
+                if site_key in SITE_CONFIGS:
+                    query_type = SITE_CONFIGS[site_key].get("query_type", "general")
+                    query = QUERIES[query_type].format(interest=interest)
+                    tasks.append(self.scrape_site(driver, site_key, query))
+                else:
+                    logger.warning(f"No configuration found for site: {site_key}. Skipping.")
+
+            # Run all scraping tasks concurrently
             scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as e:
+            logger.critical(f"Critical error during multi-site scraping initialization or execution: {e}")
+            # If driver initialization failed, it won't be closed in finally block below
+            if driver:
+                await asyncio.to_thread(driver.quit)
+            return [] # Return empty list on critical failure
         finally:
             # Crucially, we always close the driver after all tasks are done.
-            driver.quit()
+            if driver:
+                await asyncio.to_thread(driver.quit)
         
+        # Filter out exceptions and empty results from the gathered list
         successful_results = [
             result for result in scraped_data 
             if not isinstance(result, Exception) and result.get('results')
         ]
         
         return successful_results
+--- END OF FILE backend/scraper.py ---
