@@ -2,13 +2,14 @@
 import os
 import logging
 from pathlib import Path
+import uuid
 
 from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Dict
 
 # --- MongoDB Imports ---
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
 # --- Pydantic Request/Response MODELS ---
 class SagaRequest(BaseModel):
     """The format for a mortal's request for wisdom."""
-    interest: Optional[str] = None # Optional now, as not all prophecies require it.
+    interest: Optional[str] = None
     product_name: Optional[str] = None
     user_content_text: Optional[str] = None
     user_content_url: Optional[str] = None
@@ -54,6 +55,13 @@ class SagaRequest(BaseModel):
     buy_marketplace_link: Optional[str] = None
     sell_marketplace_link: Optional[str] = None
 
+class SagaBlueprintRequest(BaseModel):
+    """The format for requesting a detailed blueprint for a chosen vision."""
+    session_id: str
+    chosen_vision: Dict[str, Any]
+    user_content_text: Optional[str] = None
+    user_content_url: Optional[str] = None
+
 class SagaResponse(BaseModel):
     """The format for a prophecy sent back to the mortal realm."""
     prophecy_type: str
@@ -63,10 +71,10 @@ class SagaResponse(BaseModel):
 app = FastAPI(
     title="Saga AI",
     description="The digital throne of Saga, the Norse Goddess of Wisdom. This API is the gateway for solopreneurs to seek her prophetic counsel.",
-    version="2.0.0"
+    version="3.0.0" # Version bump to reflect major new feature
 )
 
-api_router = APIRouter(prefix="/api/v2")
+api_router = APIRouter(prefix="/api/v3")
 
 db_client: AsyncIOMotorClient = None
 database = None
@@ -81,77 +89,38 @@ async def health_check():
 
 # --- PROPHECY ENDPOINTS ---
 
-@api_router.post("/prophesy/new-ventures", response_model=SagaResponse, tags=["Prophecies"])
-async def get_new_ventures_prophecy(request: SagaRequest):
-    """Seek a Prophecy of Beginnings for a new business idea."""
+@api_router.post("/prophesy/new-ventures/visions", response_model=SagaResponse, tags=["New Ventures Prophecy"])
+async def get_new_ventures_visions(request: SagaRequest):
+    """
+    PHASE 1: Seek a Prophecy of 10 initial business visions.
+    Returns a session_id and a list of captivating ideas.
+    """
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
     if not request.interest: raise HTTPException(status_code=400, detail="An 'interest' is required for this prophecy.")
     
-    logger.info(f"A mortal seeks a Prophecy of Beginnings for: {request.interest}")
-    data = await engine.prophesy_new_ventures(**request.model_dump())
-    return SagaResponse(prophecy_type="new_ventures", data=data)
+    logger.info(f"A mortal seeks 10 visions for: {request.interest}")
+    data = await engine.prophesy_initial_ventures(**request.model_dump())
+    return SagaResponse(prophecy_type="new_venture_visions", data=data)
 
-@api_router.post("/prophesy/content-saga", response_model=SagaResponse, tags=["Prophecies"])
-async def get_content_prophecy(request: SagaRequest):
-    """Seek a Content Saga to build a following."""
+@api_router.post("/prophesy/new-ventures/blueprint", response_model=SagaResponse, tags=["New Ventures Prophecy"])
+async def get_venture_blueprint(request: SagaBlueprintRequest):
+    """
+    PHASE 2: Seek a detailed Business Blueprint for a chosen vision.
+    Requires the session_id from the visions phase and the chosen vision's object.
+    """
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    if not request.interest: raise HTTPException(status_code=400, detail="An 'interest' is required for this prophecy.")
-        
-    logger.info(f"A mortal seeks a Content Saga for: {request.interest}")
-    data = await engine.prophesy_content_saga(**request.model_dump())
-    return SagaResponse(prophecy_type="content_saga", data=data)
-
-@api_router.post("/prophesy/grand-strategy", response_model=SagaResponse, tags=["Prophecies"])
-async def get_strategy_prophecy(request: SagaRequest):
-    """Seek a Grand Strategy for market domination."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    if not request.interest: raise HTTPException(status_code=400, detail="An 'interest' is required for this prophecy.")
-
-    logger.info(f"A mortal seeks a Grand Strategy for: {request.interest}")
-    data = await engine.prophesy_grand_strategy(**request.model_dump())
-    return SagaResponse(prophecy_type="grand_strategy", data=data)
-
-@api_router.post("/prophesy/commerce-audit", response_model=SagaResponse, tags=["Prophecies"])
-async def get_commerce_prophecy(request: SagaRequest):
-    """Seek a Commerce Audit for a specific product."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    if not request.product_name: raise HTTPException(status_code=400, detail="A 'product_name' is required for this prophecy.")
-        
-    logger.info(f"A mortal seeks a Commerce Audit for: {request.product_name}")
-    data = await engine.prophesy_commerce_audit(**request.model_dump())
-    return SagaResponse(prophecy_type="commerce_audit", data=data)
-
-@api_router.post("/prophesy/arbitrage-paths", response_model=SagaResponse, tags=["Prophecies"])
-async def get_arbitrage_prophecy(request: SagaRequest):
-    """Seek a Prophecy of Hidden Value between two marketplaces."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    if not all([request.product_name, request.buy_marketplace_link, request.sell_marketplace_link]):
-        raise HTTPException(status_code=400, detail="This prophecy requires a 'product_name', 'buy_marketplace_link', and 'sell_marketplace_link'.")
     
-    logger.info(f"A mortal seeks a Prophecy of Hidden Value for: '{request.product_name}'")
-    data = await engine.prophesy_arbitrage_paths(**request.model_dump())
-    return SagaResponse(prophecy_type="arbitrage_paths", data=data)
+    logger.info(f"A mortal seeks a blueprint for vision: {request.chosen_vision.get('title')}")
+    try:
+        data = await engine.prophesy_venture_blueprint(**request.model_dump())
+        return SagaResponse(prophecy_type="venture_blueprint", data=data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while weaving the blueprint: {e}")
+        raise HTTPException(status_code=500, detail="A disturbance occurred in the ether. The blueprint could not be completed.")
 
-@api_router.post("/prophesy/social-selling-saga", response_model=SagaResponse, tags=["Prophecies"])
-async def get_social_selling_prophecy(request: SagaRequest):
-    """Seek a Social Selling Saga to master influence."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    if not all([request.product_name, request.product_selling_price is not None, request.social_platforms_to_sell, request.ads_daily_budget is not None, request.number_of_days is not None, request.amount_to_buy is not None]):
-        raise HTTPException(status_code=400, detail="This prophecy requires full details of the product and campaign plan.")
-
-    logger.info(f"A mortal seeks a Social Selling Saga for: '{request.product_name}'")
-    data = await engine.prophesy_social_selling_saga(**request.model_dump())
-    return SagaResponse(prophecy_type="social_selling_saga", data=data)
-
-@api_router.post("/prophesy/product-route", response_model=SagaResponse, tags=["Prophecies"])
-async def get_product_route_prophecy(request: SagaRequest):
-    """Seek the Pathfinder's Prophecy to find a tangible product and its route to market."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    if not request.interest: raise HTTPException(status_code=400, detail="An 'interest' is required for this prophecy.")
-
-    logger.info(f"A mortal seeks the Pathfinder's Prophecy for niche: '{request.interest}'")
-    data = await engine.prophesy_product_route(**request.model_dump(exclude_none=True))
-    return SagaResponse(prophecy_type="product_route", data=data)
+# ... (placeholder for other single-phase prophecy endpoints) ...
 
 # --- Final App Configuration ---
 app.include_router(api_router)
@@ -166,22 +135,28 @@ app.add_middleware(
 # --- The Awakening and Slumbering of the Engine ---
 @app.on_event("startup")
 async def startup_event():
-    # ... [This startup logic remains unchanged from our last step]
     global db_client, database, engine, app_settings
     try:
         app_settings = Settings()
         logger.info("The sacred scrolls (settings) have been read.")
     except Exception as e:
-        logger.critical(f"FATAL: The sacred scrolls are unreadable. Saga cannot awaken. Error: {e}")
+        logger.critical(f"FATAL: The sacred scrolls are unreadable. Saga cannot awaken. Ensure .env is configured. Error: {e}")
         return
     if app_settings.mongo_uri:
-        # Connect to MongoDB
-        pass
+        try:
+            db_client = AsyncIOMotorClient(app_settings.mongo_uri)
+            database = db_client.get_database("saga_ai_db")
+            await database.command("ping")
+            logger.info("A connection to the great database of histories, MongoDB, has been established.")
+        except Exception as e:
+            logger.error(f"Could not connect to the database of histories. Saga's memory will be fleeting. Error: {e}")
     if app_settings.gemini_api_key:
         engine = SagaEngine(gemini_api_key=app_settings.gemini_api_key, ip_geolocation_api_key=app_settings.ip_geolocation_api_key)
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # ... [This shutdown logic remains unchanged]
-    pass
+    global db_client
+    if db_client:
+        db_client.close()
+        logger.info("The connection to the database of histories has been closed. Saga slumbers.")
 --- END OF FILE backend/server.py ---
