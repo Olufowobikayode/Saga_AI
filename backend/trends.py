@@ -2,7 +2,7 @@
 import asyncio
 import logging
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional # Added Optional
 from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
@@ -14,13 +14,17 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException # Added specific Selenium exceptions
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
 logger = logging.getLogger(__name__)
 
 # --- THE MASTER SITE CONFIGURATION for Keyword Tools ---
+# NOTE: For many of these keyword tools, direct URL parameters for country or category
+# filtering are not consistently available or effective through simple scraping.
+# The primary purpose of passing country/category here is for contextual logging and
+# for the AI to interpret the results within that defined scope.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "AnswerThePublic": {
         "status": "enabled",
@@ -68,23 +72,38 @@ class TrendScraper:
         options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
         try:
-            # ChromeDriverManager().install() is a blocking call, so it should be offloaded
             service = Service(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
         except WebDriverException as e:
             logger.error(f"Failed to initialize Chrome driver: {e}. Ensure Chrome and ChromeDriver are compatible and installed.")
-            raise # Re-raise to indicate critical failure
+            raise
         except Exception as e:
             logger.error(f"An unexpected error occurred during driver initialization: {e}")
             raise
 
-    async def _scrape_single_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 10) -> Dict:
+    async def _scrape_single_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 10,
+                                  country_code: Optional[str] = None, country_name: Optional[str] = None, # New parameters
+                                  product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> Dict: # New parameters
         """(Internal) Scrapes one site using a shared browser instance."""
         config = SITE_CONFIGS[site_key]
         results = []
+        
+        # Build contextual log suffix
+        context_suffix = ""
+        if country_name:
+            context_suffix += f" (Country: {country_name}"
+            if country_code:
+                context_suffix += f" - {country_code}"
+            context_suffix += ")"
+        if product_category:
+            context_suffix += f" [Category: {product_category}"
+            if product_subcategory:
+                context_suffix += f" / {product_subcategory}"
+            context_suffix += "]"
+
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Navigating to {site_key} at URL: {url}...")
+            logger.info(f"Navigating to {site_key} at URL: {url}{context_suffix}...")
             await asyncio.to_thread(driver.get, url)
 
             if config.get("input_selector"):
@@ -97,7 +116,7 @@ class TrendScraper:
             
             await asyncio.to_thread(WebDriverWait(driver, 20).until,
                                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"])))
-            await asyncio.sleep(3) # Allow for dynamic content to load
+            await asyncio.sleep(3)
             
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
             
@@ -105,21 +124,23 @@ class TrendScraper:
                 text = await asyncio.to_thread(lambda: el.text)
                 if text:
                     results.append(text)
-            logger.info(f"-> Found {len(results)} keywords from {site_key}.")
+            logger.info(f"-> Found {len(results)} keywords from {site_key}{context_suffix}.")
         except TimeoutException:
-            logger.warning(f"-> Timed out waiting for elements on {site_key}. URL: {driver.current_url}")
+            logger.warning(f"-> Timed out waiting for elements on {site_key}{context_suffix}. URL: {driver.current_url}")
         except NoSuchElementException:
-            logger.warning(f"-> Expected elements not found on {site_key}. Selector: {config['wait_selector']} or {config['item_selector']}")
+            logger.warning(f"-> Expected elements not found on {site_key}{context_suffix}. Selector: {config['wait_selector']} or {config['item_selector']}.")
         except Exception as e:
-            logger.error(f"-> Failed to scrape {site_key}. Error: {e}")
+            logger.error(f"-> Failed to scrape {site_key}{context_suffix}. Error: {e}")
         
         return { "source": site_key, "keywords": results }
 
-    async def run_scraper_tasks(self, keyword: str) -> List[Dict]:
+    async def run_scraper_tasks(self, keyword: str,
+                                country_code: Optional[str] = None, country_name: Optional[str] = None, # New parameters
+                                product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> List[Dict]: # New parameters
         """
         The main public method for this module. It runs scrapers for all 'enabled' tools.
         """
-        logger.info(f"--- Starting Keyword Tool Scraper for '{keyword}' ---")
+        logger.info(f"--- Starting Keyword Tool Scraper for '{keyword}' (Country: {country_name or 'Global'}, Category: {product_category or 'N/A'}) ---")
         driver = None
         scraped_data = []
         try:
@@ -128,34 +149,45 @@ class TrendScraper:
 
             for site_key, config in SITE_CONFIGS.items():
                 if config["status"] == "enabled":
-                    tasks.append(self._scrape_single_site(driver, site_key, keyword))
+                    # Pass all context parameters down to _scrape_single_site
+                    tasks.append(self._scrape_single_site(driver, site_key, keyword,
+                                                          country_code, country_name,
+                                                          product_category, product_subcategory))
                 else:
                     logger.warning(f"Skipping '{site_key}': {config['reason']}")
             
             scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
-            # Filter out exceptions, keep only successful results
             scraped_data = [res for res in scraped_data if not isinstance(res, Exception) and res.get('keywords')]
 
         except Exception as e:
             logger.critical(f"Failed to initialize or run trend scraper: {e}")
-            # If driver initialization failed, it won't be closed in finally block below
             if driver:
                 await asyncio.to_thread(driver.quit)
-            return [] # Return empty list on critical failure
+            return []
         finally:
             if driver:
                 logger.info("All scraping tasks complete. Closing browser.")
-                await asyncio.to_thread(driver.quit) # Ensure driver is quit in a separate thread
+                await asyncio.to_thread(driver.quit)
 
         return scraped_data
 
 async def main(keyword: str):
     """Orchestrator for running this script from the command line."""
+    # For standalone testing, provide sample country and category data
+    sample_country_code = "DE"
+    sample_country_name = "Germany"
+    sample_category = "Software Development"
+    sample_subcategory = "Python"
+
     scraper = TrendScraper()
-    scraped_data = await scraper.run_scraper_tasks(keyword)
+    scraped_data = await scraper.run_scraper_tasks(keyword, sample_country_code, sample_country_name, sample_category, sample_subcategory)
     
     final_report = {
         "keyword": keyword,
+        "country_code": sample_country_code,
+        "country_name": sample_country_name,
+        "product_category": sample_category,
+        "product_subcategory": sample_subcategory,
         "timestamp": datetime.now().isoformat(),
         "keyword_tool_report": scraped_data
     }
@@ -163,7 +195,7 @@ async def main(keyword: str):
     logger.info("--- KEYWORD TOOL REPORT ---")
     pprint(final_report)
     
-    filename = f"keyword_tool_report_{keyword.replace(' ', '_')}.json"
+    filename = f"keyword_tool_report_{keyword.replace(' ', '_')}_{sample_country_code}_{sample_category.replace(' ', '_')}.json"
     try:
         with open(filename, "w", encoding='utf-8') as f:
             json.dump(final_report, f, indent=2, ensure_ascii=False)
