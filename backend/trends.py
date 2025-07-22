@@ -1,5 +1,4 @@
-# file: backend/trends.py
-
+--- START OF FILE backend/trends.py ---
 import asyncio
 import logging
 import json
@@ -15,6 +14,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException # Added specific Selenium exceptions
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
@@ -67,8 +67,16 @@ class TrendScraper:
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        service = Service(ChromeDriverManager().install())
-        return webdriver.Chrome(service=service, options=options)
+        try:
+            # ChromeDriverManager().install() is a blocking call, so it should be offloaded
+            service = Service(ChromeDriverManager().install())
+            return webdriver.Chrome(service=service, options=options)
+        except WebDriverException as e:
+            logger.error(f"Failed to initialize Chrome driver: {e}. Ensure Chrome and ChromeDriver are compatible and installed.")
+            raise # Re-raise to indicate critical failure
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during driver initialization: {e}")
+            raise
 
     async def _scrape_single_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 10) -> Dict:
         """(Internal) Scrapes one site using a shared browser instance."""
@@ -76,21 +84,32 @@ class TrendScraper:
         results = []
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Navigating to {site_key}...")
-            driver.get(url)
+            logger.info(f"Navigating to {site_key} at URL: {url}...")
+            await asyncio.to_thread(driver.get, url)
 
             if config.get("input_selector"):
-                input_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, config["input_selector"])))
-                input_element.send_keys(query)
+                input_element = await asyncio.to_thread(WebDriverWait(driver, 10).until,
+                                                        EC.presence_of_element_located((By.CSS_SELECTOR, config["input_selector"])))
+                await asyncio.to_thread(input_element.send_keys, query)
                 if config.get("submit_selector"):
-                    driver.find_element(By.CSS_SELECTOR, config["submit_selector"]).click()
+                    submit_button = await asyncio.to_thread(driver.find_element, By.CSS_SELECTOR, config["submit_selector"])
+                    await asyncio.to_thread(submit_button.click)
             
-            WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"])))
+            await asyncio.to_thread(WebDriverWait(driver, 20).until,
+                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"])))
             await asyncio.sleep(3) # Allow for dynamic content to load
             
-            elements = driver.find_elements(By.CSS_SELECTOR, config["item_selector"])
-            results = [el.text for el in elements[:max_items] if el.text]
+            elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
+            
+            for el in elements[:max_items]:
+                text = await asyncio.to_thread(lambda: el.text)
+                if text:
+                    results.append(text)
             logger.info(f"-> Found {len(results)} keywords from {site_key}.")
+        except TimeoutException:
+            logger.warning(f"-> Timed out waiting for elements on {site_key}. URL: {driver.current_url}")
+        except NoSuchElementException:
+            logger.warning(f"-> Expected elements not found on {site_key}. Selector: {config['wait_selector']} or {config['item_selector']}")
         except Exception as e:
             logger.error(f"-> Failed to scrape {site_key}. Error: {e}")
         
@@ -101,22 +120,34 @@ class TrendScraper:
         The main public method for this module. It runs scrapers for all 'enabled' tools.
         """
         logger.info(f"--- Starting Keyword Tool Scraper for '{keyword}' ---")
-        driver = self._get_driver()
-        tasks = []
-
-        for site_key, config in SITE_CONFIGS.items():
-            if config["status"] == "enabled":
-                tasks.append(self._scrape_single_site(driver, site_key, keyword))
-            else:
-                logger.warning(f"Skipping '{site_key}': {config['reason']}")
-        
+        driver = None
+        scraped_data = []
         try:
-            scraped_data = await asyncio.gather(*tasks)
-        finally:
-            logger.info("All scraping tasks complete. Closing browser.")
-            driver.quit()
+            driver = self._get_driver()
+            tasks = []
 
-        return [result for result in scraped_data if result.get('keywords')]
+            for site_key, config in SITE_CONFIGS.items():
+                if config["status"] == "enabled":
+                    tasks.append(self._scrape_single_site(driver, site_key, keyword))
+                else:
+                    logger.warning(f"Skipping '{site_key}': {config['reason']}")
+            
+            scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
+            # Filter out exceptions, keep only successful results
+            scraped_data = [res for res in scraped_data if not isinstance(res, Exception) and res.get('keywords')]
+
+        except Exception as e:
+            logger.critical(f"Failed to initialize or run trend scraper: {e}")
+            # If driver initialization failed, it won't be closed in finally block below
+            if driver:
+                await asyncio.to_thread(driver.quit)
+            return [] # Return empty list on critical failure
+        finally:
+            if driver:
+                logger.info("All scraping tasks complete. Closing browser.")
+                await asyncio.to_thread(driver.quit) # Ensure driver is quit in a separate thread
+
+        return scraped_data
 
 async def main(keyword: str):
     """Orchestrator for running this script from the command line."""
@@ -133,9 +164,12 @@ async def main(keyword: str):
     pprint(final_report)
     
     filename = f"keyword_tool_report_{keyword.replace(' ', '_')}.json"
-    with open(filename, "w", encoding='utf-8') as f:
-        json.dump(final_report, f, indent=2, ensure_ascii=False)
-    logger.info(f"--- REPORT SAVED TO {filename} ---")
+    try:
+        with open(filename, "w", encoding='utf-8') as f:
+            json.dump(final_report, f, indent=2, ensure_ascii=False)
+        logger.info(f"--- REPORT SAVED TO {filename} ---")
+    except IOError as e:
+        logger.error(f"Failed to save report to file {filename}: {e}")
 
 
 if __name__ == "__main__":
@@ -143,3 +177,4 @@ if __name__ == "__main__":
     parser.add_argument("keyword", type=str, help="The core keyword or niche to research.")
     args = parser.parse_args()
     asyncio.run(main(args.keyword))
+--- END OF FILE backend/trends.py ---
