@@ -54,10 +54,11 @@ class PriceArbitrageFinder:
         sell_domain = urlparse(sell_marketplace_link).netloc
 
         # RETRIEVAL: Gather the histories from the two marketplaces.
-        buy_task = self.global_scraper.divine_from_marketplaces(
+        # --- UPDATED: Using the new, correct method name ---
+        buy_task = self.global_scraper.divine_marketplace_sagas(
             product_query=product_name, marketplace_domain=buy_domain, max_products=5, target_country_code=target_country_code
         )
-        sell_task = self.global_scraper.divine_from_marketplaces(
+        sell_task = self.global_scraper.divine_marketplace_sagas(
             product_query=product_name, marketplace_domain=sell_domain, max_products=5, target_country_code=target_country_code
         )
 
