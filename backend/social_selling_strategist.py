@@ -1,11 +1,12 @@
-# file: backend/social_selling_strategist.py
-
+--- START OF FILE backend/social_selling_strategist.py ---
 import asyncio
 import logging
 import json
+import os # Added import for os
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
 from pytrends.request import TrendReq # For Google Trends integration
+from urllib.parse import urlparse # Added import for urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -29,40 +30,27 @@ class SocialSellingStrategist:
             response = await self.model.generate_content_async(prompt)
             json_str = response.text.strip().removeprefix('```json').removesuffix('```').strip()
             return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"AI response was not valid JSON: {json_str[:500]}... Error: {e}")
+            return {"error": "AI response parsing failed: Invalid JSON.", "details": str(e), "raw_response_snippet": json_str[:500]}
         except Exception as e:
-            logger.error(f"Failed to generate or parse AI JSON response: {e}")
-            return {"error": "AI generation or parsing failed.", "details": str(e)}
-
-    async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
-        """Helper to generate AI instruction for mimicking user tone."""
-        user_input_content_for_ai = None
-        if user_content_text:
-            user_input_content_for_ai = user_content_text
-        elif user_content_url:
-            scraped_content = await self.global_scraper.get_user_store_content(user_content_url)
-            if scraped_content:
-                user_input_content_for_ai = scraped_content
-        
-        if user_input_content_for_ai:
-            return f"""
-            **USER'S WRITING STYLE REFERENCE:**
-            ---
-            {user_input_content_for_ai}
-            ---
-            When generating your response, adopt the tone, style, and vocabulary found in the above reference content.
-            """
-        return ""
+            logger.error(f"Failed to generate AI response: {e}")
+            return {"error": "AI generation failed.", "details": str(e)}
 
     async def _get_trending_keywords(self, interest: str) -> List[str]:
         """Fetches trending related queries from Google Trends."""
         logger.info(f"Fetching Google Trends for trending keywords related to '{interest}'...")
-        related_queries_data = await asyncio.to_thread(self.pytrends.related_queries, kw_list=[interest])
-        
         trending_list = []
-        if interest in related_queries_data and 'rising' in related_queries_data[interest]:
-            rising_df = related_queries_data[interest]['rising']
-            if not rising_df.empty:
-                trending_list = rising_df['query'].tolist()[:5]
+        try:
+            # pytrends.related_queries is a synchronous blocking call, so use asyncio.to_thread
+            related_queries_data = await asyncio.to_thread(self.pytrends.related_queries, kw_list=[interest])
+            
+            if interest in related_queries_data and 'rising' in related_queries_data[interest]:
+                rising_df = related_queries_data[interest]['rising']
+                if not rising_df.empty:
+                    trending_list = rising_df['query'].tolist()[:5]
+        except Exception as e:
+            logger.error(f"Pytrends API failed for interest '{interest}': {e}")
         return trending_list
 
     async def analyze_social_selling(self, 
@@ -73,38 +61,49 @@ class SocialSellingStrategist:
                                      number_of_days: int, 
                                      amount_to_buy: int,
                                      supplier_marketplace_link: Optional[str] = None,
-                                     user_content_text: Optional[str] = None,
-                                     user_content_url: Optional[str] = None) -> Dict:
+                                     user_tone_instruction: str = "") -> Dict: # Renamed parameter
         """
         Calculates theoretical profitability for social selling, and suggests strategies.
+        The user_tone_instruction is passed in from the calling engine.
         """
         logger.info(f"Analyzing social selling for '{product_name}'")
 
-        user_tone_instruction = await self._get_user_tone_instruction(user_content_text, user_content_url)
+        # user_tone_instruction is now expected to be provided by the calling context (e.g., NicheStackEngine)
         
         # --- Data Gathering ---
-        # Get supplier pricing
         supplier_data = {"products": [], "identified_marketplace": "N/A"}
         if supplier_marketplace_link:
-            parsed_url = urlparse(supplier_marketplace_link)
-            domain = parsed_url.netloc
-            supplier_data = await self.global_scraper.scrape_marketplace_listings(
-                product_name, domain, max_products=5 # Get top 5 suppliers
-            )
+            try:
+                parsed_url = urlparse(supplier_marketplace_link)
+                domain = parsed_url.netloc
+                supplier_data = await self.global_scraper.scrape_marketplace_listings(
+                    product_name, domain, max_products=5 # Get top 5 suppliers
+                )
+                logger.info(f"Scraped {len(supplier_data['products'])} products from supplier marketplace '{supplier_data['identified_marketplace']}'.")
+            except Exception as e:
+                logger.error(f"Failed to scrape supplier marketplace {supplier_marketplace_link}: {e}")
         else: # If no specific supplier link, try to find a general good sourcing option
-             supplier_data = await self.global_scraper.scrape_marketplace_listings(
-                product_name, "aliexpress.com", max_products=5 # Default to AliExpress for general sourcing
-            )
+            try:
+                 supplier_data = await self.global_scraper.scrape_marketplace_listings(
+                    product_name, "aliexpress.com", max_products=5 # Default to AliExpress for general sourcing
+                )
+                 logger.info(f"Defaulted to AliExpress and scraped {len(supplier_data['products'])} products for sourcing.")
+            except Exception as e:
+                logger.error(f"Failed to scrape default AliExpress for sourcing: {e}")
         
         # Get trending keywords for related product suggestions
         trending_keywords = await self._get_trending_keywords(product_name)
 
         # --- Profitability Calculation ---
-        total_ad_spend = ads_daily_budget * number_of_days
+        total_ad_spend = (ads_daily_budget or 0.0) * (number_of_days or 0)
         
         lowest_sourcing_price = float('inf')
         if supplier_data['products']:
-            lowest_sourcing_price = min(p['price'] for p in supplier_data['products'] if p['price'] > 0)
+            valid_prices = [p['price'] for p in supplier_data['products'] if p['price'] > 0]
+            if valid_prices:
+                lowest_sourcing_price = min(valid_prices)
+            else:
+                logger.warning("No valid product prices found in scraped supplier data.")
         
         if lowest_sourcing_price == float('inf'):
             logger.warning("Could not identify a clear sourcing price. Profitability projection will be limited.")
@@ -112,8 +111,8 @@ class SocialSellingStrategist:
         else:
             cost_per_unit = lowest_sourcing_price
 
-        total_cost_of_goods = cost_per_unit * amount_to_buy
-        potential_revenue = product_selling_price * amount_to_buy
+        total_cost_of_goods = cost_per_unit * (amount_to_buy or 0)
+        potential_revenue = (product_selling_price or 0.0) * (amount_to_buy or 0)
         
         estimated_gross_profit = potential_revenue - total_cost_of_goods
         estimated_net_profit_before_fees = estimated_gross_profit - total_ad_spend
@@ -191,6 +190,9 @@ class SocialSellingStrategist:
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
         print("GEMINI_API_KEY not found. Please set it as an environment variable.")
@@ -206,16 +208,20 @@ async def main():
         "number_of_days": 30,
         "amount_to_buy": 200,
         "supplier_marketplace_link": "https://www.aliexpress.com/wholesale?SearchText=portable+espresso+maker",
-        "user_content_text": "We're a vibrant brand focused on lifestyle products for young, tech-savvy professionals. Our tone is always energetic and inspiring."
+        # The user_tone_instruction would typically come from the NicheStackEngine
+        "user_tone_instruction": "We're a vibrant brand focused on lifestyle products for young, tech-savvy professionals. Our tone is always energetic and inspiring."
     }
 
     print(f"Analyzing social selling for: {user_request_data['product_name']}")
     results = await strategist.analyze_social_selling(**user_request_data)
     print("\n--- Social Selling Strategy Results ---")
     print(json.dumps(results, indent=2))
+    
+    if "overall_summary_for_email" in results:
+        print("\n--- Overall Summary (for copying) ---")
+        print(results["overall_summary_for_email"])
+
 
 if __name__ == "__main__":
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
     asyncio.run(main())
+--- END OF FILE backend/social_selling_strategist.py ---
