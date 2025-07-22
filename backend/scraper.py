@@ -212,4 +212,4 @@ class SagaWebOracle:
         ]
 
         return successful_results
-```--- END OF FILE backend/scraper.py ---
+```
