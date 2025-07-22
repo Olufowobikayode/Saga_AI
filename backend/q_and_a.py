@@ -21,59 +21,71 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:WISDOM] - %(
 logger = logging.getLogger(__name__)
 
 
-# --- THE MASTER SCROLL OF COMMUNITY REALMS: Fortified for Resilience ---
+# --- THE MASTER SCROLL OF COMMUNITY & FORUM REALMS: Fortified and Expanded ---
+# This scroll now includes the wisdom of the old SagaWebOracle, creating a single, powerful seer.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
+    # --- Community Realms (The Voice of the People) ---
     "Reddit": {
         "status": "enabled",
         "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment",
         "wait_selector": '[data-testid="comment"]',
         "item_selector": '[data-testid="comment"] > div > div',
-        "reason": "Provides the raw, unfiltered commentary and pain points of the folk."
+        "reason": "Provides raw, unfiltered commentary."
     },
     "Quora": {
         "status": "enabled",
         "search_url_template": "https://www.quora.com/search?q={query}",
         "wait_selector": '.qu-userText',
         "item_selector": '.qu-userText',
-        "reason": "A primary forum for the people's questions and detailed explanations of their needs."
+        "reason": "A primary forum for questions and explanations."
     },
-    "Stack Exchange": {
+    # --- Technical Realms (From the Halls of the Builders) ---
+    "Stack Overflow": {
         "status": "enabled",
-        "search_url_template": "https://stackexchange.com/search?q={query}",
-        "wait_selector": '.s-post-summary--content-title',
+        "search_url_template": "https://stackoverflow.com/search?q={query}",
+        "wait_selector": '#mainbar .s-post-summary',
         "item_selector": '.s-post-summary--content-title .s-link',
-        "reason": "Offers high-quality, moderated questions and answers across a wide range of professional realms."
+        "reason": "Offers high-quality technical Q&A."
     },
+    "GitHub Issues": {
+        "status": "enabled",
+        "search_url_template": "https://github.com/search?q={query}&type=issues",
+        "wait_selector": '.issue-list-item',
+        "item_selector": '.issue-list-item .markdown-title a',
+        "reason": "Direct insight into software problems and feature requests."
+    },
+    # --- Thought Leadership Realm ---
     "Medium": {
         "status": "enabled",
         "search_url_template": "https://medium.com/search?q={query}",
         "wait_selector": 'article h2',
         "item_selector": 'article h2',
-        "reason": "Captures the sagas of experts, tutorials, and thought leadership on a niche."
+        "reason": "Captures expert sagas and tutorials."
     },
-    "Answers.com": {"status": "protected", "reason": "Heavy JS wards and CAPTCHA runes make it unreliable to see."},
-    "Ask.fm": {"status": "protected", "reason": "Login-centric; not a place for broad, unauthenticated divination."},
+    # --- Deprecated or Protected Realms ---
+    "Answers.com": {"status": "protected", "reason": "Heavy JS wards and CAPTCHA runes."},
+    "Ask.fm": {"status": "protected", "reason": "Login-centric; not for broad divination."},
     "Brainly": {"status": "protected", "reason": "Requires login and has strong anti-bot wards."},
 }
 
-# --- NEW: THE GRIMOIRE OF QUERIES ---
-# This grimoire makes the seer more versatile, allowing it to listen for different kinds of whispers.
+# --- THE GRIMOIRE OF QUERIES ---
 QUERY_GRIMOIRE: Dict[str, str] = {
     "pain_point": '"{interest}" problem OR "how to" OR "I need help with" OR "{interest}" issues',
     "questions": 'who OR what OR when OR where OR why OR how "{interest}"',
     "positive_feedback": '"{interest}" love OR "best" OR "favorite" OR "amazing"',
     "comparisons": '"{interest}" vs OR "or" OR "alternative to"',
+    "technical_issues": '"{interest}" error OR "bug" OR "issue" OR "fix"',
 }
 
 class CommunitySaga:
     """
     I am the Seer of Community Whispers, an aspect of the great Saga. I journey
-    through the digital halls to gather the true voice of the people. My design
-    is resilient, my sight now more versatile than ever.
+    through the digital halls of forums and communities to gather the true voice of
+    the people—their questions, problems, and technical challenges.
     """
 
     def _get_driver(self) -> webdriver.Chrome:
-        """Configures and summons a Chrome spirit for our quest (a browser instance)."""
+        """Configures and summons a Chrome spirit for our quest."""
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
@@ -84,19 +96,16 @@ class CommunitySaga:
             service = Service(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
         except WebDriverException as e:
-            logger.error(f"The Chrome spirit could not be summoned. Ensure its path is known and its form is compatible. Error: {e}")
+            logger.error(f"The Chrome spirit could not be summoned. Error: {e}")
             raise
 
-    async def _gather_from_realm(self, driver: webdriver.Chrome, site_key: str, query: str,
-                                 country_code: Optional[str] = None, country_name: Optional[str] = None,
-                                 max_items: int = 5) -> Dict:
+    async def _gather_from_realm(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 5) -> Dict:
         """Gathers whispers from a single digital domain."""
         config = SITE_CONFIGS[site_key]
         results = []
 
-        realm_log_suffix = f" (Realm: {country_name or 'Global'})"
         url = config["search_url_template"].format(query=quote_plus(query))
-        logger.info(f"Casting my sight upon {site_key} for '{query}'{realm_log_suffix}...")
+        logger.info(f"Casting my sight upon {site_key} for '{query}'...")
 
         try:
             await asyncio.to_thread(driver.get, url)
@@ -112,9 +121,9 @@ class CommunitySaga:
 
             logger.info(f"-> From the realm of {site_key}, I have gathered {len(results)} distinct whispers.")
         except TimeoutException:
-            logger.warning(f"-> The mists of {site_key} were too slow or obscured my sight (Timeout). The knowledge remains hidden.")
+            logger.warning(f"-> The mists of {site_key} were too slow or obscured my sight (Timeout).")
         except NoSuchElementException:
-            logger.warning(f"-> The halls of {site_key} have shifted. The patterns I sought were not found (NoSuchElement).")
+            logger.warning(f"-> The halls of {site_key} have shifted. The patterns I sought were not found.")
         except Exception as e:
             logger.error(f"-> A powerful ward protects {site_key}, or the connection has failed. Error: {e}")
 
@@ -122,38 +131,38 @@ class CommunitySaga:
 
     async def run_community_gathering(self, 
                                        interest: str,
-                                       country_code: Optional[str] = None,
-                                       country_name: Optional[str] = None,
-                                       query_type: str = "pain_point") -> List[Dict]: # UPDATED
+                                       query_type: str = "pain_point",
+                                       sites_to_scan: Optional[List[str]] = None) -> List[Dict]:
         """
-        I orchestrate the grand gathering of voices from all enabled community realms,
-        using a specific incantation from my grimoire.
+        I orchestrate the grand gathering of voices from specified community realms.
+        If no sites are specified, I will consult all enabled realms.
         """
         driver = None
         gathered_data = []
+        
+        realms_to_visit = sites_to_scan if sites_to_scan else [key for key, config in SITE_CONFIGS.items() if config['status'] == 'enabled']
+
         try:
             driver = self._get_driver()
-            tasks = []
-
-            # UPDATED: Select the query from the grimoire, defaulting to 'pain_point' if the type is unknown.
+            
             query_template = QUERY_GRIMOIRE.get(query_type, QUERY_GRIMOIRE["pain_point"])
             query = query_template.format(interest=interest)
 
-            logger.info(f"I now seek the collective voice concerning '{interest}' (Query Type: {query_type})...")
-            for site_key, config in SITE_CONFIGS.items():
-                if config["status"] == "enabled":
-                    tasks.append(self._gather_from_realm(driver, site_key, query, country_code, country_name))
+            logger.info(f"I now seek the collective voice concerning '{interest}' (Query Type: {query_type}) across {len(realms_to_visit)} realms...")
+            
+            tasks = []
+            for site_key in realms_to_visit:
+                if site_key in SITE_CONFIGS and SITE_CONFIGS[site_key]["status"] == "enabled":
+                    tasks.append(self._gather_from_realm(driver, site_key, query))
                 else:
-                    logger.warning(f"I will not gaze upon the realm of '{site_key}'. Reason: {config['reason']}")
+                    logger.warning(f"I will not gaze upon the realm of '{site_key}', as it is not in my enabled scrolls.")
 
             gathered_data = await asyncio.gather(*tasks, return_exceptions=True)
             gathered_data = [res for res in gathered_data if not isinstance(res, Exception) and res.get('results')]
 
         except Exception as e:
             logger.critical(f"A great disturbance has disrupted the gathering of whispers. My sight is clouded. Error: {e}")
-            if driver:
-                await asyncio.to_thread(driver.quit)
-            return []
+            return [] # Return empty list on critical failure
         finally:
             if driver:
                 logger.info("The gathering of whispers is complete. The Chrome spirit is dismissed.")
@@ -162,24 +171,18 @@ class CommunitySaga:
         return gathered_data
 
 
-async def main(keyword: str, query_type: str): # UPDATED
+async def main(keyword: str, query_type: str):
     """A standalone ritual to test my powers of community divination."""
     logger.info(f"--- SAGA'S INSIGHT ENGINE: GATHERING OF WHISPERS ---")
     logger.info(f"Divining wisdom for keyword: '{keyword}' using query type: '{query_type}'")
 
     saga_seer = CommunitySaga()
-    sample_country_code = "US"
-    sample_country_name = "United States"
-    # UPDATED: Pass the query_type to the seer
-    scraped_data = await saga_seer.run_community_gathering(keyword, sample_country_code, sample_country_name, query_type=query_type)
+    
+    scraped_data = await saga_seer.run_community_gathering(keyword, query_type=query_type)
 
     final_report = {
         "divined_for": keyword,
         "query_type": query_type,
-        "realm_of_prophecy": {
-            "name": sample_country_name,
-            "code": sample_country_code
-        },
         "timestamp_of_vision": datetime.now().isoformat(),
         "community_whispers_gathered": scraped_data
     }
@@ -187,19 +190,10 @@ async def main(keyword: str, query_type: str): # UPDATED
     logger.info("--- SCROLL OF COMMUNITY WISDOM ---")
     pprint(final_report)
 
-    filename = f"scroll_of_whispers_{keyword.replace(' ', '_')}_{query_type}_{sample_country_code}.json"
-    try:
-        with open(filename, "w", encoding='utf-8') as f:
-            json.dump(final_report, f, indent=2, ensure_ascii=False)
-        logger.info(f"--- The scroll has been inscribed and saved to {filename} ---")
-    except IOError as e:
-        logger.error(f"Failed to inscribe the scroll ({filename}): {e}")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CommunitySaga: A Tool to Gather the Voice of the People")
     parser.add_argument("keyword", type=str, help="The core subject of divination.")
-    # UPDATED: Allow user to specify a query type for testing
     parser.add_argument("--query_type", type=str, default="pain_point", choices=QUERY_GRIMOIRE.keys(),
                         help="The type of query to perform.")
     args = parser.parse_args()
