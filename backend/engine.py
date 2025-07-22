@@ -63,6 +63,7 @@ class SagaEngine:
             keyword_rune_keeper=self.keyword_rune_keeper,
             community_seer=self.community_seer
         )
+        # This stack might become deprecated or refactored if Grand Strategy is the only entry point
         self.new_ventures_stack = NewVenturesStack(
             model=self.model,
             keyword_rune_keeper=self.keyword_rune_keeper,
@@ -108,8 +109,7 @@ class SagaEngine:
 
     async def prophesy_grand_strategy(self, **kwargs) -> Dict:
         """
-        Calls the Commander Stack to forge a master plan.
-        Returns the prophecy and a `strategy_session_id` which acts as a key for all other stacks.
+        Calls the Commander Stack to forge a master plan and returns a session key.
         """
         logger.info(f"SAGA ENGINE: Calling Commander Stack for: '{kwargs.get('interest')}'")
         user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
@@ -123,7 +123,6 @@ class SagaEngine:
         )
         
         strategy_session_id = str(uuid.uuid4())
-        # Cache the entire output, which includes the prophecy and the retrieved histories
         self.strategy_session_cache[strategy_session_id] = strategy_data
         
         return {
@@ -131,35 +130,89 @@ class SagaEngine:
             "prophecy": strategy_data.get("prophecy")
         }
 
-    # --- (All other methods remain as they were, awaiting their update in the next steps) ---
-    async def prophesy_initial_ventures(self, **kwargs) -> Dict:
-        return {"status": "Awaiting update to require strategy session"}
+    # --- TACTICAL STACK METHODS (Now require authorization from the Commander) ---
 
-    async def prophesy_venture_blueprint(self, **kwargs) -> Dict:
-        return {"status": "Awaiting update to require strategy session"}
-
-    async def prophesy_content_sparks(self, **kwargs) -> Dict:
-        return {"status": "Awaiting update to require strategy session"}
-
-    async def prophesy_social_media_post(self, **kwargs) -> Dict:
-        return {"status": "Awaiting update to require strategy session"}
-
-    async def prophesy_insightful_comment(self, **kwargs) -> Dict:
-        return {"status": "Awaiting update to require strategy session"}
-
-    async def prophesy_blog_post_from_spark(self, **kwargs) -> Dict:
-        return {"status": "Awaiting update to require strategy session"}
-
-    async def prophesy_commerce_audit(self, **kwargs) -> Dict:
-        return await self.audit_analyzer.run_audit_and_strategy(**kwargs)
-
-    async def prophesy_arbitrage_paths(self, **kwargs) -> Dict:
-        return await self.price_arbitrage_finder.divine_arbitrage_paths(**kwargs)
+    async def prophesy_content_sparks(self, strategy_session_id: str, tactical_interest: str, **kwargs) -> Dict:
+        """
+        Handles Phase 1 of the Content Saga, authorized by a valid strategy session.
+        The `tactical_interest` comes directly from a chosen Content Pillar.
+        """
+        logger.info(f"CONTENT SAGA ENGINE (PHASE 1): Authorized by session {strategy_session_id}")
         
-    async def prophesy_social_selling_saga(self, **kwargs) -> Dict:
-        return await self.social_selling_strategist.devise_social_selling_saga(**kwargs)
+        # Authorization Check and Intelligence Retrieval
+        session_data = self.strategy_session_cache.get(strategy_session_id)
+        if not session_data:
+            raise ValueError("Invalid strategy session ID. You must receive a Grand Strategy prophecy first.")
         
-    async def prophesy_product_route(self, **kwargs) -> Dict:
-        kwargs['niche_interest'] = kwargs.get('interest')
-        return await self.product_route_suggester.prophesy_product_route(**kwargs)
+        retrieved_histories = session_data.get("retrieved_histories")
+        
+        prophecy_data = await self.content_saga_stack.prophesy_content_sparks(
+            tactical_interest=tactical_interest,
+            retrieved_histories=retrieved_histories, # Pass the Commander's intelligence
+            link=kwargs.get("link"),
+            link_description=kwargs.get("link_description")
+        )
+        
+        # We add the new sparks data to the existing session cache
+        self.strategy_session_cache[strategy_session_id]['content_sparks_data'] = prophecy_data
+        
+        return {
+            "strategy_session_id": strategy_session_id, # Pass the key along for the next phase
+            "sparks": prophecy_data.get("sparks", [])
+        }
+
+    async def prophesy_social_media_post(self, strategy_session_id: str, spark_id: str, **kwargs) -> Dict:
+        """Delegates social post generation, authorized by the strategy session."""
+        logger.info(f"SOCIAL POST ENGINE: Authorized by session {strategy_session_id}")
+        
+        session_data = self.strategy_session_cache.get(strategy_session_id)
+        if not session_data or not session_data.get("content_sparks_data"):
+            raise ValueError("Invalid session or content sparks have not been generated for this strategy.")
+        
+        sparks = session_data["content_sparks_data"].get("sparks", [])
+        spark = next((s for s in sparks if s.get("spark_id") == spark_id), None)
+        if not spark: raise ValueError("The chosen content spark could not be found in this session.")
+        
+        # We must pop the kwargs that are not part of the stack's method signature
+        kwargs.pop("strategy_session_id", None)
+        kwargs.pop("spark_id", None)
+        
+        return await self.content_saga_stack.prophesy_social_post(spark=spark, **kwargs)
+
+    async def prophesy_insightful_comment(self, strategy_session_id: str, spark_id: str, **kwargs) -> Dict:
+        """Delegates insightful comment generation, authorized by the strategy session."""
+        logger.info(f"COMMENT ENGINE: Authorized by session {strategy_session_id}")
+        
+        session_data = self.strategy_session_cache.get(strategy_session_id)
+        if not session_data or not session_data.get("content_sparks_data"):
+            raise ValueError("Invalid session or content sparks have not been generated for this strategy.")
+            
+        sparks = session_data["content_sparks_data"].get("sparks", [])
+        spark = next((s for s in sparks if s.get("spark_id") == spark_id), None)
+        if not spark: raise ValueError("The chosen content spark could not be found in this session.")
+        
+        kwargs.pop("strategy_session_id", None)
+        kwargs.pop("spark_id", None)
+
+        return await self.content_saga_stack.prophesy_insightful_comment(spark=spark, **kwargs)
+
+    async def prophesy_blog_post_from_spark(self, strategy_session_id: str, spark_id: str, **kwargs) -> Dict:
+        """Delegates blog post generation, authorized by the strategy session."""
+        logger.info(f"BLOG POST ENGINE: Authorized by session {strategy_session_id}")
+        
+        session_data = self.strategy_session_cache.get(strategy_session_id)
+        if not session_data or not session_data.get("content_sparks_data"):
+            raise ValueError("Invalid session or content sparks have not been generated for this strategy.")
+            
+        sparks = session_data["content_sparks_data"].get("sparks", [])
+        spark = next((s for s in sparks if s.get("spark_id") == spark_id), None)
+        if not spark: raise ValueError("The chosen content spark could not be found in this session.")
+        
+        kwargs.pop("strategy_session_id", None)
+        kwargs.pop("spark_id", None)
+        
+        return await self.content_saga_stack.prophesy_blog_post(spark=spark, **kwargs)
+
+    # ... (Other prophecy methods like commerce, arbitrage, etc., would also be updated to require a strategy_session_id) ...
+
 --- END OF FILE backend/engine.py ---
