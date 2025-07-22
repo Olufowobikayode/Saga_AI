@@ -8,7 +8,7 @@ import google.generativeai as genai
 from urllib.parse import urlparse
 
 # Import the global scraper to get marketplace data
-from global_ecommerce_scraper import GlobalEcommerceScraper
+from backend.global_ecommerce_scraper import GlobalEcommerceScraper
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,10 @@ class EcommerceAuditAnalyzer:
         # --- Data Gathering ---
         user_store_content_sample = "Not provided or could not be scraped."
         if user_store_url:
-            user_store_content = await self.global_scraper.get_user_store_content(user_store_url)
+            # This line assumes the scraper has a method named 'get_user_store_content'
+            # Based on the file `global_ecommerce_scraper.py`, the method is `read_user_store_scroll`
+            # This is a hidden error I will correct.
+            user_store_content = await self.global_scraper.read_user_store_scroll(user_store_url)
             if user_store_content:
                 user_store_content_sample = user_store_content
                 logger.info("Retrieved user store content for audit.")
@@ -79,9 +82,12 @@ class EcommerceAuditAnalyzer:
             try:
                 parsed_url = urlparse(marketplace_link)
                 domain = parsed_url.netloc
-                marketplace_sourcing_data = await self.global_scraper.scrape_marketplace_listings(
-                    product_name, domain, max_products=10, # Pass domain directly
-                    target_country_code=target_country_code # Pass country code for localized search
+                # This line assumes a method 'scrape_marketplace_listings'.
+                # Based on `global_ecommerce_scraper.py`, the method is `divine_from_marketplaces`.
+                # I will correct this second hidden error.
+                marketplace_sourcing_data = await self.global_scraper.divine_from_marketplaces(
+                    product_query=product_name, marketplace_domain=domain, max_products=10,
+                    target_country_code=target_country_code
                 )
                 logger.info(f"Retrieved {len(marketplace_sourcing_data['products'])} products from marketplace '{marketplace_sourcing_data['identified_marketplace']}'.")
             except Exception as e:
@@ -97,7 +103,7 @@ class EcommerceAuditAnalyzer:
         
         lowest_sourcing_price = float('inf')
         if marketplace_sourcing_data['products']:
-            valid_prices = [p['price'] for p in marketplace_sourcing_data['products'] if p['price'] > 0]
+            valid_prices = [p['price'] for p in marketplace_sourcing_data['products'] if p.get('price') and p['price'] > 0]
             if valid_prices:
                 lowest_sourcing_price = min(valid_prices)
             else:
