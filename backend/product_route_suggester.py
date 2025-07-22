@@ -1,11 +1,12 @@
-# file: backend/product_route_suggester.py
-
+--- START OF FILE backend/product_route_suggester.py ---
 import asyncio
 import logging
 import json
+import os # Added import for os
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
 from pytrends.request import TrendReq # For Google Trends integration
+from urllib.parse import urlparse # Not directly used in this file, but often needed with marketplaces
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -29,9 +30,12 @@ class ProductRouteSuggester:
             response = await self.model.generate_content_async(prompt)
             json_str = response.text.strip().removeprefix('```json').removesuffix('```').strip()
             return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"AI response was not valid JSON: {json_str[:500]}... Error: {e}")
+            return {"error": "AI response parsing failed: Invalid JSON.", "details": str(e), "raw_response_snippet": json_str[:500]}
         except Exception as e:
-            logger.error(f"Failed to generate or parse AI JSON response: {e}")
-            return {"error": "AI generation or parsing failed.", "details": str(e)}
+            logger.error(f"Failed to generate AI response: {e}")
+            return {"error": "AI generation failed.", "details": str(e)}
 
     async def _get_trending_keywords_and_topics(self, interest: str) -> Dict:
         """Fetches related and rising queries/topics from Google Trends."""
@@ -49,39 +53,20 @@ class ProductRouteSuggester:
             if rising is not None and not rising.empty:
                 data["rising_queries"] = rising['query'].tolist()[:5]
         except Exception as e:
-            logger.error(f"Pytrends API failed: {e}")
+            logger.error(f"Pytrends API failed for interest '{interest}': {e}")
+            data["error"] = str(e) # Add error to the data dict
         return data
-
-    async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
-        """Helper to generate AI instruction for mimicking user tone."""
-        user_input_content_for_ai = None
-        if user_content_text:
-            user_input_content_for_ai = user_content_text
-        elif user_content_url:
-            scraped_content = await self.global_scraper.get_user_store_content(user_content_url)
-            if scraped_content:
-                user_input_content_for_ai = scraped_content
-        
-        if user_input_content_for_ai:
-            return f"""
-            **USER'S WRITING STYLE REFERENCE:**
-            ---
-            {user_input_content_for_ai}
-            ---
-            When generating your response, adopt the tone, style, and vocabulary found in the above reference content.
-            """
-        return ""
 
     async def suggest_product_and_route(self, 
                                         niche_interest: str,
-                                        user_content_text: Optional[str] = None,
-                                        user_content_url: Optional[str] = None) -> Dict:
+                                        user_tone_instruction: str = "") -> Dict: # Changed parameters
         """
         Suggests a trending product and its optimal sourcing/selling route.
+        The user_tone_instruction is passed in from the calling engine.
         """
         logger.info(f"Suggesting product and route for niche: '{niche_interest}'")
 
-        user_tone_instruction = await self._get_user_tone_instruction(user_content_text, user_content_url)
+        # user_tone_instruction is now expected to be provided by the calling context (e.g., NicheStackEngine)
 
         # --- Data Gathering ---
         # 1. Get trending topics/queries from Google Trends
@@ -90,13 +75,22 @@ class ProductRouteSuggester:
         # 2. Scrape best-selling products from a general marketplace (e.g., Amazon.com) related to trending queries
         best_selling_products_from_general_search = []
         # Use primary interest or first trending query as search term
-        search_term = trend_data["rising_queries"][0] if trend_data["rising_queries"] else niche_interest
+        search_term = niche_interest # Default to niche interest
+        if trend_data["rising_queries"]:
+            search_term = trend_data["rising_queries"][0] # Use the top rising query if available
         
         if search_term:
-            general_marketplace_data = await self.global_scraper.scrape_marketplace_listings(
-                search_term, "amazon.com", max_products=10 # Get top 10 from a major platform
-            )
-            best_selling_products_from_general_search = general_marketplace_data["products"]
+            try:
+                general_marketplace_data = await self.global_scraper.scrape_marketplace_listings(
+                    search_term, "amazon.com", max_products=10 # Get top 10 from a major platform
+                )
+                best_selling_products_from_general_search = general_marketplace_data["products"]
+                logger.info(f"Scraped {len(best_selling_products_from_general_search)} products from Amazon.com for search term '{search_term}'.")
+            except Exception as e:
+                logger.error(f"Failed to scrape Amazon.com for '{search_term}': {e}")
+        else:
+            logger.warning("No valid search term derived for general marketplace scraping.")
+
 
         # --- AI Prompt Construction ---
         prompt = f"""
@@ -151,6 +145,10 @@ class ProductRouteSuggester:
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
+    import os
+    from dotenv import load_dotenv
+    load_dotenv() # Load .env for GEMINI_API_KEY
+
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
         print("GEMINI_API_KEY not found. Please set it as an environment variable.")
@@ -159,15 +157,15 @@ async def main():
     suggester = ProductRouteSuggester(gemini_api_key=gemini_api_key)
 
     niche = "eco-friendly home goods"
-    user_content_sample_url = "https://www.treehugger.com/about-us-4858908" # Example for tone
+    # user_content_sample_url = "https://www.treehugger.com/about-us-4858908" # Example for tone - now handled by engine
     
     print(f"Suggesting product and route for niche: '{niche}'")
-    results = await suggester.suggest_product_and_route(niche, user_content_url=user_content_sample_url)
+    # In standalone testing, we just pass an empty string for tone instruction.
+    # In a real API call via the NicheStackEngine, this would be populated.
+    results = await suggester.suggest_product_and_route(niche, user_tone_instruction="")
     print("\n--- Product Route Suggestion Results ---")
     print(json.dumps(results, indent=2))
 
 if __name__ == "__main__":
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
     asyncio.run(main())
+--- END OF FILE backend/product_route_suggester.py ---
