@@ -2,10 +2,10 @@
 import asyncio
 import logging
 import json
-import os # Added import for os
+import os
 from typing import Dict, Any, Optional
 import google.generativeai as genai
-from urllib.parse import urlparse # Added import for urlparse
+from urllib.parse import urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -39,48 +39,71 @@ class PriceArbitrageFinder:
                                            product_name: str, 
                                            buy_marketplace_link: str, 
                                            sell_marketplace_link: str,
-                                           user_tone_instruction: str = "") -> Dict: # Renamed parameter
+                                           user_tone_instruction: str = "",
+                                           target_country_code: Optional[str] = None, # New parameter
+                                           country_name_for_ai: Optional[str] = None, # New parameter
+                                           product_category: Optional[str] = None, # New parameter
+                                           product_subcategory: Optional[str] = None, # New parameter
+                                           user_content_text: Optional[str] = None, # Retained for consistency, not directly used here for tone
+                                           user_content_url: Optional[str] = None) -> Dict: # Retained for consistency, not directly used here for tone
         """
         Compares prices for a product between two marketplaces to find arbitrage.
-        The user_tone_instruction is passed in from the calling engine.
+        The user_tone_instruction, country, and category context are passed in from the calling engine.
         """
         logger.info(f"Finding arbitrage for '{product_name}' between {buy_marketplace_link} and {sell_marketplace_link}")
 
-        # user_tone_instruction is now expected to be provided by the calling context (e.g., NicheStackEngine)
-        # This function no longer fetches it directly using self.global_scraper._get_user_tone_instruction
-
-        # Parse domains to determine which scraper config to use
         buy_domain = urlparse(buy_marketplace_link).netloc
         sell_domain = urlparse(sell_marketplace_link).netloc
 
         buy_data = {"products": [], "identified_marketplace": "N/A"}
         sell_data = {"products": [], "identified_marketplace": "N/A"}
 
-        # Scrape buy marketplace
         try:
             buy_data = await self.global_scraper.scrape_marketplace_listings(
-                product_name, buy_domain, max_products=5 # Get top 5 for buying
+                product_query=product_name,
+                marketplace_domain=buy_domain,
+                max_products=5,
+                target_country_code=target_country_code, # Pass country code
+                product_category=product_category,       # Pass category
+                product_subcategory=product_subcategory  # Pass subcategory
             )
             logger.info(f"Scraped {len(buy_data['products'])} products from buy marketplace '{buy_data['identified_marketplace']}'.")
         except Exception as e:
             logger.error(f"Failed to scrape buy marketplace {buy_marketplace_link}: {e}")
 
-        # Scrape sell marketplace
         try:
             sell_data = await self.global_scraper.scrape_marketplace_listings(
-                product_name, sell_domain, max_products=5 # Get top 5 for selling
+                product_query=product_name,
+                marketplace_domain=sell_domain,
+                max_products=5,
+                target_country_code=target_country_code, # Pass country code
+                product_category=product_category,       # Pass category
+                product_subcategory=product_subcategory  # Pass subcategory
             )
             logger.info(f"Scraped {len(sell_data['products'])} products from sell marketplace '{sell_data['identified_marketplace']}'.")
         except Exception as e:
             logger.error(f"Failed to scrape sell marketplace {sell_marketplace_link}: {e}")
 
+        # Construct localized/categorized prompt intro
+        context_phrase = ""
+        if country_name_for_ai and country_name_for_ai.lower() != "global":
+            context_phrase += f" in the {country_name_for_ai} market"
+        if product_category:
+            context_phrase += f" under the '{product_category}' category"
+            if product_subcategory:
+                context_phrase += f" (Subcategory: '{product_subcategory}')"
+        if not context_phrase:
+            context_phrase = "globally" # Default if no specific context
+
 
         # Prepare for AI analysis
         prompt = f"""
-        You are an expert e-commerce arbitrage specialist. You need to analyze product listings from two different marketplaces to identify profitable "buy low, sell high" opportunities.
+        You are an expert e-commerce arbitrage specialist. You need to analyze product listings from two different marketplaces to identify profitable "buy low, sell high" opportunities {context_phrase}.
 
         --- PRODUCT DETAILS ---
         Product Name: {product_name}
+        {f"Category: {product_category}" if product_category else ""}
+        {f"Subcategory: {product_subcategory}" if product_subcategory else ""}
         
         --- BUY MARKETPLACE DATA (from {buy_domain}) ---
         Identified Marketplace: {buy_data.get('identified_marketplace', 'N/A')}
@@ -138,9 +161,9 @@ class PriceArbitrageFinder:
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
-    import os # Added import
-    from dotenv import load_dotenv # Added import
-    load_dotenv() # Load .env for GEMINI_API_KEY
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
 
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
@@ -153,10 +176,17 @@ async def main():
     buy_link = "https://www.aliexpress.com/wholesale?SearchText=gaming+headset"
     sell_link = "https://www.ebay.com/sch/i.html?_nkw=gaming+headset"
     
-    print(f"Finding arbitrage for '{product}' between AliExpress and eBay...")
-    # For standalone testing, user_tone_instruction defaults to an empty string.
-    # In a real API call via the NicheStackEngine, this would be populated.
-    arbitrage_results = await finder.find_arbitrage_opportunities(product, buy_link, sell_link)
+    print(f"Finding arbitrage for '{product}' between AliExpress and eBay (US, Electronics)...")
+    arbitrage_results = await finder.find_arbitrage_opportunities(
+        product_name=product,
+        buy_marketplace_link=buy_link,
+        sell_marketplace_link=sell_link,
+        user_tone_instruction="I'm a sharp business person looking for quick profits.",
+        target_country_code="US",
+        country_name_for_ai="United States",
+        product_category="Electronics",
+        product_subcategory="Headsets"
+    )
     print("\n--- Arbitrage Finder Results ---")
     print(json.dumps(arbitrage_results, indent=2))
 
