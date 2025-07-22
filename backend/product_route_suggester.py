@@ -7,45 +7,48 @@ from typing import List, Dict, Any, Optional
 import google.generativeai as genai
 from pytrends.request import TrendReq
 from urllib.parse import urlparse
+import iso3166
 
 # Import the global scraper to get marketplace data
-from global_ecommerce_scraper import GlobalEcommerceScraper
+from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 
 logger = logging.getLogger(__name__)
 
 class ProductRouteSuggester:
     """
-    Suggests trending products and optimal sourcing/selling routes (marketplaces)
-    based on market trends and best-selling product analysis.
+    A specialist aspect of Saga, the Pathfinder of Creation. It gazes into the
+    wilderness of a niche interest and divines a clear path, suggesting a trending
+    product and prophesizing the optimal route to source and sell it.
     """
-    def __init__(self, gemini_api_key: str):
+    def __init__(self, gemini_api_key: str, global_scraper: Optional[GlobalMarketplaceOracle] = None):
         genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-2.5-pro')
-        self.global_scraper = GlobalEcommerceScraper()
-        self.pytrends = TrendReq(hl='en-US', tz=360) # Initialize pytrends
+        self.global_scraper = global_scraper if global_scraper else GlobalMarketplaceOracle()
+        self.pytrends = TrendReq(hl='en-US', tz=360)
 
     async def _generate_json_response(self, prompt: str) -> Dict:
-        """Helper to get a structured JSON response from the AI model."""
+        """Helper to get a structured JSON prophecy from the AI oracle."""
         try:
             response = await self.model.generate_content_async(prompt)
             json_str = response.text.strip().removeprefix('```json').removesuffix('```').strip()
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            logger.error(f"AI response was not valid JSON: {json_str[:500]}... Error: {e}")
-            return {"error": "AI response parsing failed: Invalid JSON.", "details": str(e), "raw_response_snippet": json_str[:500]}
+            logger.error(f"The oracle's product route prophecy was not valid JSON: {json_str[:500]}... Error: {e}")
+            return {"error": "AI response parsing failed.", "details": str(e), "raw_response_snippet": json_str[:500]}
         except Exception as e:
-            logger.error(f"Failed to generate AI response: {e}")
+            logger.error(f"Failed to generate a product route prophecy from the AI oracle: {e}")
             return {"error": "AI generation failed.", "details": str(e)}
 
     async def _get_trending_keywords_and_topics(self, interest: str, country_code: Optional[str] = None) -> Dict:
-        """
-        Fetches related and rising queries/topics from Google Trends, localized by country code.
-        """
-        logger.info(f"Fetching Google Trends data for '{interest}' in country code '{country_code}'...")
+        """Listens for trending whispers and topics from Google's oracle."""
+        logger.info(f"Listening for trending topics related to '{interest}' in realm '{country_code}'...")
         data = {"related_queries": [], "rising_queries": []}
         try:
             geo_param = country_code.upper() if country_code else ''
-            await asyncio.to_thread(self.pytrends.build_payload, kw_list=[interest], timeframe='today 3-m', geo=geo_param)
+            
+            await asyncio.to_thread(
+                self.pytrends.build_payload, kw_list=[interest], timeframe='today 3-m', geo=geo_param
+            )
             related_queries = await asyncio.to_thread(self.pytrends.related_queries)
             
             top = related_queries.get(interest, {}).get('top')
@@ -56,161 +59,90 @@ class ProductRouteSuggester:
             if rising is not None and not rising.empty:
                 data["rising_queries"] = rising['query'].tolist()[:5]
         except Exception as e:
-            logger.error(f"Pytrends API failed for interest '{interest}' in country '{country_code}': {e}")
+            logger.error(f"Pytrends oracle failed for interest '{interest}' in realm '{country_code}': {e}")
             data["error"] = str(e)
         return data
 
-    async def suggest_product_and_route(self, 
-                                        niche_interest: str,
-                                        user_tone_instruction: str = "",
-                                        user_ip_address: Optional[str] = None, # New parameter, not used directly here
-                                        target_country_name: Optional[str] = None, # New parameter
-                                        product_category: Optional[str] = None, # New parameter
-                                        product_subcategory: Optional[str] = None, # New parameter
-                                        user_content_text: Optional[str] = None, # Retained for consistency
-                                        user_content_url: Optional[str] = None) -> Dict: # Retained for consistency
+    async def prophesy_product_route(self,
+                                     niche_interest: str,
+                                     user_tone_instruction: str = "",
+                                     target_country_name: Optional[str] = None,
+                                     product_category: Optional[str] = None,
+                                     product_subcategory: Optional[str] = None) -> Dict:
         """
         Suggests a trending product and its optimal sourcing/selling route.
-        The user_tone_instruction, country, and category context are passed in from the calling engine.
         """
-        logger.info(f"Suggesting product and route for niche: '{niche_interest}'")
+        logger.info(f"Divining a product route for the niche: '{niche_interest}'")
 
-        # Country context and tone instruction are passed from the engine.
-        # This module uses country_code from the resolved context.
-        # For standalone testing, we assume _resolve_country_context in engine already determined country_code.
-        # So we derive a placeholder country_code for this module's internal use for trends data.
-        _country_code_for_trends = None
-        if target_country_name:
-            try:
-                import iso3166 # Temporarily import here for standalone testing if needed
-                _country_code_for_trends = iso3166.countries.get(target_country_name).alpha2
-            except (KeyError, ImportError):
-                pass # Will default to global trends if cannot resolve
+        try:
+            country = iso3166.countries.get(target_country_name)
+            country_code = country.alpha2
+        except (KeyError, AttributeError):
+            country_code = None
 
-        # --- Data Gathering ---
-        # 1. Get trending topics/queries from Google Trends, localized
-        trend_data = await self._get_trending_keywords_and_topics(niche_interest, _country_code_for_trends)
+        # --- RETRIEVAL: Gather Histories of Trends and Bestsellers ---
+        # 1. Get trending topics/queries from Google Trends
+        trend_data = await self._get_trending_keywords_and_topics(niche_interest, country_code)
         
-        # 2. Scrape best-selling products from a general marketplace (e.g., Amazon.com) related to trending queries
-        best_selling_products_from_general_search = []
-        search_term = niche_interest # Default
-        if trend_data["rising_queries"]:
-            search_term = trend_data["rising_queries"][0] # Use the top rising query if available
+        # 2. Use the top rising trend to search a general marketplace for inspiration
+        search_term = trend_data["rising_queries"][0] if trend_data.get("rising_queries") else niche_interest
         
-        if search_term:
-            try:
-                # Pass resolved country code and category for localized/categorized search
-                general_marketplace_data = await self.global_scraper.scrape_marketplace_listings(
-                    product_query=search_term,
-                    marketplace_domain="amazon.com", # Default to Amazon for initial product search
-                    max_products=10,
-                    target_country_code=_country_code_for_trends, # Pass country code
-                    product_category=product_category,             # Pass category
-                    product_subcategory=product_subcategory        # Pass subcategory
-                )
-                best_selling_products_from_general_search = general_marketplace_data["products"]
-                logger.info(f"Scraped {len(best_selling_products_from_general_search)} products from Amazon.com for '{search_term}'.")
-            except Exception as e:
-                logger.error(f"Failed to scrape Amazon.com for '{search_term}': {e}")
-        else:
-            logger.warning("No valid search term derived for general marketplace scraping.")
+        logger.info(f"Using top trend '{search_term}' to find exemplary artifacts on Amazon...")
+        best_selling_products_data = await self.global_scraper.divine_from_marketplaces(
+            product_query=search_term,
+            marketplace_domain="amazon.com",
+            max_products=10,
+            target_country_code=country_code
+        )
+        best_selling_products = best_selling_products_data.get("products", [])
 
-        # Construct prompt context for AI
-        context_phrase = ""
-        if target_country_name and target_country_name.lower() != "global":
-            context_phrase += f" in the {target_country_name} market"
-        else:
-            context_phrase += " globally"
+        context_phrase = f"in the {target_country_name} market" if target_country_name and target_country_name.lower() != "global" else "globally"
+        if product_category: context_phrase += f", in the '{product_category}' category"
+        if product_subcategory: context_phrase += f" (Subcategory: '{product_subcategory}')"
 
-        if product_category:
-            context_phrase += f", specifically in the '{product_category}' category"
-            if product_subcategory:
-                context_phrase += f" (Subcategory: '{product_subcategory}')"
-
-        # --- AI Prompt Construction ---
+        # --- AUGMENTATION & GENERATION: The Pathfinder's Prophecy Prompt ---
         prompt = f"""
-        You are an innovative e-commerce product researcher and market strategist. Your goal is to identify a promising product within the '{niche_interest}' niche and outline an optimal "route" for a solopreneur to source and sell it for profit {context_phrase}.
+        You are Saga's Pathfinder, an e-commerce strategist who divines the clearest route from a vague interest to a profitable product. Your task is to analyze market intelligence and prophesize a complete product route for a solopreneur interested in '{niche_interest}' {context_phrase}. Your prophecy MUST be grounded in the intelligence provided below.
 
-        --- MARKET INTELLIGENCE ---
-        Niche/Interest: {niche_interest}
-        {f"Primary Category: {product_category}" if product_category else ""}
-        {f"Specific Subcategory: {product_subcategory}" if product_subcategory else ""}
-        Google Trends Data:
+        --- MARKET INTELLIGENCE GATHERED ---
+        **Niche of Interest**: {niche_interest}
+        **Trending Whispers & Rising Tides (from Google's Oracle)**:
         {json.dumps(trend_data, indent=2)}
 
-        Best-Selling Products (from general search on Amazon.com related to trends):
-        {json.dumps(best_selling_products_from_general_search, indent=2)}
+        **Exemplary Bestselling Artifacts (from a general search on Amazon.com related to trends)**:
+        {json.dumps(best_selling_products, indent=2)}
 
         --- {user_tone_instruction} ---
 
-        **Your Task: Suggest a product and its complete e-commerce route.**
+        **Your Prophetic Task: Suggest a single, promising product and chart its complete e-commerce route.**
 
-        Your output MUST be a valid JSON object with the following structure:
+        Your output MUST be a valid JSON object, a scroll containing the following prophecies:
         {{
-            "suggested_product": {{
-                "name": "Compelling product name based on trends and sales data.",
-                "description": "Brief, enticing description highlighting its appeal and market fit.",
-                "why_this_product": "Explain why this product is a good opportunity, referencing trend data and market demand.",
-                "ideal_selling_price_range": "e.g., $20 - $35"
+            "suggested_product_prophecy": {{
+                "name": "A compelling product name, inspired by the trending whispers and bestselling artifacts.",
+                "description": "A brief, enticing description highlighting its appeal and fit within the market's current saga.",
+                "justification_from_intelligence": "Explain exactly why this product is a wise choice, explicitly referencing the trend data and bestseller examples. (e.g., 'This aligns with the rising query for 'X' and resembles the popular artifact 'Y').",
+                "ideal_selling_price_range": "e.g., $25 - $40"
             }},
-            "sourcing_route": {{
-                "recommended_marketplace": "e.g., AliExpress, Alibaba, etc.",
-                "sample_suppliers": [
-                    {{"supplier_name": "Supplier A", "product_example": "Exact product name/link", "estimated_cost_per_unit": 5.00, "link": "url"}},
-                    // ... up to 3 strong supplier examples from scraped data
-                ],
-                "sourcing_strategy": "Advice on MOQ, quality control, negotiation, and shipping."
+            "sourcing_route_prophecy": {{
+                "recommended_sourcing_realm": "e.g., AliExpress, Alibaba, Printful.",
+                "counsel_on_sourcing": "Wisdom on finding reliable suppliers, checking quality, and navigating the logistics of creation and shipping."
             }},
-            "selling_route": {{
-                "recommended_platforms": ["e.g., Amazon FBA", "Shopify + Instagram Ads", "Etsy"],
-                "justification": "Why these platforms are ideal for this product.",
-                "target_audience": "Who to target for this product.",
-                "marketing_angle": "Key messaging or unique selling proposition."
+            "selling_route_prophecy": {{
+                "recommended_selling_realms": ["e.g., Amazon FBA", "A personal Shopify store + Instagram Ads", "Etsy"],
+                "justification_for_realms": "Why are these the ideal realms to sell this specific artifact?",
+                "target_audience_vision": "A clear vision of the ideal customer for this artifact.",
+                "marketing_saga_angle": "The core story or unique selling proposition to use when presenting this artifact to the world."
             }},
-            "initial_strategy_overview": [
-                "Step 1: Validate demand further...",
-                "Step 2: Order small batch from recommended supplier...",
-                "Step 3: Set up chosen selling platform..."
+            "first_steps_on_the_path": [
+                "Step 1: The first step on this path is to...",
+                "Step 2: Next, you must seek...",
+                "Step 3: Then, you will establish your outpost at..."
             ],
-            "potential_challenges": ["Possible hurdles like competition, shipping delays, quality control."],
-            "overall_report_summary": "A concise, inspiring summary of the product opportunity and recommended path."
+            "potential_challenges_on_the_path": ["Possible dangers on this route, such as fierce competition, shipping trolls, or quality control dragons."],
+            "pathfinder_summary_for_a_raven": "A concise, inspiring summary of the product opportunity and the prophesized path, fit for a raven's message."
         }}
         """
         
-        response_data = await self._generate_json_response(prompt)
-        return response_data
-
-# --- Example Usage (for testing this script standalone) ---
-async def main():
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    if not gemini_api_key:
-        print("GEMINI_API_KEY not found. Please set it as an environment variable.")
-        return
-
-    suggester = ProductRouteSuggester(gemini_api_key=gemini_api_key)
-
-    niche = "eco-friendly home goods"
-    # Simulating the context that would come from the engine
-    country_name_example = "United States"
-    category_example = "Home & Kitchen"
-    subcategory_example = "Eco-friendly Cleaning"
-    user_tone_example = "Our brand is all about sustainable living and quality."
-    
-    print(f"Suggesting product and route for niche: '{niche}' (Country: {country_name_example}, Category: {category_example}, Subcategory: {subcategory_example})")
-    results = await suggester.suggest_product_and_route(
-        niche_interest=niche,
-        user_tone_instruction=user_tone_example,
-        target_country_name=country_name_example,
-        product_category=category_example,
-        product_subcategory=subcategory_example
-    )
-    print("\n--- Product Route Suggestion Results ---")
-    print(json.dumps(results, indent=2))
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        return await self._generate_json_response(prompt)
 --- END OF FILE backend/product_route_suggester.py ---
