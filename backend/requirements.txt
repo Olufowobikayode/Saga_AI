@@ -1,4 +1,4 @@
-
+--- START OF FILE backend/requirements.txt ---
 # Main web framework
 fastapi==0.110.1
 uvicorn==0.25.0
@@ -7,7 +7,7 @@ gunicorn==22.0.0
 # Database
 pymongo==4.5.0
 motor==3.3.1
-dnspython==2.6.0 # Required for mongodb+srv URIs
+dnspython==2.6.0
 certifi==2024.7.4
 
 # AI and Data
@@ -16,13 +16,15 @@ pytrends==4.9.0
 pandas==2.2.0
 selenium==4.22.0
 webdriver-manager==4.0.1
-aiohttp==3.9.5 # Added for asynchronous HTTP client
+aiohttp==3.9.5
 beautifulsoup4==4.12.3
+iso3166==2.1.1 # Added for country code mapping
 
 # Utilities
 python-dotenv==1.0.1
 pydantic==2.6.4
-pydantic-settings==2.3.4 # Added for structured configuration management
+pydantic-settings==2.3.4
 python-multipart==0.0.9
 requests==2.31.0
-uvloop==0.19.0 # Added for improved asyncio performance on Unix-like systems
+uvloop==0.19.0
+--- END OF FILE backend/requirements.txt ---
