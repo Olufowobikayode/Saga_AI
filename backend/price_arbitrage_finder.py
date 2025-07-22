@@ -8,188 +8,121 @@ import google.generativeai as genai
 from urllib.parse import urlparse
 
 # Import the global scraper to get marketplace data
-from global_ecommerce_scraper import GlobalEcommerceScraper
+from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 
 logger = logging.getLogger(__name__)
 
 class PriceArbitrageFinder:
     """
-    Identifies 'buy low, sell high' opportunities by comparing product prices
-    across different global marketplaces using AI analysis.
+    A specialist seer within the SagaEngine, tasked with finding 'buy low, sell high'
+    opportunities. It divines the hidden paths of value by comparing the price of
+    artifacts across different global marketplaces.
     """
-    def __init__(self, gemini_api_key: str):
+    def __init__(self, gemini_api_key: str, global_scraper: Optional[GlobalMarketplaceOracle] = None):
         genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-2.5-pro')
-        self.global_scraper = GlobalEcommerceScraper()
+        self.global_scraper = global_scraper if global_scraper else GlobalMarketplaceOracle()
 
     async def _generate_json_response(self, prompt: str) -> Dict:
-        """Helper to get a structured JSON response from the AI model."""
+        """Helper to get a structured JSON prophecy from the AI oracle."""
         try:
             response = await self.model.generate_content_async(prompt)
             json_str = response.text.strip().removeprefix('```json').removesuffix('```').strip()
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            logger.error(f"AI response was not valid JSON: {json_str[:500]}... Error: {e}")
+            logger.error(f"The oracle's arbitrage prophecy was not valid JSON: {json_str[:500]}... Error: {e}")
             return {"error": "AI response parsing failed: Invalid JSON.", "details": str(e), "raw_response_snippet": json_str[:500]}
         except Exception as e:
-            logger.error(f"Failed to generate AI response: {e}")
+            logger.error(f"Failed to generate an arbitrage prophecy from the AI oracle: {e}")
             return {"error": "AI generation failed.", "details": str(e)}
     
-    async def find_arbitrage_opportunities(self, 
-                                           product_name: str, 
-                                           buy_marketplace_link: str, 
-                                           sell_marketplace_link: str,
-                                           user_tone_instruction: str = "",
-                                           target_country_code: Optional[str] = None, # New parameter
-                                           country_name_for_ai: Optional[str] = None, # New parameter
-                                           product_category: Optional[str] = None, # New parameter
-                                           product_subcategory: Optional[str] = None, # New parameter
-                                           user_content_text: Optional[str] = None, # Retained for consistency, not directly used here for tone
-                                           user_content_url: Optional[str] = None) -> Dict: # Retained for consistency, not directly used here for tone
+    async def divine_arbitrage_paths(self,
+                                     product_name: str,
+                                     buy_marketplace_link: str,
+                                     sell_marketplace_link: str,
+                                     user_tone_instruction: str = "",
+                                     target_country_code: Optional[str] = None,
+                                     country_name_for_ai: Optional[str] = None,
+                                     product_category: Optional[str] = None,
+                                     product_subcategory: Optional[str] = None) -> Dict:
         """
-        Compares prices for a product between two marketplaces to find arbitrage.
-        The user_tone_instruction, country, and category context are passed in from the calling engine.
+        Compares the commercial sagas of a product between two marketplaces to prophesize arbitrage paths.
         """
-        logger.info(f"Finding arbitrage for '{product_name}' between {buy_marketplace_link} and {sell_marketplace_link}")
+        logger.info(f"Divining arbitrage paths for '{product_name}' between {buy_marketplace_link} and {sell_marketplace_link}")
 
         buy_domain = urlparse(buy_marketplace_link).netloc
         sell_domain = urlparse(sell_marketplace_link).netloc
 
-        buy_data = {"products": [], "identified_marketplace": "N/A"}
-        sell_data = {"products": [], "identified_marketplace": "N/A"}
+        # RETRIEVAL: Gather the histories from the two marketplaces.
+        buy_task = self.global_scraper.divine_from_marketplaces(
+            product_query=product_name, marketplace_domain=buy_domain, max_products=5, target_country_code=target_country_code
+        )
+        sell_task = self.global_scraper.divine_from_marketplaces(
+            product_query=product_name, marketplace_domain=sell_domain, max_products=5, target_country_code=target_country_code
+        )
 
-        try:
-            buy_data = await self.global_scraper.scrape_marketplace_listings(
-                product_query=product_name,
-                marketplace_domain=buy_domain,
-                max_products=5,
-                target_country_code=target_country_code, # Pass country code
-                product_category=product_category,       # Pass category
-                product_subcategory=product_subcategory  # Pass subcategory
-            )
-            logger.info(f"Scraped {len(buy_data['products'])} products from buy marketplace '{buy_data['identified_marketplace']}'.")
-        except Exception as e:
-            logger.error(f"Failed to scrape buy marketplace {buy_marketplace_link}: {e}")
+        buy_data, sell_data = await asyncio.gather(buy_task, sell_task)
+        logger.info(f"Read the saga of {len(buy_data['products'])} artifacts from the buying realm '{buy_data['identified_marketplace']}'.")
+        logger.info(f"Read the saga of {len(sell_data['products'])} artifacts from the selling realm '{sell_data['identified_marketplace']}'.")
 
-        try:
-            sell_data = await self.global_scraper.scrape_marketplace_listings(
-                product_query=product_name,
-                marketplace_domain=sell_domain,
-                max_products=5,
-                target_country_code=target_country_code, # Pass country code
-                product_category=product_category,       # Pass category
-                product_subcategory=product_subcategory  # Pass subcategory
-            )
-            logger.info(f"Scraped {len(sell_data['products'])} products from sell marketplace '{sell_data['identified_marketplace']}'.")
-        except Exception as e:
-            logger.error(f"Failed to scrape sell marketplace {sell_marketplace_link}: {e}")
+        context_phrase = f" in the {country_name_for_ai} market" if country_name_for_ai and country_name_for_ai.lower() != "global" else "globally"
+        if product_category: context_phrase += f" under the '{product_category}' category"
+        if product_subcategory: context_phrase += f" (Subcategory: '{product_subcategory}')"
 
-        # Construct localized/categorized prompt intro
-        context_phrase = ""
-        if country_name_for_ai and country_name_for_ai.lower() != "global":
-            context_phrase += f" in the {country_name_for_ai} market"
-        if product_category:
-            context_phrase += f" under the '{product_category}' category"
-            if product_subcategory:
-                context_phrase += f" (Subcategory: '{product_subcategory}')"
-        if not context_phrase:
-            context_phrase = "globally" # Default if no specific context
-
-
-        # Prepare for AI analysis
+        # AUGMENTATION & GENERATION: Weave the histories into a prompt for the AI oracle.
         prompt = f"""
-        You are an expert e-commerce arbitrage specialist. You need to analyze product listings from two different marketplaces to identify profitable "buy low, sell high" opportunities {context_phrase}.
+        You are an expert e-commerce arbitrage specialist, a seer of hidden value inspired by Saga. Your task is to analyze product listings from two different marketplaces to identify profitable "buy low, sell high" opportunities {context_phrase}. Your analysis and prophecy MUST be based entirely on the data provided below. Do not invent or assume prices.
 
         --- PRODUCT DETAILS ---
-        Product Name: {product_name}
+        Artifact Name: {product_name}
         {f"Category: {product_category}" if product_category else ""}
         {f"Subcategory: {product_subcategory}" if product_subcategory else ""}
         
-        --- BUY MARKETPLACE DATA (from {buy_domain}) ---
-        Identified Marketplace: {buy_data.get('identified_marketplace', 'N/A')}
-        Top Products/Sellers for Buying (potential sourcing):
+        --- SAGA OF THE BUYING REALM (Data from {buy_domain}) ---
+        Identified Realm: {buy_data.get('identified_marketplace', 'N/A')}
+        Top Artifacts for Acquiring (potential sourcing):
         {json.dumps(buy_data['products'], indent=2)}
 
-        --- SELL MARKETPLACE DATA (from {sell_domain}) ---
-        Identified Marketplace: {sell_data.get('identified_marketplace', 'N/A')}
-        Top Products/Sellers for Selling (potential sales):
+        --- SAGA OF THE SELLING REALM (Data from {sell_domain}) ---
+        Identified Realm: {sell_data.get('identified_marketplace', 'N/A')}
+        Top Artifacts for Purveying (potential sales):
         {json.dumps(sell_data['products'], indent=2)}
 
         --- {user_tone_instruction} ---
 
-        **Your Task:**
-        1.  Analyze the pricing data.
-        2.  Identify specific product listings that offer strong arbitrage potential (buy low, sell high).
-        3.  For each identified opportunity, clearly state:
-            *   "buy_product_title": Title of the product to buy.
-            *   "buy_marketplace": Where to buy.
-            *   "buy_price": The price to buy at.
-            *   "buy_link": Link to the buy listing.
-            *   "sell_product_title": Title of the product to sell.
-            *   "sell_marketplace": Where to sell.
-            *   "sell_price": The price to sell at.
-            *   "sell_link": Link to the sell listing.
-            *   "potential_profit_margin_percentage": Calculated profit margin (e.g., ((Sell Price - Buy Price) / Buy Price) * 100).
-            *   "notes": Any specific considerations (e.g., shipping costs, listing fees, competition).
-        4.  Provide general advice on arbitrage strategies.
-        5.  Suggest any warnings or common pitfalls.
+        **Your Prophetic Task:**
+        1.  Analyze the pricing data from both sagas. Your wisdom must come from comparing these two sets of facts.
+        2.  Identify specific artifacts that offer strong arbitrage potential (buy from the first realm, sell in the second).
+        3.  For each opportunity you divine, you must prophesize:
+            *   "buy_product_title": The name of the artifact to acquire.
+            *   "buy_marketplace": The realm to acquire it from.
+            *   "buy_price": The value to acquire it at, taken directly from the data.
+            *   "buy_link": The path to the artifact in the buying realm.
+            *   "sell_product_title": The name of the comparable artifact to sell.
+            *   "sell_marketplace": The realm to sell it in.
+            *   "sell_price": The value to sell it at, taken directly from the data.
+            *   "sell_link": The path to the artifact in the selling realm.
+            *   "potential_profit_margin_percentage": Your calculated profit margin rune. Calculate this precisely: ((sell_price - buy_price) / buy_price) * 100. Show the calculation.
+            *   "counsel": Your wise counsel on this path (e.g., consider shipping costs, listing fees, competition).
+        4.  Provide general wisdom on arbitrage strategies.
+        5.  Warn of common pitfalls on these hidden paths.
 
-        Format your final output as a valid JSON object:
+        Format your final prophecy as a valid JSON object:
         {{
-            "analysis_summary": "Overall summary of arbitrage potential.",
+            "analysis_summary": "Your overall vision of the arbitrage potential between these two realms for this artifact.",
             "opportunities": [
                 {{
-                    "buy_product_title": "...",
-                    "buy_marketplace": "...",
-                    "buy_price": ...,
-                    "buy_link": "...",
-                    "sell_product_title": "...",
-                    "sell_marketplace": "...",
-                    "sell_price": ...,
-                    "sell_link": "...",
-                    "potential_profit_margin_percentage": ...,
-                    "notes": "..."
+                    "buy_product_title": "...", "buy_marketplace": "...", "buy_price": 0.0, "buy_link": "...",
+                    "sell_product_title": "...", "sell_marketplace": "...", "sell_price": 0.0, "sell_link": "...",
+                    "potential_profit_margin_percentage": 0.0,
+                    "counsel": "..."
                 }}
             ],
-            "arbitrage_strategy_advice": "...",
-            "warnings_pitfalls": "..."
+            "general_arbitrage_wisdom": "...",
+            "warnings_and_pitfalls": "..."
         }}
-        If no clear opportunities are found, state that in the summary and provide reasons.
+        If no profitable paths are revealed in the data, state this clearly in the summary and explain why the sagas do not align for profit.
         """
         
         return await self._generate_json_response(prompt)
-
-# --- Example Usage (for testing this script standalone) ---
-async def main():
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    if not gemini_api_key:
-        print("GEMINI_API_KEY not found. Please set it as an environment variable.")
-        return
-
-    finder = PriceArbitrageFinder(gemini_api_key=gemini_api_key)
-
-    product = "gaming headset"
-    buy_link = "https://www.aliexpress.com/wholesale?SearchText=gaming+headset"
-    sell_link = "https://www.ebay.com/sch/i.html?_nkw=gaming+headset"
-    
-    print(f"Finding arbitrage for '{product}' between AliExpress and eBay (US, Electronics)...")
-    arbitrage_results = await finder.find_arbitrage_opportunities(
-        product_name=product,
-        buy_marketplace_link=buy_link,
-        sell_marketplace_link=sell_link,
-        user_tone_instruction="I'm a sharp business person looking for quick profits.",
-        target_country_code="US",
-        country_name_for_ai="United States",
-        product_category="Electronics",
-        product_subcategory="Headsets"
-    )
-    print("\n--- Arbitrage Finder Results ---")
-    print(json.dumps(arbitrage_results, indent=2))
-
-if __name__ == "__main__":
-    asyncio.run(main())
 --- END OF FILE backend/price_arbitrage_finder.py ---
