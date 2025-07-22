@@ -12,7 +12,6 @@ import google.generativeai as genai
 # --- Import all specialist knowledge sources ---
 from backend.q_and_a import CommunitySaga
 from backend.trends import TrendScraper
-from backend.scraper import SagaWebOracle
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 from backend.ecommerce_audit_analyzer import EcommerceAuditAnalyzer
@@ -25,6 +24,7 @@ from backend.utils import get_prophecy_from_oracle
 from backend.stacks.new_ventures_stack import NewVenturesStack
 from backend.stacks.content_saga_stack import ContentSagaStack
 from backend.stacks.grand_strategy_stack import GrandStrategyStack
+from backend.stacks.marketing_saga_stack import MarketingSagaStack
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +49,10 @@ class SagaEngine:
         # --- Instantiate all knowledge sources (Seers and Oracles) ---
         self.community_seer = CommunitySaga()
         self.trend_scraper = TrendScraper()
-        self.web_oracle = SagaWebOracle()
         self.keyword_rune_keeper = KeywordRuneKeeper()
-        # The Marketplace Oracle is now a shared resource for all commercial seers.
         self.marketplace_oracle = GlobalMarketplaceOracle()
         
-        # --- Instantiate all specialist stacks and analyzers, providing them with oracles ---
+        # --- Instantiate all specialist stacks and analyzers ---
         self.grand_strategy_stack = GrandStrategyStack(
             model=self.model,
             keyword_rune_keeper=self.keyword_rune_keeper,
@@ -70,23 +68,23 @@ class SagaEngine:
             model=self.model,
             keyword_rune_keeper=self.keyword_rune_keeper,
             community_seer=self.community_seer,
-            web_oracle=self.web_oracle,
             trend_scraper=self.trend_scraper,
             marketplace_oracle=self.marketplace_oracle
         )
-        # These seers now receive the shared marketplace oracle, making Saga more efficient.
+        self.marketing_saga_stack = MarketingSagaStack(
+            model=self.model,
+            community_seer=self.community_seer
+        )
         self.audit_analyzer = EcommerceAuditAnalyzer(self.gemini_api_key, self.marketplace_oracle)
         self.price_arbitrage_finder = PriceArbitrageFinder(self.gemini_api_key, self.marketplace_oracle)
         self.social_selling_strategist = SocialSellingStrategist(self.gemini_api_key, self.marketplace_oracle)
         self.product_route_suggester = ProductRouteSuggester(self.gemini_api_key, self.marketplace_oracle)
         
-        # --- Cache for multi-stage prophecies and strategic sessions ---
         self.strategy_session_cache = {}
 
         logger.info("Saga is now fully conscious and ready to share her wisdom.")
 
     async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
-        # This method is complete and remains unchanged
         user_input_content_for_ai = None
         if user_content_text: user_input_content_for_ai = user_content_text
         elif user_content_url:
@@ -97,7 +95,6 @@ class SagaEngine:
         return "You shall speak with the direct, wise, and prophetic voice of Saga."
 
     async def _resolve_country_context(self, user_ip_address: Optional[str], target_country_name: Optional[str]) -> Dict:
-        # This method is complete and remains unchanged
         country_name, country_code, is_global = "Global", None, True
         if target_country_name and target_country_name.lower() != "global":
             try:
@@ -105,16 +102,19 @@ class SagaEngine:
                 country_name, country_code, is_global = country_entry.name, country_entry.alpha2, False
             except KeyError:
                 logger.warning(f"Realm '{target_country_name}' not in scrolls. Prophecy will be global.")
-        # IP Geolocation logic would go here
         return {"country_name": country_name, "country_code": country_code, "is_global": is_global}
 
-    # --- COMMANDER STACK METHOD (The mandatory entry point) ---
+    def _get_session_or_raise(self, session_id: str) -> Dict:
+        """Helper to authorize and retrieve session data or raise an error."""
+        session_data = self.strategy_session_cache.get(session_id)
+        if not session_data:
+            raise ValueError("Invalid session ID. A prophecy must be divined first.")
+        return session_data
+
+    # --- STRATEGIC & VENTURE PROPHECIES (The Starting Points) ---
 
     async def prophesy_grand_strategy(self, **kwargs) -> Dict:
-        """
-        Calls the Commander Stack to forge a master plan and returns a session key.
-        This is the required first step for any strategic journey.
-        """
+        """Calls the Commander Stack to forge a master plan and returns a session key."""
         logger.info(f"SAGA ENGINE: Calling Commander Stack for: '{kwargs.get('interest')}'")
         user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
         country_context = await self._resolve_country_context(kwargs.get("user_ip_address"), kwargs.get("target_country_name"))
@@ -127,145 +127,86 @@ class SagaEngine:
         )
         
         strategy_session_id = str(uuid.uuid4())
-        # Cache the entire result, including the tone, country, and retrieved histories for tactical stacks.
         self.strategy_session_cache[strategy_session_id] = {
             "grand_strategy": strategy_data,
             "user_tone_instruction": user_tone_instruction,
             "country_context": country_context
         }
         
-        return {
-            "strategy_session_id": strategy_session_id,
-            "prophecy": strategy_data.get("prophecy")
-        }
+        return {"strategy_session_id": strategy_session_id, "prophecy": strategy_data.get("prophecy")}
 
-    # --- TACTICAL STACK METHODS (Now require authorization from the Commander) ---
+    async def prophesy_new_venture_visions(self, **kwargs) -> Dict:
+        """Calls the New Ventures Stack to generate 10 business ideas."""
+        logger.info(f"SAGA ENGINE: Calling New Ventures Stack for: '{kwargs.get('interest')}'")
+        user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
+        country_context = await self._resolve_country_context(kwargs.get("user_ip_address"), kwargs.get("target_country_name"))
 
-    def _get_session_or_raise(self, strategy_session_id: str) -> Dict:
-        """Helper to authorize and retrieve session data or raise an error."""
-        session_data = self.strategy_session_cache.get(strategy_session_id)
-        if not session_data:
-            raise ValueError("Invalid strategy session ID. A Grand Strategy prophecy must be divined first.")
-        return session_data
-
-    async def prophesy_content_sparks(self, strategy_session_id: str, tactical_interest: str, **kwargs) -> Dict:
-        """Handles Phase 1 of the Content Saga, authorized by a valid strategy session."""
-        logger.info(f"CONTENT SAGA ENGINE (PHASE 1): Authorized by session {strategy_session_id}")
-        session_data = self._get_session_or_raise(strategy_session_id)
-        
-        # Retrieve the histories from the original Grand Strategy prophecy
-        retrieved_histories = session_data.get("grand_strategy", {}).get("retrieved_histories", {})
-        
-        prophecy_data = await self.content_saga_stack.prophesy_content_sparks(
-            interest=tactical_interest,
-            retrieved_histories=retrieved_histories,
-            **kwargs
+        venture_data = await self.new_ventures_stack.prophesy_initial_visions(
+            interest=kwargs.get("interest"),
+            country_code=country_context["country_code"],
+            country_name=country_context["country_name"],
+            user_tone_instruction=user_tone_instruction
         )
         
-        # Add the new sparks data to the existing session cache
-        self.strategy_session_cache[strategy_session_id]['content_sparks_data'] = prophecy_data
+        venture_session_id = str(uuid.uuid4())
+        self.strategy_session_cache[venture_session_id] = venture_data
         
-        return {
-            "strategy_session_id": strategy_session_id,
-            "sparks": prophecy_data.get("sparks", [])
-        }
-    
-    # --- This entire section of methods for using the other oracles is NEW ---
+        return {"venture_session_id": venture_session_id, "visions": venture_data.get("initial_visions")}
+
+    # --- TACTICAL PROPHECIES (Commerce, Content, Marketing) ---
 
     async def prophesy_ecommerce_audit(self, strategy_session_id: str, **kwargs) -> Dict:
-        """Commands the Audit Analyzer, authorized by a Grand Strategy session."""
         logger.info(f"ECOMMERCE AUDIT ENGINE: Authorized by session {strategy_session_id}")
         session_data = self._get_session_or_raise(strategy_session_id)
-        
-        # Combine kwargs with cached context
-        request_args = {
-            "user_tone_instruction": session_data["user_tone_instruction"],
-            "target_country_code": session_data["country_context"]["country_code"],
-            "country_name_for_ai": session_data["country_context"]["country_name"],
-            "is_global_search": session_data["country_context"]["is_global"],
-            **kwargs
-        }
+        request_args = {"user_tone_instruction": session_data["user_tone_instruction"], **session_data.get("country_context", {}), **kwargs}
         return await self.audit_analyzer.run_audit_and_strategy(**request_args)
 
     async def prophesy_price_arbitrage(self, strategy_session_id: str, **kwargs) -> Dict:
-        """Commands the Price Arbitrage Finder, authorized by a Grand Strategy session."""
         logger.info(f"PRICE ARBITRAGE ENGINE: Authorized by session {strategy_session_id}")
         session_data = self._get_session_or_raise(strategy_session_id)
-        
-        request_args = {
-            "user_tone_instruction": session_data["user_tone_instruction"],
-            "target_country_code": session_data["country_context"]["country_code"],
-            "country_name_for_ai": session_data["country_context"]["country_name"],
-            **kwargs
-        }
+        request_args = {"user_tone_instruction": session_data["user_tone_instruction"], "country_name_for_ai": session_data.get("country_context", {}).get("country_name"), **kwargs}
         return await self.price_arbitrage_finder.divine_arbitrage_paths(**request_args)
 
     async def prophesy_social_selling(self, strategy_session_id: str, **kwargs) -> Dict:
-        """Commands the Social Selling Strategist, authorized by a Grand Strategy session."""
         logger.info(f"SOCIAL SELLING ENGINE: Authorized by session {strategy_session_id}")
         session_data = self._get_session_or_raise(strategy_session_id)
-        
-        request_args = {
-            "user_tone_instruction": session_data["user_tone_instruction"],
-            "target_country_name": session_data["country_context"]["country_name"],
-            **kwargs
-        }
+        request_args = {"user_tone_instruction": session_data["user_tone_instruction"], "target_country_name": session_data.get("country_context", {}).get("country_name"), **kwargs}
         return await self.social_selling_strategist.devise_social_selling_saga(**request_args)
-        
+
     async def prophesy_product_route(self, strategy_session_id: str, **kwargs) -> Dict:
-        """Commands the Product Route Suggester, authorized by a Grand Strategy session."""
         logger.info(f"PRODUCT ROUTE ENGINE: Authorized by session {strategy_session_id}")
         session_data = self._get_session_or_raise(strategy_session_id)
-
-        request_args = {
-            "user_tone_instruction": session_data["user_tone_instruction"],
-            "target_country_name": session_data["country_context"]["country_name"],
-            **kwargs
-        }
+        request_args = {"user_tone_instruction": session_data["user_tone_instruction"], "target_country_name": session_data.get("country_context", {}).get("country_name"), **kwargs}
         return await self.product_route_suggester.prophesy_product_route(**request_args)
 
-    # --- The remaining content-specific methods are also updated for the new auth flow ---
-    
-    async def prophesy_social_media_post(self, strategy_session_id: str, spark_id: str, **kwargs) -> Dict:
-        """Delegates social post generation, authorized by the strategy session."""
-        logger.info(f"SOCIAL POST ENGINE: Authorized by session {strategy_session_id}")
-        session_data = self._get_session_or_raise(strategy_session_id)
-        if not session_data.get("content_sparks_data"):
-            raise ValueError("Content sparks have not been generated for this strategy session.")
+    async def prophesy_marketing_angles(self, **kwargs) -> Dict:
+        """Phase 1 of Marketing Saga: Researches and generates strategic angles."""
+        logger.info(f"MARKETING ANGLES ENGINE: Generating marketing angles...")
+        # This prophecy is multi-stage, so we must cache the results for Phase 2.
+        angles_prophecy = await self.marketing_saga_stack.prophesy_marketing_angles(**kwargs)
         
-        spark = next((s for s in session_data["content_sparks_data"].get("sparks", []) if s.get("spark_id") == spark_id), None)
-        if not spark: raise ValueError("The chosen content spark could not be found in this session.")
+        marketing_session_id = str(uuid.uuid4())
+        self.strategy_session_cache[marketing_session_id] = angles_prophecy
         
-        kwargs.pop("strategy_session_id", None)
-        kwargs.pop("spark_id", None)
-        return await self.content_saga_stack.prophesy_social_post(spark=spark, **kwargs)
+        # We only return the 'cards' to the user for them to choose from.
+        return {"marketing_session_id": marketing_session_id, "marketing_angles": angles_prophecy.get("marketing_angles", [])}
 
-    async def prophesy_insightful_comment(self, strategy_session_id: str, spark_id: str, **kwargs) -> Dict:
-        """Delegates insightful comment generation, authorized by the strategy session."""
-        logger.info(f"COMMENT ENGINE: Authorized by session {strategy_session_id}")
-        session_data = self._get_session_or_raise(strategy_session_id)
-        if not session_data.get("content_sparks_data"):
-            raise ValueError("Content sparks have not been generated for this strategy session.")
-            
-        spark = next((s for s in session_data["content_sparks_data"].get("sparks", []) if s.get("spark_id") == spark_id), None)
-        if not spark: raise ValueError("The chosen content spark could not be found in this session.")
+    async def prophesy_marketing_asset(self, marketing_session_id: str, angle_id: str) -> Dict[str, Any]:
+        """Phase 2 of Marketing Saga: Generates a final, specific asset from a chosen angle."""
+        logger.info(f"MARKETING ASSET ENGINE: Authorized by session {marketing_session_id} for angle {angle_id}")
+        session_data = self._get_session_or_raise(marketing_session_id)
         
-        kwargs.pop("strategy_session_id", None)
-        kwargs.pop("spark_id", None)
-        return await self.content_saga_stack.prophesy_insightful_comment(spark=spark, **kwargs)
+        try:
+            chosen_angle = next(a for a in session_data.get("marketing_angles", []) if a["angle_id"] == angle_id)
+        except StopIteration:
+            raise ValueError("The selected angle_id was not found in the prophecy.")
 
-    async def prophesy_blog_post_from_spark(self, strategy_session_id: str, spark_id: str, **kwargs) -> Dict:
-        """Delegates blog post generation, authorized by the strategy session."""
-        logger.info(f"BLOG POST ENGINE: Authorized by session {strategy_session_id}")
-        session_data = self._get_session_or_raise(strategy_session_id)
-        if not session_data.get("content_sparks_data"):
-            raise ValueError("Content sparks have not been generated for this strategy session.")
-            
-        spark = next((s for s in session_data["content_sparks_data"].get("sparks", []) if s.get("spark_id") == spark_id), None)
-        if not spark: raise ValueError("The chosen content spark could not be found in this session.")
-        
-        kwargs.pop("strategy_session_id", None)
-        kwargs.pop("spark_id", None)
-        return await self.content_saga_stack.prophesy_blog_post(spark=spark, **kwargs)
+        full_angle_data = {**session_data, **chosen_angle}
+        asset_type = session_data.get("asset_type")
+
+        if asset_type == "Ad Copy": return await self.marketing_saga_stack.prophesy_ad_copy_from_angle(full_angle_data)
+        elif asset_type in ["Landing Page", "Funnel Page"]: return await self.marketing_saga_stack.prophesy_page_html_from_angle(full_angle_data)
+        elif asset_type in ["Affiliate Copy", "Email Copy"]: return await self.marketing_saga_stack.prophesy_affiliate_or_email_copy_from_angle(full_angle_data)
+        else: raise ValueError(f"Unknown asset type '{asset_type}' requested.")
 
 --- END OF FILE backend/engine.py ---
