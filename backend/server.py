@@ -28,8 +28,7 @@ class Settings(BaseSettings):
     """
     gemini_api_key: str
     mongo_uri: str
-    # New: Add an API key for IP Geolocation if using a service that requires it
-    IP_GEOLOCATION_API_KEY: Optional[str] = None # e.g., for ipinfo.io, abstractapi.com
+    IP_GEOLOCATION_API_KEY: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
@@ -40,9 +39,12 @@ class NicheStackRequest(BaseModel):
     user_content_text: Optional[str] = None
     user_content_url: Optional[str] = None
     
-    # New: Country Detection and Selection
-    user_ip_address: Optional[str] = None # For automatic country detection (e.g., client's IP)
-    target_country_name: Optional[str] = None # For manual country override (e.g., "United States", "Nigeria", "Global")
+    user_ip_address: Optional[str] = None
+    target_country_name: Optional[str] = None
+
+    # New: Category and Subcategory for more refined searches
+    product_category: Optional[str] = None # e.g., "Electronics", "Home & Kitchen", "Fashion"
+    product_subcategory: Optional[str] = None # e.g., "Smartphones", "Cookware Sets", "Dresses"
 
     # Specific fields for Commerce Audit/Social Selling
     user_store_url: Optional[str] = None
@@ -100,7 +102,9 @@ async def get_idea_stack(request: NicheStackRequest):
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
-        target_country_name=request.target_country_name
+        target_country_name=request.target_country_name,
+        product_category=request.product_category,       # New: Pass category
+        product_subcategory=request.product_subcategory  # New: Pass subcategory
     )
     
     try:
@@ -132,7 +136,9 @@ async def get_content_stack(request: NicheStackRequest):
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
-        target_country_name=request.target_country_name
+        target_country_name=request.target_country_name,
+        product_category=request.product_category,
+        product_subcategory=request.product_subcategory
     )
     
     try:
@@ -164,6 +170,8 @@ async def get_commerce_stack(request: NicheStackRequest):
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
         target_country_name=request.target_country_name,
+        product_category=request.product_category,
+        product_subcategory=request.product_subcategory,
         user_store_url=request.user_store_url,
         marketplace_link=request.marketplace_link,
         product_selling_price=request.product_selling_price,
@@ -202,7 +210,9 @@ async def get_strategy_stack(request: NicheStackRequest):
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
-        target_country_name=request.target_country_name
+        target_country_name=request.target_country_name,
+        product_category=request.product_category,
+        product_subcategory=request.product_subcategory
     )
 
     try:
@@ -242,7 +252,9 @@ async def get_arbitrage_stack(request: NicheStackRequest):
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
-        target_country_name=request.target_country_name
+        target_country_name=request.target_country_name,
+        product_category=request.product_category,      # New: Pass category
+        product_subcategory=request.product_subcategory # New: Pass subcategory
     )
 
     try:
@@ -289,7 +301,9 @@ async def get_social_selling_stack(request: NicheStackRequest):
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
-        target_country_name=request.target_country_name
+        target_country_name=request.target_country_name,
+        product_category=request.product_category,
+        product_subcategory=request.product_subcategory
     )
 
     try:
@@ -327,7 +341,9 @@ async def get_product_route_stack(request: NicheStackRequest):
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
         user_ip_address=request.user_ip_address,
-        target_country_name=request.target_country_name
+        target_country_name=request.target_country_name,
+        product_category=request.product_category,
+        product_subcategory=request.product_subcategory
     )
 
     try:
@@ -361,7 +377,6 @@ async def startup_event():
     """
     global db_client, database, engine, app_settings
 
-    # 1. Load Application Settings
     try:
         app_settings = Settings()
         logger.info("Application settings loaded.")
@@ -370,7 +385,6 @@ async def startup_event():
         app_settings = None
 
 
-    # 2. Initialize MongoDB Connection
     if app_settings and app_settings.mongo_uri:
         try:
             db_client = AsyncIOMotorClient(app_settings.mongo_uri)
@@ -386,10 +400,8 @@ async def startup_event():
         db_client = None
         database = None
 
-    # 3. Initialize the NicheStackEngine
     if app_settings and app_settings.gemini_api_key:
         try:
-            # Pass IP_GEOLOCATION_API_KEY to the engine constructor
             engine = NicheStackEngine(
                 gemini_api_key=app_settings.gemini_api_key,
                 ip_geolocation_api_key=app_settings.IP_GEOLOCATION_API_KEY
