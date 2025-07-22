@@ -1,8 +1,7 @@
---- START OF FILE backend/scraper.py ---
 import asyncio
 import logging
 from urllib.parse import quote_plus
-from typing import List, Dict, Any, Callable, Optional # Added Optional
+from typing import List, Dict, Any, Callable, Optional
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,26 +12,28 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-# Initialize a logger for this module
+# Initialize a logger for this module, our window into the process.
 logger = logging.getLogger(__name__)
 
-# --- Extractor Functions ---
+# --- Extractor Functions - Methods to distill wisdom from raw elements ---
 def default_extractor(element: WebElement) -> str:
     """The default extractor, simply returns the element's text."""
-    return element.text
+    return element.text.strip() if element and hasattr(element, 'text') else ""
 
 def get_href_extractor(element: WebElement) -> str:
-    """An extractor for <a> tags, returns the link's text and URL."""
-    text = element.text
+    """An extractor for <a> tags, returns the link's text and its destination (URL)."""
+    text = element.text.strip()
     href = element.get_attribute('href')
     return f"{text} ({href})" if text and href else ""
 
 # --- SITE CONFIGURATION (The "Brain" of the Scraper) ---
-# NOTE: For many of these sites (especially Q&A/community forums), direct URL parameters
-# for country or category filtering are not consistently available or effective.
-# The primary purpose of passing country/category here is for contextual logging and
-# for the AI to interpret the results within that defined scope.
+# This is the grimoire from which Saga draws her knowledge of the web's structure.
+# Each entry is a map to a stream of public consciousness.
+# NOTE: For many of these sites, direct URL parameters for country or category
+# filtering are not consistently available. The primary purpose of passing this context
+# is for superior logging and for the AI to interpret the results within a defined scope.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
+    # --- Community & Q&A Platforms (The Voice of the People) ---
     "Reddit": {
         "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment",
         "wait_selector": '[data-testid="comment"]',
@@ -47,18 +48,12 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "query_type": "pain_point",
         "extractor": default_extractor,
     },
+    # --- Technical & Developer Platforms (The Voice of the Builders) ---
     "StackOverflow": {
         "search_url_template": "https://stackoverflow.com/search?q={query}",
         "wait_selector": '#mainbar',
         "item_selector": '.s-post-summary--content .s-post-summary--content-title a',
         "query_type": "technical",
-        "extractor": default_extractor,
-    },
-    "Medium": {
-        "search_url_template": "https://medium.com/search?q={query}",
-        "wait_selector": 'article',
-        "item_selector": 'article h2',
-        "query_type": "general",
         "extractor": default_extractor,
     },
     "GitHub": {
@@ -68,9 +63,36 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "query_type": "technical",
         "extractor": default_extractor,
     },
-    # Jumia is an e-commerce example that *could* be extended for category/subcategory search params
-    # but that complexity would be in its specific 'scraper' implementation here if needed,
-    # or rely on the global_ecommerce_scraper for more dedicated product search.
+    # --- News & Current Events (The Pulse of the World) ---
+    "Reuters": {
+        "search_url_template": "https://www.reuters.com/site-search/?query={query}",
+        "wait_selector": '[data-testid="Heading"]',
+        "item_selector": '[data-testid="Heading"]',
+        "query_type": "news",
+        "extractor": default_extractor,
+    },
+    "BBC_News": {
+        "search_url_template": "https://www.bbc.co.uk/search?q={query}",
+        "wait_selector": 'main [aria-labelledby="search-content"] ul > li',
+        "item_selector": 'main [aria-labelledby="search-content"] ul > li p',
+        "query_type": "news",
+        "extractor": default_extractor,
+    },
+    "The_Guardian": {
+        "search_url_template": "https://www.theguardian.com/search?q={query}",
+        "wait_selector": '[data-testid="results-list"] > li',
+        "item_selector": '[data-testid="results-list"] > li .dcr-12qpde2 a',
+        "query_type": "news",
+        "extractor": default_extractor,
+    },
+    # --- General Knowledge & E-commerce ---
+    "Medium": {
+        "search_url_template": "https://medium.com/search?q={query}",
+        "wait_selector": 'article',
+        "item_selector": 'article h2',
+        "query_type": "general",
+        "extractor": default_extractor,
+    },
     "Jumia": {
         "search_url_template": "https://www.jumia.com.ng/catalog/?q={query}",
         "wait_selector": 'article.prd',
@@ -80,23 +102,25 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# --- QUERIES DICTIONARY ---
+# --- QUERIES DICTIONARY (The Questions We Ask the Oracle) ---
 QUERIES = {
-    "pain_point": '"{interest}" problem OR "how to" OR "I need help with"',
-    "technical": '"{interest}" error OR "bug" OR "tutorial"',
-    "general": '"{interest}"',
-    "product": '"{interest}"',
+    "pain_point": '"{interest}" problem OR "how to" OR "I need help with" OR "issues with {interest}"',
+    "technical": '"{interest}" error OR "bug" OR "tutorial" OR "integration issue"',
+    "general": '"{interest}" analysis OR "impact of {interest}"',
+    "product": '"{interest}" reviews OR "best {interest}"',
+    "news": '"{interest}"',
 }
 
-class WebScraper:
+class SagaInsightScraper:
     """
-    A robust, config-driven web scraper using Selenium to handle modern, 
-    JavaScript-heavy websites. It is designed to be efficient and resilient.
+    A robust, config-driven web scraper that acts as Saga's eyes upon the world.
+    It uses Selenium to perceive modern, JavaScript-heavy websites, ensuring that
+    no story, problem, or idea is hidden from view.
     """
     def _get_driver(self) -> webdriver.Chrome:
         """
-        Initializes and returns a headless Google Chrome browser instance for scraping.
-        This includes optimized options for running in a containerized environment like Render.
+        Summons a Chrome browser instance, configured for silent, efficient operation
+        in any environment, from a local machine to the halls of a cloud server.
         """
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
@@ -111,55 +135,52 @@ class WebScraper:
             service = Service(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
         except WebDriverException as e:
-            logger.error(f"Failed to initialize Chrome driver: {e}. Ensure Chrome and ChromeDriver are compatible and installed.")
+            logger.error(f"Failed to initialize Chrome driver: {e}. The digital realm resists our gaze. Ensure Chrome and ChromeDriver are compatible and installed.")
             raise
         except Exception as e:
             logger.error(f"An unexpected error occurred during driver initialization: {e}")
             raise
 
-
-    async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 3,
+    async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 5,
                           country_code: Optional[str] = None, country_name: Optional[str] = None,
                           product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> Dict:
         """
-        Scrapes a single site using a shared, pre-initialized browser instance.
+        Gazes upon a single site using a shared browser instance, extracting its stories.
 
         Args:
             driver: A running Selenium WebDriver instance.
-            site_key: The key corresponding to a site in SITE_CONFIGS.
-            query: The search term or phrase.
-            max_items: The maximum number of text snippets to extract.
-            country_code: 2-letter ISO country code for context.
-            country_name: Full country name for context.
-            product_category: Optional category for context.
-            product_subcategory: Optional subcategory for context.
+            site_key: The key to the site's entry in our SITE_CONFIGS grimoire.
+            query: The question we are asking of the site.
+            max_items: The maximum number of insights to glean.
+            country_code: The 2-letter ISO code of the land we are observing.
+            country_name: The full name of the land, for clarity in our logs.
+            product_category: A more specific domain of inquiry.
+            product_subcategory: A niche within that domain.
 
         Returns:
-            A dictionary containing the site name and a list of extracted text results.
+            A dictionary containing the site's name and a list of extracted insights.
         """
         config = SITE_CONFIGS[site_key]
         results = []
         
-        # Build contextual log suffix
-        context_suffix = ""
+        # Build a detailed context string for our records, so we always remember the 'why' of our query.
+        context_parts = []
         if country_name:
-            context_suffix += f" (Country: {country_name}"
-            if country_code:
-                context_suffix += f" - {country_code}"
-            context_suffix += ")"
+            context_parts.append(f"Country: {country_name}")
         if product_category:
-            context_suffix += f" [Category: {product_category}"
-            if product_subcategory:
-                context_suffix += f" / {product_subcategory}"
-            context_suffix += "]"
+            context_parts.append(f"Category: {product_category}")
+        if product_subcategory:
+            context_parts.append(f"Subcategory: {product_subcategory}")
+        context_log_suffix = f" ({'; '.join(context_parts)})" if context_parts else ""
 
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Navigating to {site_key} at URL: {url}{context_suffix}")
+            logger.info(f"Peering into {site_key} for '{query}'{context_log_suffix}...")
             await asyncio.to_thread(driver.get, url)
             
-            await asyncio.to_thread(WebDriverWait(driver, 15).until,
-                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"])))
+            await asyncio.to_thread(WebDriverWait(driver, 20).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))
+            ))
             
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
             extractor_func: Callable[[WebElement], str] = config.get("extractor", default_extractor)
@@ -169,33 +190,34 @@ class WebScraper:
                 if extracted_text:
                     results.append(extracted_text)
             
-            logger.info(f"Successfully found {len(results)} items from {site_key}{context_suffix}.")
+            if not results:
+                logger.warning(f"Successfully connected to {site_key}, but found no matching items for selector '{config['item_selector']}'. The stream is quiet here.")
+            else:
+                logger.info(f"Gleaned {len(results)} insights from {site_key}{context_log_suffix}.")
+
         except TimeoutException:
-            logger.warning(f"TimeoutException while scraping {site_key}{context_suffix}. Elements did not load within expected time. URL: {driver.current_url}")
+            logger.warning(f"TimeoutException: The spirits of {site_key} are slow to answer{context_log_suffix}. The elements '{config['wait_selector']}' did not appear in time.")
         except NoSuchElementException:
-            logger.warning(f"NoSuchElementException while scraping {site_key}{context_suffix}. Expected elements not found. Selector: {config['item_selector']}. URL: {driver.current_url}")
+            logger.warning(f"NoSuchElementException: The paths on {site_key} have changed{context_log_suffix}. Could not find elements with selector: '{config['item_selector']}'.")
         except Exception as e:
-            logger.error(f"Failed to scrape {site_key}{context_suffix}. URL: {driver.current_url}. Error: {e}")
+            logger.error(f"An unforeseen obstacle arose while scraping {site_key}{context_log_suffix}. Error: {e}", exc_info=True)
         
-        return {"site": site_key, "results": [res for res in results if res]}
+        return {"site": site_key, "query_type": config.get("query_type"), "results": [res for res in results if res]}
 
     async def scrape_multiple_sites(self, interest: str, sites: List[str],
                                    country_code: Optional[str] = None, country_name: Optional[str] = None,
                                    product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> List[Dict]:
         """
-        Initializes a single browser instance and runs scrapers for a list of sites 
-        in parallel, sharing the browser to conserve resources.
+        Dispatches a single browser instance to gaze upon multiple sites in parallel,
+        sharing its vision to conserve vital energy.
 
         Args:
-            interest: The user's broad interest (e.g., "home fitness").
-            sites: A list of site keys from SITE_CONFIGS to scrape.
-            country_code: 2-letter ISO country code for localization context.
-            country_name: Full country name for localization context.
-            product_category: Optional category for context.
-            product_subcategory: Optional subcategory for context.
+            interest: The central theme of our inquiry (e.g., "home fitness").
+            sites: A list of site keys from SITE_CONFIGS to observe.
+            (and other context parameters for localization and categorization)
 
         Returns:
-            A list of dictionaries, where each contains the results from one site.
+            A list of dictionaries, each a chapter of insights from a single site.
         """
         driver = None
         scraped_data = []
@@ -205,24 +227,27 @@ class WebScraper:
 
             for site_key in sites:
                 if site_key in SITE_CONFIGS:
-                    query_type = SITE_CONFIGS[site_key].get("query_type", "general")
+                    config = SITE_CONFIGS[site_key]
+                    query_type = config.get("query_type", "general")
                     query = QUERIES[query_type].format(interest=interest)
-                    # Pass all context parameters down to scrape_site
+                    
                     tasks.append(self.scrape_site(driver, site_key, query, 
-                                                  country_code, country_name,
-                                                  product_category, product_subcategory))
+                                                  max_items=5, # Standardize max items for multi-scrape
+                                                  country_code=country_code, country_name=country_name,
+                                                  product_category=product_category, product_subcategory=product_subcategory))
                 else:
-                    logger.warning(f"No configuration found for site: {site_key}. Skipping.")
+                    logger.warning(f"A map for the site '{site_key}' was not found in our grimoire. Skipping.")
 
             scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
-            logger.critical(f"Critical error during multi-site scraping initialization or execution: {e}")
+            logger.critical(f"A critical error occurred while preparing our vision: {e}", exc_info=True)
             if driver:
                 await asyncio.to_thread(driver.quit)
             return []
         finally:
             if driver:
                 await asyncio.to_thread(driver.quit)
+                logger.info("The browser has been dismissed. Our vision ends.")
         
         successful_results = [
             result for result in scraped_data 
@@ -230,4 +255,3 @@ class WebScraper:
         ]
         
         return successful_results
---- END OF FILE backend/scraper.py ---
