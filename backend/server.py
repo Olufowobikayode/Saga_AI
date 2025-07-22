@@ -7,20 +7,18 @@ from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict # Added for structured configuration
-from typing import Any, Optional, List # Added Optional, List
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Any, Optional, List
 
 # --- MongoDB Imports ---
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # --- IMPORT THE MASTER ENGINE ---
-# This is the single point of contact for all application logic.
-from backend.engine import NicheStackEngine # Corrected import path for clarity if run from root
+from backend.engine import NicheStackEngine
 
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION SETTINGS ---
-# Load environment variables from .env file
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -30,17 +28,22 @@ class Settings(BaseSettings):
     """
     gemini_api_key: str
     mongo_uri: str
+    # New: Add an API key for IP Geolocation if using a service that requires it
+    IP_GEOLOCATION_API_KEY: Optional[str] = None # e.g., for ipinfo.io, abstractapi.com
 
-    model_config = SettingsConfigDict(env_file='.env', extra='ignore') # Ignore extra env vars not defined here
+    model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
 # --- Pydantic Request/Response MODELS ---
-# These define the data structure for our API.
 class NicheStackRequest(BaseModel):
     interest: str
-    product_name: Optional[str] = None # Optional, for Commerce Stack
-    user_content_text: Optional[str] = None # New: Optional field for direct text input
-    user_content_url: Optional[str] = None  # New: Optional field for URL input
+    product_name: Optional[str] = None
+    user_content_text: Optional[str] = None
+    user_content_url: Optional[str] = None
     
+    # New: Country Detection and Selection
+    user_ip_address: Optional[str] = None # For automatic country detection (e.g., client's IP)
+    target_country_name: Optional[str] = None # For manual country override (e.g., "United States", "Nigeria", "Global")
+
     # Specific fields for Commerce Audit/Social Selling
     user_store_url: Optional[str] = None
     marketplace_link: Optional[str] = None
@@ -65,13 +68,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-api_router = APIRouter(prefix="/api") # Corrected typo: APIRouter
+api_router = APIRouter(prefix="/api")
 
-# Global variable for MongoDB client and database (initialized in startup event)
 db_client: AsyncIOMotorClient = None
 database = None
-engine: NicheStackEngine = None # Initialize engine as None globally
-app_settings: Settings = None # Global variable for settings
+engine: NicheStackEngine = None
+app_settings: Settings = None
 
 # --- API HEALTH CHECK ---
 @api_router.get("/")
@@ -80,8 +82,6 @@ async def root():
     return {"message": "NicheStack AI Backend is operational"}
 
 # --- STACK ENDPOINTS ---
-# Each endpoint is a clean, simple interface to a complex backend process.
-
 @api_router.post("/idea-stack", response_model=NicheStackResponse, tags=["Stacks"])
 async def get_idea_stack(request: NicheStackRequest):
     """
@@ -98,12 +98,13 @@ async def get_idea_stack(request: NicheStackRequest):
     data = await engine.run_idea_stack(
         request.interest,
         user_content_text=request.user_content_text,
-        user_content_url=request.user_content_url
+        user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name
     )
     
-    # Optional: Save the results to your MongoDB database here
     try:
-        if database: # Ensure database connection is active
+        if database:
             await database.idea_results.insert_one({"request": request.dict(), "response": data})
             logger.info("Idea Stack results saved to MongoDB.")
         else:
@@ -129,10 +130,11 @@ async def get_content_stack(request: NicheStackRequest):
     data = await engine.run_content_stack(
         request.interest,
         user_content_text=request.user_content_text,
-        user_content_url=request.user_content_url
+        user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name
     )
     
-    # Optional: Save the results to your MongoDB database here
     try:
         if database:
             await database.content_results.insert_one({"request": request.dict(), "response": data})
@@ -160,6 +162,8 @@ async def get_commerce_stack(request: NicheStackRequest):
         product_name=request.product_name,
         user_content_text=request.user_content_text,
         user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name,
         user_store_url=request.user_store_url,
         marketplace_link=request.marketplace_link,
         product_selling_price=request.product_selling_price,
@@ -169,7 +173,6 @@ async def get_commerce_stack(request: NicheStackRequest):
         amount_to_buy=request.amount_to_buy
     )
 
-    # Optional: Save the results to your MongoDB database here
     try:
         if database:
             await database.commerce_results.insert_one({"request": request.dict(), "response": data})
@@ -197,10 +200,11 @@ async def get_strategy_stack(request: NicheStackRequest):
     data = await engine.run_strategy_stack(
         request.interest,
         user_content_text=request.user_content_text,
-        user_content_url=request.user_content_url
+        user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name
     )
 
-    # Optional: Save the results to your MongoDB database here
     try:
         if database:
             await database.strategy_results.insert_one({"request": request.dict(), "response": data})
@@ -212,7 +216,6 @@ async def get_strategy_stack(request: NicheStackRequest):
 
     return NicheStackResponse(stack="strategy", data=data)
 
-# --- New: Arbitrage Finder Stack ---
 @api_router.post("/arbitrage-stack", response_model=NicheStackResponse, tags=["Stacks"])
 async def get_arbitrage_stack(request: NicheStackRequest):
     """
@@ -230,19 +233,16 @@ async def get_arbitrage_stack(request: NicheStackRequest):
     # Import the PriceArbitrageFinder here to avoid circular dependencies
     from backend.price_arbitrage_finder import PriceArbitrageFinder
 
-    finder = PriceArbitrageFinder(gemini_api_key=app_settings.gemini_api_key) # Use settings from global app config
+    finder = PriceArbitrageFinder(gemini_api_key=app_settings.gemini_api_key)
     
-    # Get user tone instruction from engine's centralized method
-    user_tone_instruction = await engine._get_user_tone_instruction(
-        user_content_text=request.user_content_text,
-        user_content_url=request.user_content_url
-    )
-
     data = await finder.find_arbitrage_opportunities(
         product_name=request.product_name,
         buy_marketplace_link=request.buy_marketplace_link,
         sell_marketplace_link=request.sell_marketplace_link,
-        user_tone_instruction=user_tone_instruction # Pass the generated tone instruction
+        user_content_text=request.user_content_text,
+        user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name
     )
 
     try:
@@ -256,8 +256,6 @@ async def get_arbitrage_stack(request: NicheStackRequest):
 
     return NicheStackResponse(stack="arbitrage", data=data)
 
-
-# --- New: Social Selling Strategist Stack ---
 @api_router.post("/social-selling-stack", response_model=NicheStackResponse, tags=["Stacks"])
 async def get_social_selling_stack(request: NicheStackRequest):
     """
@@ -278,13 +276,7 @@ async def get_social_selling_stack(request: NicheStackRequest):
     # Import the SocialSellingStrategist here to avoid circular dependencies
     from backend.social_selling_strategist import SocialSellingStrategist
 
-    strategist = SocialSellingStrategist(gemini_api_key=app_settings.gemini_api_key) # Use settings from global app config
-
-    # Get user tone instruction from engine's centralized method
-    user_tone_instruction = await engine._get_user_tone_instruction(
-        user_content_text=request.user_content_text,
-        user_content_url=request.user_content_url
-    )
+    strategist = SocialSellingStrategist(gemini_api_key=app_settings.gemini_api_key)
 
     data = await strategist.analyze_social_selling(
         product_name=request.product_name,
@@ -293,8 +285,11 @@ async def get_social_selling_stack(request: NicheStackRequest):
         ads_daily_budget=request.ads_daily_budget,
         number_of_days=request.number_of_days,
         amount_to_buy=request.amount_to_buy,
-        supplier_marketplace_link=request.marketplace_link, # Re-using marketplace_link for supplier here
-        user_tone_instruction=user_tone_instruction # Pass the generated tone instruction
+        supplier_marketplace_link=request.marketplace_link,
+        user_content_text=request.user_content_text,
+        user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name
     )
 
     try:
@@ -308,7 +303,6 @@ async def get_social_selling_stack(request: NicheStackRequest):
 
     return NicheStackResponse(stack="social_selling", data=data)
 
-# --- New: Product Route Suggester Stack ---
 @api_router.post("/product-route-stack", response_model=NicheStackResponse, tags=["Stacks"])
 async def get_product_route_stack(request: NicheStackRequest):
     """
@@ -326,17 +320,14 @@ async def get_product_route_stack(request: NicheStackRequest):
     # Import the ProductRouteSuggester here to avoid circular dependencies
     from backend.product_route_suggester import ProductRouteSuggester
 
-    suggester = ProductRouteSuggester(gemini_api_key=app_settings.gemini_api_key) # Use settings from global app config
-
-    # Get user tone instruction from engine's centralized method
-    user_tone_instruction = await engine._get_user_tone_instruction(
-        user_content_text=request.user_content_text,
-        user_content_url=request.user_content_url
-    )
+    suggester = ProductRouteSuggester(gemini_api_key=app_settings.gemini_api_key)
 
     data = await suggester.suggest_product_and_route(
         niche_interest=request.interest,
-        user_tone_instruction=user_tone_instruction # Pass the generated tone instruction
+        user_content_text=request.user_content_text,
+        user_content_url=request.user_content_url,
+        user_ip_address=request.user_ip_address,
+        target_country_name=request.target_country_name
     )
 
     try:
@@ -354,10 +345,9 @@ async def get_product_route_stack(request: NicheStackRequest):
 # --- Final App Configuration ---
 app.include_router(api_router)
 
-# Configure CORS (Cross-Origin Resource Sharing) to allow your frontend to communicate with this backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, you should restrict this to your frontend's domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -377,24 +367,20 @@ async def startup_event():
         logger.info("Application settings loaded.")
     except Exception as e:
         logger.critical(f"FATAL: Failed to load application settings (environment variables). Please ensure .env is configured correctly: {e}")
-        app_settings = None # Ensure settings are None if loading fails
-        # It's critical to exit here or not proceed if core config is missing
-        # For a full enterprise app, you might raise an exception to halt startup
-        # For this example, we'll log and let subsequent checks handle None.
+        app_settings = None
 
 
     # 2. Initialize MongoDB Connection
     if app_settings and app_settings.mongo_uri:
         try:
             db_client = AsyncIOMotorClient(app_settings.mongo_uri)
-            database = db_client.get_database("nichestack_db") # Or your chosen database name
-            # Optional: Ping the database to ensure connection
+            database = db_client.get_database("nichestack_db")
             await database.command("ping")
             logger.info("Successfully connected to MongoDB.")
         except Exception as e:
             logger.critical(f"Failed to connect to MongoDB with URI '{app_settings.mongo_uri}': {e}. Database functionality will be unavailable.")
             db_client = None
-            database = None # Ensure database is None if connection fails
+            database = None
     else:
         logger.warning("MONGO_URI not set or settings failed to load. Database connection skipped.")
         db_client = None
@@ -403,7 +389,11 @@ async def startup_event():
     # 3. Initialize the NicheStackEngine
     if app_settings and app_settings.gemini_api_key:
         try:
-            engine = NicheStackEngine(gemini_api_key=app_settings.gemini_api_key)
+            # Pass IP_GEOLOCATION_API_KEY to the engine constructor
+            engine = NicheStackEngine(
+                gemini_api_key=app_settings.gemini_api_key,
+                ip_geolocation_api_key=app_settings.IP_GEOLOCATION_API_KEY
+            )
             logger.info("NicheStack AI Engine initialized.")
         except Exception as e:
             logger.critical(f"Failed to initialize NicheStack AI Engine: {e}. AI functionalities will be unavailable.")
