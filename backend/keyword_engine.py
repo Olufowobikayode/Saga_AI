@@ -23,15 +23,15 @@ API_KEYS = {
     "KEYWORDTOOL_IO_API_KEY": os.environ.get("KEYWORDTOOL_IO_API_KEY"),
 }
 
-class KeywordEngine:
+class KeywordRuneKeeper:
     """
-    An enterprise-grade, multi-source keyword intelligence engine.
-    It follows an "API-First, Scrape-Second" philosophy, prioritizing reliable API
-    integrations and falling back to intelligent scraping for public data.
+    A specialist aspect of Saga, the Keeper of Digital Runes. It consults the most
+    structured oracles (APIs) to decipher the power and meaning of keywords.
+    It follows Saga's primary decree: "Seek the inscribed rune (API) before reading the shifting sands (scraping)."
     """
 
     def _get_driver(self) -> webdriver.Chrome:
-        """Initializes a headless Chrome browser for scraping tasks."""
+        """Summons a Chrome spirit, only when needed for reading the shifting sands."""
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
@@ -42,27 +42,23 @@ class KeywordEngine:
             service = Service(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
         except WebDriverException as e:
-            logger.error(f"Failed to initialize Chrome driver for KeywordEngine: {e}")
+            logger.error(f"The Chrome spirit for the Rune Keeper could not be summoned: {e}")
             raise
 
     async def _run_in_executor(self, sync_func, *args, **kwargs) -> Any:
-        """Runs a synchronous function in a separate thread to prevent blocking the event loop."""
+        """A rite to run synchronous incantations in a separate thread, so as not to block the flow of wisdom."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: sync_func(*args, **kwargs))
     
-    # --- Data Source Method: Google Trends (API) ---
-    async def get_google_trends_data(self, interest: str, country_code: Optional[str] = None) -> Dict:
+    async def divine_from_google_trends(self, interest: str, country_code: Optional[str] = None) -> Dict:
         """
-        Fetches related and rising queries from Google Trends, localized by country code.
+        Divines the rising and related keyword runes from the great Google Trends oracle.
         """
-        logger.info(f"Fetching Google Trends data for '{interest}' in country code '{country_code}'...")
+        logger.info(f"Divining Google Trends runes for '{interest}' in realm '{country_code}'...")
         data = {"related": [], "rising": []}
         try:
-            # hl is interface language, tz is timezone. geo is for the search region.
             pytrends = TrendReq(hl='en-US', tz=360) 
-            
-            # Pass geo parameter for country-specific trends
-            geo_param = country_code.upper() if country_code else '' # Use uppercase for ISO code
+            geo_param = country_code.upper() if country_code else ''
             
             await self._run_in_executor(pytrends.build_payload, kw_list=[interest], timeframe='today 3-m', geo=geo_param)
             related_queries = await self._run_in_executor(pytrends.related_queries)
@@ -75,28 +71,25 @@ class KeywordEngine:
             if rising is not None and not rising.empty:
                 data["rising"] = rising['query'].tolist()[:5]
         except Exception as e:
-            logger.error(f"Pytrends API failed for interest '{interest}' in country '{country_code}': {e}")
+            logger.error(f"The Google Trends oracle was silent for '{interest}' in realm '{country_code}': {e}")
             data["error"] = str(e)
         return data
 
-    # --- Data Source Method: KeywordTool.io (API) ---
-    async def get_keywordtool_io_suggestions(self, interest: str, country_code: Optional[str] = None) -> List[str]:
+    async def decipher_from_keywordtool_io(self, interest: str, country_code: Optional[str] = None) -> List[str]:
         """
-        [API-FIRST] Fetches keyword suggestions from the official KeywordTool.io API, localized by country code.
-        Requires a valid API key.
+        [RUNE-FIRST] Deciphers keyword suggestions from the sacred KeywordTool.io API scrolls.
+        Requires a key to the library (API Key).
         """
         api_key = API_KEYS.get("KEYWORDTOOL_IO_API_KEY")
         if not api_key:
-            logger.warning("KeywordTool.io API key not found. Skipping KeywordTool.io suggestions.")
+            logger.warning("The key to the KeywordTool.io library is missing. I cannot read its scrolls.")
             return []
             
-        logger.info(f"Fetching data from KeywordTool.io API for '{interest}' in country code '{country_code}'...")
+        logger.info(f"Unsealing the KeywordTool.io scrolls for '{interest}' in realm '{country_code}'...")
         
-        url_params = f"keyword={quote_plus(interest)}"
+        url = f"https://api.keywordtool.io/v2/search/suggestions/google?keyword={quote_plus(interest)}"
         if country_code:
-            url_params += f"&country={country_code.upper()}" # KeywordTool.io typically uses 2-letter ISO codes
-        
-        url = f"https://api.keywordtool.io/v2/search/suggestions/google?{url_params}"
+            url += f"&country={country_code.upper()}"
         headers = {"X-API-Key": api_key}
         
         try:
@@ -105,77 +98,18 @@ class KeywordEngine:
                     response.raise_for_status()
                     data = await response.json()
                     return [item['string'] for item in data.get('results', {}).get('suggestions', [])[:10]]
-        except aiohttp.ClientError as e:
-            logger.error(f"KeywordTool.io API request failed for '{interest}' in country '{country_code}': {e}")
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response from KeywordTool.io API for '{interest}' in country '{country_code}': {e}")
         except Exception as e:
-            logger.error(f"An unexpected error occurred calling KeywordTool.io API for '{interest}' in country '{country_code}': {e}")
+            logger.error(f"Failed to decipher the scrolls of KeywordTool.io for '{interest}': {e}")
         return []
-
-    # --- Data Source Method: AnswerThePublic (Scraping) ---
-    async def scrape_answerthepublic_questions(self, interest: str, country_code: Optional[str] = None, country_name: Optional[str] = None) -> List[str]:
-        """
-        [SCRAPE-SECOND] Scrapes the "questions" section from AnswerThePublic.
-        NOTE: This site is heavily protected and this scraper is fragile.
-        Localization is limited for this scraper directly, but country context can be logged.
-        """
-        logger.info(f"Scraping AnswerThePublic for '{interest}' (Country: {country_name or 'Global'})...")
-        driver = None
-        questions = []
-        try:
-            driver = self._get_driver()
-            # AnswerThePublic's localization is not simply URL-based in a scrapeable way
-            # It relies on browser settings or internal detection.
-            # We'll stick to the base URL for now.
-            await asyncio.to_thread(driver.get, f"https://answerthepublic.com/{quote_plus(interest)}")
-            
-            await asyncio.to_thread(WebDriverWait(driver, 20).until,
-                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.search-vis-list__item')))
-            
-            await asyncio.sleep(2)
-
-            question_elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, '.search-vis-list__item')
-            questions = [await asyncio.to_thread(lambda: el.text) for el in question_elements[:10] if await asyncio.to_thread(lambda: el.text)]
-            logger.info(f"Found {len(questions)} questions from AnswerThePublic.")
-        except TimeoutException:
-            logger.warning(f"Timeout while scraping AnswerThePublic for '{interest}'. This is common.")
-        except NoSuchElementException:
-            logger.warning(f"Expected elements not found on AnswerThePublic for '{interest}'. Site structure may have changed.")
-        except Exception as e:
-            logger.warning(f"Failed to scrape AnswerThePublic for '{interest}'. Error: {e}")
-        finally:
-            if driver:
-                await asyncio.to_thread(driver.quit)
-        return questions
-
-    # --- Orchestrator Method ---
-    async def get_full_keyword_strategy_data(self, 
-                                            interest: str, 
-                                            country_code: Optional[str] = None, 
-                                            country_name: Optional[str] = None,
-                                            product_category: Optional[str] = None,
-                                            product_subcategory: Optional[str] = None) -> Dict:
-        """
-        The main public method for this engine. It orchestrates the gathering of
-        data from all available sources in parallel, considering country context.
-
-        Args:
-            interest: The user's core niche or keyword.
-            country_code: 2-letter ISO country code for localization.
-            country_name: Full country name for logging/context.
-            product_category: Optional category for refinement.
-            product_subcategory: Optional subcategory for refinement.
-
-        Returns:
-            A dictionary containing all the gathered keyword intelligence.
-        """
-        logger.info(f"Starting full keyword intelligence gathering for '{interest}' in '{country_name or 'Global'}'...")
+    
+    # This is the primary public method for this module
+    async def get_full_keyword_runes(self, interest: str, country_code: Optional[str] = None) -> Dict:
+        """Orchestrates the gathering of all high-quality keyword runes from the most reliable oracles."""
+        logger.info(f"Gathering all potent keyword runes for '{interest}' in '{country_code or 'Global'}'...")
         
         tasks = {
-            "google_trends": self.get_google_trends_data(interest, country_code),
-            "keywordtool_io": self.get_keywordtool_io_suggestions(interest, country_code),
-            "answerthepublic": self.scrape_answerthepublic_questions(interest, country_code, country_name),
+            "google_trends": self.divine_from_google_trends(interest, country_code),
+            "keywordtool_io": self.decipher_from_keywordtool_io(interest, country_code),
         }
 
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -183,7 +117,7 @@ class KeywordEngine:
         final_data = {}
         for task_name, result in zip(tasks.keys(), results):
             if isinstance(result, Exception):
-                logger.error(f"Task '{task_name}' failed with an exception for '{interest}' in country '{country_code}': {result}")
+                logger.error(f"Rune-gathering task '{task_name}' failed for '{interest}': {result}")
                 final_data[task_name] = {"error": str(result)}
             else:
                 final_data[task_name] = result
