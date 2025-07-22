@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from urllib.parse import quote_plus
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, Optional # Added Optional
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,17 +11,14 @@ from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException # Added specific Selenium exceptions
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 # Initialize a logger for this module
 logger = logging.getLogger(__name__)
 
 # --- Extractor Functions ---
-# This allows for custom logic to get the text from different types of elements.
 def default_extractor(element: WebElement) -> str:
     """The default extractor, simply returns the element's text."""
-    # In an async context, accessing .text might need to be offloaded if not guaranteed non-blocking
-    # For now, it's offloaded at the point of calling extractor_func
     return element.text
 
 def get_href_extractor(element: WebElement) -> str:
@@ -31,7 +28,10 @@ def get_href_extractor(element: WebElement) -> str:
     return f"{text} ({href})" if text and href else ""
 
 # --- SITE CONFIGURATION (The "Brain" of the Scraper) ---
-# This configuration is now more powerful and flexible.
+# NOTE: For many of these sites (especially Q&A/community forums), direct URL parameters
+# for country or category filtering are not consistently available or effective.
+# The primary purpose of passing country/category here is for contextual logging and
+# for the AI to interpret the results within that defined scope.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Reddit": {
         "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment",
@@ -68,19 +68,19 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "query_type": "technical",
         "extractor": default_extractor,
     },
-    # --- Example of an E-commerce Scraper (for a future stack) ---
+    # Jumia is an e-commerce example that *could* be extended for category/subcategory search params
+    # but that complexity would be in its specific 'scraper' implementation here if needed,
+    # or rely on the global_ecommerce_scraper for more dedicated product search.
     "Jumia": {
         "search_url_template": "https://www.jumia.com.ng/catalog/?q={query}",
         "wait_selector": 'article.prd',
-        "item_selector": 'article.prd .name', # Simplified, would need price too
+        "item_selector": 'article.prd .name',
         "query_type": "product",
         "extractor": default_extractor,
     },
-    # You can easily add more of the 80+ sites here by defining their selectors and query type.
 }
 
 # --- QUERIES DICTIONARY ---
-# This separates the "what to search for" from the "how to scrape".
 QUERIES = {
     "pain_point": '"{interest}" problem OR "how to" OR "I need help with"',
     "technical": '"{interest}" error OR "bug" OR "tutorial"',
@@ -108,18 +108,19 @@ class WebScraper:
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
         
         try:
-            # ChromeDriverManager().install() is a blocking call, so it should be offloaded
             service = Service(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
         except WebDriverException as e:
             logger.error(f"Failed to initialize Chrome driver: {e}. Ensure Chrome and ChromeDriver are compatible and installed.")
-            raise # Re-raise to indicate critical failure
+            raise
         except Exception as e:
             logger.error(f"An unexpected error occurred during driver initialization: {e}")
             raise
 
 
-    async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 3) -> Dict:
+    async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 3,
+                          country_code: Optional[str] = None, country_name: Optional[str] = None,
+                          product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> Dict:
         """
         Scrapes a single site using a shared, pre-initialized browser instance.
 
@@ -128,15 +129,33 @@ class WebScraper:
             site_key: The key corresponding to a site in SITE_CONFIGS.
             query: The search term or phrase.
             max_items: The maximum number of text snippets to extract.
+            country_code: 2-letter ISO country code for context.
+            country_name: Full country name for context.
+            product_category: Optional category for context.
+            product_subcategory: Optional subcategory for context.
 
         Returns:
             A dictionary containing the site name and a list of extracted text results.
         """
         config = SITE_CONFIGS[site_key]
         results = []
+        
+        # Build contextual log suffix
+        context_suffix = ""
+        if country_name:
+            context_suffix += f" (Country: {country_name}"
+            if country_code:
+                context_suffix += f" - {country_code}"
+            context_suffix += ")"
+        if product_category:
+            context_suffix += f" [Category: {product_category}"
+            if product_subcategory:
+                context_suffix += f" / {product_subcategory}"
+            context_suffix += "]"
+
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Navigating to {site_key} at URL: {url}")
+            logger.info(f"Navigating to {site_key} at URL: {url}{context_suffix}")
             await asyncio.to_thread(driver.get, url)
             
             await asyncio.to_thread(WebDriverWait(driver, 15).until,
@@ -145,23 +164,24 @@ class WebScraper:
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
             extractor_func: Callable[[WebElement], str] = config.get("extractor", default_extractor)
             
-            # Process elements, ensuring text/attribute retrieval is offloaded
             for el in elements[:max_items]:
                 extracted_text = await asyncio.to_thread(extractor_func, el)
                 if extracted_text:
                     results.append(extracted_text)
             
-            logger.info(f"Successfully found {len(results)} items from {site_key}.")
+            logger.info(f"Successfully found {len(results)} items from {site_key}{context_suffix}.")
         except TimeoutException:
-            logger.warning(f"TimeoutException while scraping {site_key}. Elements did not load within expected time. URL: {driver.current_url}")
+            logger.warning(f"TimeoutException while scraping {site_key}{context_suffix}. Elements did not load within expected time. URL: {driver.current_url}")
         except NoSuchElementException:
-            logger.warning(f"NoSuchElementException while scraping {site_key}. Expected elements not found. Selector: {config['item_selector']}. URL: {driver.current_url}")
+            logger.warning(f"NoSuchElementException while scraping {site_key}{context_suffix}. Expected elements not found. Selector: {config['item_selector']}. URL: {driver.current_url}")
         except Exception as e:
-            logger.error(f"Failed to scrape {site_key}. URL: {driver.current_url}. Error: {e}")
+            logger.error(f"Failed to scrape {site_key}{context_suffix}. URL: {driver.current_url}. Error: {e}")
         
-        return {"site": site_key, "results": [res for res in results if res]} # Filter out empty results
+        return {"site": site_key, "results": [res for res in results if res]}
 
-    async def scrape_multiple_sites(self, interest: str, sites: List[str]) -> List[Dict]:
+    async def scrape_multiple_sites(self, interest: str, sites: List[str],
+                                   country_code: Optional[str] = None, country_name: Optional[str] = None,
+                                   product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> List[Dict]:
         """
         Initializes a single browser instance and runs scrapers for a list of sites 
         in parallel, sharing the browser to conserve resources.
@@ -169,6 +189,10 @@ class WebScraper:
         Args:
             interest: The user's broad interest (e.g., "home fitness").
             sites: A list of site keys from SITE_CONFIGS to scrape.
+            country_code: 2-letter ISO country code for localization context.
+            country_name: Full country name for localization context.
+            product_category: Optional category for context.
+            product_subcategory: Optional subcategory for context.
 
         Returns:
             A list of dictionaries, where each contains the results from one site.
@@ -176,7 +200,6 @@ class WebScraper:
         driver = None
         scraped_data = []
         try:
-            # Initialize driver outside the loop to share it
             driver = self._get_driver()
             tasks = []
 
@@ -184,24 +207,23 @@ class WebScraper:
                 if site_key in SITE_CONFIGS:
                     query_type = SITE_CONFIGS[site_key].get("query_type", "general")
                     query = QUERIES[query_type].format(interest=interest)
-                    tasks.append(self.scrape_site(driver, site_key, query))
+                    # Pass all context parameters down to scrape_site
+                    tasks.append(self.scrape_site(driver, site_key, query, 
+                                                  country_code, country_name,
+                                                  product_category, product_subcategory))
                 else:
                     logger.warning(f"No configuration found for site: {site_key}. Skipping.")
 
-            # Run all scraping tasks concurrently
             scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
             logger.critical(f"Critical error during multi-site scraping initialization or execution: {e}")
-            # If driver initialization failed, it won't be closed in finally block below
             if driver:
                 await asyncio.to_thread(driver.quit)
-            return [] # Return empty list on critical failure
+            return []
         finally:
-            # Crucially, we always close the driver after all tasks are done.
             if driver:
                 await asyncio.to_thread(driver.quit)
         
-        # Filter out exceptions and empty results from the gathered list
         successful_results = [
             result for result in scraped_data 
             if not isinstance(result, Exception) and result.get('results')
