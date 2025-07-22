@@ -1,8 +1,8 @@
 --- START OF FILE backend/q_and_a.py ---
 import asyncio
 import logging
-import json # Used for json.dump in main and potentially in AI response helper
-from typing import List, Dict, Any, Callable
+import json
+from typing import List, Dict, Any, Callable, Optional # Added Optional
 from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
@@ -14,7 +14,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 # --- THE MASTER SITE CONFIGURATION ---
-# This is the "brain" of the scraper. Status can be 'enabled', 'protected', or 'requires_login'.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     # General Q&A and Community Platforms
+    # These sites are generally global or rely on user browser settings for localization.
+    # Direct country filtering via URL parameters for scraping is often not straightforward.
     "Quora": {"status": "enabled", "search_url_template": "https://www.quora.com/search?q={query}", "wait_selector": '.qu-userText', "item_selector": '.qu-userText'},
     "Reddit": {"status": "enabled", "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment", "wait_selector": '[data-testid="comment"]', "item_selector": '[data-testid="comment"] > div > div'},
     "Stack Exchange": {"status": "enabled", "search_url_template": "https://stackexchange.com/search?q={query}", "wait_selector": '.s-post-summary--content-title', "item_selector": '.s-post-summary--content-title .s-link'},
@@ -68,17 +69,23 @@ class UniversalScraper:
         try:
             service = Service(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
-        except Exception as e:
-            logger.error(f"Failed to initialize Chrome driver: {e}")
+        except WebDriverException as e:
+            logger.error(f"Failed to initialize Chrome driver: {e}. Ensure Chrome and ChromeDriver are compatible and installed.")
             raise
 
-    async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 5) -> Dict:
+    async def scrape_site(self, driver: webdriver.Chrome, site_key: str, query: str, 
+                          country_code: Optional[str] = None, country_name: Optional[str] = None, # New parameters
+                          max_items: int = 5) -> Dict:
         """Scrapes a single site using a shared, pre-initialized browser instance."""
         config = SITE_CONFIGS[site_key]
         results = []
+        
+        # Log country context for better debugging and understanding
+        country_log_suffix = f" (Country: {country_name or 'Global'})"
+
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Navigating to {site_key} at URL: {url}...")
+            logger.info(f"Navigating to {site_key} at URL: {url}{country_log_suffix}...")
             await asyncio.to_thread(driver.get, url)
             
             await asyncio.to_thread(WebDriverWait(driver, 15).until,
@@ -88,23 +95,24 @@ class UniversalScraper:
             
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
             
-            # Using a list comprehension to process elements, ensuring text retrieval is offloaded
             for el in elements[:max_items]:
                 text = await asyncio.to_thread(lambda: el.text.strip())
                 if text:
                     results.append(text)
             
-            logger.info(f"-> Found {len(results)} items from {site_key}.")
+            logger.info(f"-> Found {len(results)} items from {site_key}{country_log_suffix}.")
         except TimeoutException:
-            logger.warning(f"-> Timed out waiting for elements on {site_key}. URL: {driver.current_url}")
+            logger.warning(f"-> Timed out waiting for elements on {site_key}{country_log_suffix}. URL: {driver.current_url}")
         except NoSuchElementException:
-            logger.warning(f"-> Expected elements not found on {site_key}. Selector: {config['wait_selector']} or {config['item_selector']}")
+            logger.warning(f"-> Expected elements not found on {site_key}{country_log_suffix}. Selector: {config['wait_selector']} or {config['item_selector']}. URL: {driver.current_url}")
         except Exception as e:
-            logger.error(f"-> Failed to scrape {site_key}. Error: {e}")
+            logger.error(f"-> Failed to scrape {site_key}{country_log_suffix}. Error: {e}")
         
-        return { "source": site_key, "results": results }
+        return { "source": site_key, "results": [res for res in results if res] }
 
-    async def run_scraping_tasks(self, interest: str) -> List[Dict]:
+    async def run_scraping_tasks(self, interest: str, 
+                                 country_code: Optional[str] = None, # New parameter
+                                 country_name: Optional[str] = None) -> List[Dict]: # New parameter
         """Initializes a single browser and runs scrapers for all enabled sites."""
         driver = None
         scraped_data = []
@@ -112,25 +120,27 @@ class UniversalScraper:
             driver = self._get_driver()
             tasks = []
             
-            # A common query string for problem/Q&A sites
             query = f'"{interest}" problem OR "how to" OR "I need help with" OR "{interest}" issues'
 
             for site_key, config in SITE_CONFIGS.items():
                 if config["status"] == "enabled":
-                    tasks.append(self.scrape_site(driver, site_key, query))
+                    # Pass country code and name to individual site scraper for logging/context
+                    tasks.append(self.scrape_site(driver, site_key, query, country_code, country_name))
                 else:
                     logger.warning(f"Skipping '{site_key}': {config['reason']}")
 
             scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
-            # Filter out exceptions, keep only successful results
             scraped_data = [res for res in scraped_data if not isinstance(res, Exception) and res.get('results')]
 
         except Exception as e:
             logger.critical(f"Failed to initialize or run universal scraper: {e}")
+            if driver:
+                await asyncio.to_thread(driver.quit)
+            return []
         finally:
             if driver:
                 logger.info("All scraping tasks complete. Closing browser.")
-                await asyncio.to_thread(driver.quit) # Ensure driver is quit in a separate thread
+                await asyncio.to_thread(driver.quit)
         
         return scraped_data
 
@@ -143,10 +153,15 @@ async def main(keyword: str):
     logger.info(f"Researching keyword: '{keyword}'")
     
     scraper = UniversalScraper()
-    scraped_data = await scraper.run_scraping_tasks(keyword)
+    # For standalone testing, provide sample country data
+    sample_country_code = "US"
+    sample_country_name = "United States"
+    scraped_data = await scraper.run_scraping_tasks(keyword, sample_country_code, sample_country_name)
     
     final_report = {
         "keyword": keyword,
+        "country_code": sample_country_code,
+        "country_name": sample_country_name,
         "timestamp": datetime.now().isoformat(),
         "intelligence_report": scraped_data
     }
@@ -154,7 +169,7 @@ async def main(keyword: str):
     logger.info("--- MARKET INTELLIGENCE REPORT ---")
     pprint(final_report)
     
-    filename = f"intelligence_report_{keyword.replace(' ', '_')}.json"
+    filename = f"intelligence_report_{keyword.replace(' ', '_')}_{sample_country_code}.json"
     try:
         with open(filename, "w", encoding='utf-8') as f:
             json.dump(final_report, f, indent=2, ensure_ascii=False)
@@ -168,6 +183,5 @@ if __name__ == "__main__":
     parser.add_argument("keyword", type=str, help="The core keyword or niche to research.")
     args = parser.parse_args()
     
-    # This ensures the async main function is run correctly
     asyncio.run(main(args.keyword))
 --- END OF FILE backend/q_and_a.py ---
