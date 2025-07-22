@@ -1,3 +1,4 @@
+--- START OF FILE backend/q_and_a.py ---
 import asyncio
 import logging
 import json
@@ -20,9 +21,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:WISDOM] - %(
 logger = logging.getLogger(__name__)
 
 
-# --- THE MASTER SITE CONFIGURATION: Fortified for Resilience ---
-# Saga's Insight: Selectors are now anchored to more stable attributes like 'data-testid'
-# instead of volatile, style-based class names. This is the path to enduring knowledge.
+# --- THE MASTER SCROLL OF COMMUNITY REALMS: Fortified for Resilience ---
+# Saga's Insight: I have decreed that our sight should anchor to the most stable runes—
+# attributes like 'data-testid'—instead of the ever-shifting sands of style-based class names.
+# This is the path to enduring knowledge.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Reddit": {
         "status": "enabled",
@@ -30,65 +32,47 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         # RESILIENT: 'data-testid' is used for testing and is less likely to change than styling classes.
         "wait_selector": '[data-testid="comment"]',
         "item_selector": '[data-testid="comment"] > div > div',
-        "reason": "Provides raw, unfiltered user commentary and pain points."
+        "reason": "Provides the raw, unfiltered commentary and pain points of the folk."
     },
     "Quora": {
         "status": "enabled",
         "search_url_template": "https://www.quora.com/search?q={query}",
-        # NOTE: Quora's classes are obfuscated and change. '.qu-userText' is the most stable available.
+        # NOTE: Quora's runes are obfuscated and change. '.qu-userText' is the most stable available.
         "wait_selector": '.qu-userText',
         "item_selector": '.qu-userText',
-        "reason": "A primary source for user questions and detailed problem explanations."
+        "reason": "A primary forum for the people's questions and detailed explanations of their needs."
     },
     "Stack Exchange": {
         "status": "enabled",
         "search_url_template": "https://stackexchange.com/search?q={query}",
-        # STABLE: This structure is core to Stack Exchange's post layout.
+        # STABLE: This structure is core to Stack Exchange's design.
         "wait_selector": '.s-post-summary--content-title',
         "item_selector": '.s-post-summary--content-title .s-link',
-        "reason": "High-quality, moderated Q&A across a wide range of professional topics."
+        "reason": "Offers high-quality, moderated questions and answers across a wide range of professional realms."
     },
     "Medium": {
         "status": "enabled",
         "search_url_template": "https://medium.com/search?q={query}",
-        # STABLE: 'article' and 'h2' are fundamental HTML tags, less prone to change than divs with classes.
+        # STABLE: 'article' and 'h2' are fundamental HTML runes, less prone to change than divs with classes.
         "wait_selector": 'article h2',
         "item_selector": 'article h2',
-        "reason": "Captures expert opinions, tutorials, and thought leadership on the niche."
+        "reason": "Captures the sagas of experts, tutorials, and thought leadership on a niche."
     },
-    "GitHub Issues": {
-        "status": "enabled",
-        "search_url_template": "https://github.com/search?q={query}&type=issues",
-        # STABLE: Core structure for issue lists.
-        "wait_selector": '.issue-list-item',
-        "item_selector": '.issue-list-item .markdown-title a',
-        "reason": "Direct insight into technical problems, bugs, and feature requests."
-    },
-    "Dev.to": {
-        "status": "enabled",
-        "search_url_template": "https://dev.to/search?q={query}",
-        # STABLE: Semantic and structural selectors.
-        "wait_selector": 'article',
-        "item_selector": 'h2.crayons-story__title a',
-        "reason": "Community-driven technical articles and discussions."
-    },
-    # --- Deprecated or Protected Sites ---
+    # --- Deprecated or Protected Realms ---
     # Saga's Decree: We shall not waste our energy on fruitless endeavors against heavily fortified gates.
     # These are documented, but disabled, to focus our strength where it yields the most wisdom.
-    "Answers.com": {"status": "protected", "reason": "Heavy JS, CAPTCHA protection makes scraping unreliable."},
-    "Ask.fm": {"status": "protected", "reason": "Login-centric, not ideal for broad, unauthenticated scraping."},
-    "Brainly": {"status": "protected", "reason": "Requires login and has strong anti-bot measures."},
-    "Chegg": {"status": "requires_login", "reason": "All valuable content is behind a paywall."},
-    "ResearchGate": {"status": "requires_login", "reason": "Academic network requiring login."},
+    "Answers.com": {"status": "protected", "reason": "Heavy JS wards and CAPTCHA runes make it unreliable to see."},
+    "Ask.fm": {"status": "protected", "reason": "Login-centric; not a place for broad, unauthenticated divination."},
+    "Brainly": {"status": "protected", "reason": "Requires login and has strong anti-bot wards."},
 }
 
 
 class CommunitySaga:
     """
-    I am Saga, the Seer of Community Whispers. I listen to the digital halls
-    of Reddit, Quora, and other forums to gather the true voice of the people—their
-    questions, their problems, their needs. My design is now more resilient, my
-    sight more keen.
+    I am the Seer of Community Whispers, an aspect of the great Saga. I journey
+    through the digital halls of Reddit, Quora, and other forums to gather the
+    true voice of the people—their questions, their problems, their needs. My design
+    is resilient, my sight keen.
     """
 
     def _get_driver(self) -> webdriver.Chrome:
@@ -106,16 +90,16 @@ class CommunitySaga:
             logger.error(f"The Chrome spirit could not be summoned. Ensure its path is known and its form is compatible. Error: {e}")
             raise
 
-    async def _gather_from_site(self, driver: webdriver.Chrome, site_key: str, query: str,
-                                country_code: Optional[str] = None, country_name: Optional[str] = None,
-                                max_items: int = 5) -> Dict:
+    async def _gather_from_realm(self, driver: webdriver.Chrome, site_key: str, query: str,
+                                 country_code: Optional[str] = None, country_name: Optional[str] = None,
+                                 max_items: int = 5) -> Dict:
         """Gathers whispers from a single digital domain."""
         config = SITE_CONFIGS[site_key]
         results = []
 
-        country_log_suffix = f" (Realm: {country_name or 'Global'})"
+        realm_log_suffix = f" (Realm: {country_name or 'Global'})"
         url = config["search_url_template"].format(query=quote_plus(query))
-        logger.info(f"Casting my sight upon {site_key} for '{query}'{country_log_suffix}...")
+        logger.info(f"Casting my sight upon {site_key} for '{query}'{realm_log_suffix}...")
 
         try:
             await asyncio.to_thread(driver.get, url)
@@ -132,9 +116,9 @@ class CommunitySaga:
                 if text:
                     results.append(text)
 
-            logger.info(f"-> From {site_key}, I have gathered {len(results)} distinct whispers.")
+            logger.info(f"-> From the realm of {site_key}, I have gathered {len(results)} distinct whispers.")
         except TimeoutException:
-            logger.warning(f"-> The currents of {site_key} were too slow or obscured my sight (Timeout). The knowledge remains hidden.")
+            logger.warning(f"-> The mists of {site_key} were too slow or obscured my sight (Timeout). The knowledge remains hidden.")
         except NoSuchElementException:
             logger.warning(f"-> The halls of {site_key} have shifted. The patterns I sought were not found (NoSuchElement).")
         except Exception as e:
@@ -145,43 +129,43 @@ class CommunitySaga:
     async def run_community_gathering(self, interest: str,
                                        country_code: Optional[str] = None,
                                        country_name: Optional[str] = None) -> List[Dict]:
-        """I orchestrate the grand gathering of voices from all enabled realms."""
+        """I orchestrate the grand gathering of voices from all enabled community realms."""
         driver = None
         gathered_data = []
         try:
             driver = self._get_driver()
             tasks = []
 
-            # A query forged to find true problems and needs
+            # A query forged to find the true problems and needs of the people.
             query = f'"{interest}" problem OR "how to" OR "I need help with" OR "{interest}" issues'
 
             logger.info(f"I now seek the collective voice concerning '{interest}'...")
             for site_key, config in SITE_CONFIGS.items():
                 if config["status"] == "enabled":
-                    tasks.append(self._gather_from_site(driver, site_key, query, country_code, country_name))
+                    tasks.append(self._gather_from_realm(driver, site_key, query, country_code, country_name))
                 else:
-                    logger.warning(f"I will not gaze upon '{site_key}'. Reason: {config['reason']}")
+                    logger.warning(f"I will not gaze upon the realm of '{site_key}'. Reason: {config['reason']}")
 
             gathered_data = await asyncio.gather(*tasks, return_exceptions=True)
             # Filter out failures and empty results, for only true wisdom should be presented.
             gathered_data = [res for res in gathered_data if not isinstance(res, Exception) and res.get('results')]
 
         except Exception as e:
-            logger.critical(f"A great disturbance has disrupted the entire gathering. My sight is clouded. Error: {e}")
+            logger.critical(f"A great disturbance has disrupted the gathering of whispers. My sight is clouded. Error: {e}")
             if driver:
                 await asyncio.to_thread(driver.quit)
             return []
         finally:
             if driver:
-                logger.info("The gathering is complete. The Chrome spirit is dismissed.")
+                logger.info("The gathering of whispers is complete. The Chrome spirit is dismissed.")
                 await asyncio.to_thread(driver.quit)
 
         return gathered_data
 
 
 async def main(keyword: str):
-    """A standalone ritual to test my powers."""
-    logger.info(f"--- SAGA'S INSIGHT ENGINE: COMMUNITY GATHERING ---")
+    """A standalone ritual to test my powers of community divination."""
+    logger.info(f"--- SAGA'S INSIGHT ENGINE: GATHERING OF WHISPERS ---")
     logger.info(f"Divining wisdom for keyword: '{keyword}'")
 
     saga_seer = CommunitySaga()
@@ -191,10 +175,12 @@ async def main(keyword: str):
 
     final_report = {
         "divined_for": keyword,
-        "realm_code": sample_country_code,
-        "realm_name": sample_country_name,
+        "realm_of_prophecy": {
+            "name": sample_country_name,
+            "code": sample_country_code
+        },
         "timestamp_of_vision": datetime.now().isoformat(),
-        "community_whispers": scraped_data
+        "community_whispers_gathered": scraped_data
     }
 
     logger.info("--- SCROLL OF COMMUNITY WISDOM ---")
@@ -215,3 +201,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(main(args.keyword))
+--- END OF FILE backend/q_and_a.py ---
