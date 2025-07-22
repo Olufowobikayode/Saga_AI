@@ -21,9 +21,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - 
 logger = logging.getLogger(__name__)
 
 # --- SAGA'S SCROLL OF KEYWORD REALMS ---
-# Saga's Insight: These realms reveal the questions mortals ask of the digital ether.
-# By listening here, we can understand the currents of interest and need.
-# Note: These public tools are often guarded. Their reliability can shift like the tides.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Soovle": {
         "status": "enabled",
@@ -39,9 +36,6 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "wait_selector": 'table.results-table tbody tr',
         "item_selector": 'table.results-table tbody tr td:first-child',
     },
-    # --- Protected Realms (Documented for potential future API integration) ---
-    # Saga's Decree: These realms are heavily fortified or demand tribute (paid APIs).
-    # We shall not waste our energy here, but remember them for a time when we may hold their keys.
     "Ubersuggest": {"status": "protected", "reason": "Requires login and has strong anti-bot protection."},
     "KeywordTool.io": {"status": "protected", "reason": "A powerful commercial tool with a paid API, best accessed that way."},
     "AnswerThePublic": {"status": "protected", "reason": "This realm is now guarded more heavily; its whispers are better gathered by the KeywordEngine API."},
@@ -71,20 +65,14 @@ class TrendScraper:
             logger.error(f"An unknown enchantment disrupted the summoning of the Chrome spirit: {e}")
             raise
 
-    async def _divine_from_realm(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 10,
-                                 country_name: Optional[str] = None, product_category: Optional[str] = None) -> Dict:
+    async def _divine_from_realm(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 10) -> Dict:
         """(Internal) Gazes into a single keyword realm using a shared Chrome spirit."""
         config = SITE_CONFIGS[site_key]
         results = []
         
-        context_parts = []
-        if country_name: context_parts.append(f"Realm: {country_name}")
-        if product_category: context_parts.append(f"Domain: {product_category}")
-        context_suffix = f" ({', '.join(context_parts)})" if context_parts else ""
-
         try:
             url = config["search_url_template"].format(query=quote_plus(query))
-            logger.info(f"Gazing into the {site_key} realm for '{query}'{context_suffix}...")
+            logger.info(f"Gazing into the {site_key} realm for '{query}'...")
             await asyncio.to_thread(driver.get, url)
 
             await asyncio.to_thread(WebDriverWait(driver, 20).until(
@@ -97,13 +85,13 @@ class TrendScraper:
                 text = await asyncio.to_thread(lambda: el.text)
                 if text:
                     results.append(text)
-            logger.info(f"-> The {site_key} realm revealed {len(results)} keyword chants{context_suffix}.")
+            logger.info(f"-> The {site_key} realm revealed {len(results)} keyword chants for '{query}'.")
         except TimeoutException:
-            logger.warning(f"-> The mists of {site_key} obscured my vision (Timeout){context_suffix}.")
+            logger.warning(f"-> The mists of {site_key} obscured my vision for '{query}' (Timeout).")
         except NoSuchElementException:
-            logger.warning(f"-> The runes of {site_key} have shifted; the patterns I seek are gone{context_suffix}.")
+            logger.warning(f"-> The runes of {site_key} have shifted for '{query}'; the patterns I seek are gone.")
         except Exception as e:
-            logger.error(f"-> A powerful ward protects the {site_key} realm{context_suffix}. Error: {e}")
+            logger.error(f"-> A powerful ward protects the {site_key} realm for '{query}'. Error: {e}")
         
         return { "source": site_key, "keywords": results }
 
@@ -113,7 +101,14 @@ class TrendScraper:
         """
         The main public rite for this seer. It orchestrates divination from all 'enabled' keyword realms.
         """
-        logger.info(f"--- Divining keyword trends for '{keyword}' (Realm: {country_name or 'Global'}) ---")
+        # --- UPDATED: Construct a more focused query if categories are provided ---
+        search_query = keyword
+        if product_category:
+            search_query += f' "{product_category}"'
+        if product_subcategory:
+            search_query += f' "{product_subcategory}"'
+
+        logger.info(f"--- Divining keyword trends for '{search_query}' (Realm: {country_name or 'Global'}) ---")
         driver = None
         scraped_data = []
         try:
@@ -122,12 +117,12 @@ class TrendScraper:
 
             for site_key, config in SITE_CONFIGS.items():
                 if config["status"] == "enabled":
-                    tasks.append(self._divine_from_realm(driver, site_key, keyword, country_name=country_name, product_category=product_category))
+                    # Pass the newly constructed, more specific search_query
+                    tasks.append(self._divine_from_realm(driver, site_key, search_query))
                 else:
                     logger.warning(f"Skipping the realm of '{site_key}': {config['reason']}")
             
             scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
-            # Present only the wisdom that was successfully gathered.
             scraped_data = [res for res in scraped_data if not isinstance(res, Exception) and res.get('keywords')]
 
         except Exception as e:
@@ -148,6 +143,7 @@ async def main(keyword: str):
     sample_category = "Software Development"
 
     scraper = TrendScraper()
+    # Test the enhanced functionality by providing category context
     scraped_data = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
     
     final_report = {
