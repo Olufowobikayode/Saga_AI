@@ -77,13 +77,20 @@ class MarketingAssetRequest(BaseModel):
     marketing_session_id: str = Field(..., description="The session ID received from the marketing angles prophecy.")
     angle_id: str = Field(..., description="The unique ID of the angle card chosen from the marketing angles prophecy.")
 
+class PODOpportunitiesRequest(BaseModel):
+    niche_interest: str
+
+class PODPackageRequest(BaseModel):
+    pod_session_id: str = Field(..., description="The session ID received from the POD opportunities prophecy.")
+    concept_id: str = Field(..., description="The unique ID of the design concept card chosen.")
+
 class SagaResponse(BaseModel):
     prophecy_type: str
     data: Any
 
 # --- FASTAPI APP AND ROUTER ---
-app = FastAPI(title="Saga AI", version="8.0.0", description="The all-seeing, all-knowing Norse Goddess of Wisdom and Strategy, brought to life.")
-api_router = APIRouter(prefix="/api/v8")
+app = FastAPI(title="Saga AI", version="9.0.0", description="The all-seeing, all-knowing Norse Goddess of Wisdom and Strategy, brought to life.")
+api_router = APIRouter(prefix="/api/v9")
 engine: SagaEngine = None
 scout: MarketplaceScout = None
 
@@ -130,28 +137,45 @@ async def get_marketing_asset(request: MarketingAssetRequest):
     except ValueError as e:
         raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
 
-@api_router.post("/prophesy/ecommerce-audit", response_model=SagaResponse, tags=["4. Commerce Prophecies (Requires Strategy Session)"])
+@api_router.post("/prophesy/pod/opportunities", response_model=SagaResponse, tags=["4. Print on Demand Prophecies"])
+async def get_pod_opportunities(request: PODOpportunitiesRequest):
+    """Phase 1: Researches a POD niche and generates strategic 'Design Concept' cards."""
+    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
+    data = await engine.prophesy_pod_opportunities(**request.model_dump())
+    return SagaResponse(prophecy_type="pod_opportunities", data=data)
+
+@api_router.post("/prophesy/pod/package", response_model=SagaResponse, tags=["4. Print on Demand Prophecies"])
+async def get_pod_package(request: PODPackageRequest):
+    """Phase 2: Generates a complete design & listing package from a chosen concept_id."""
+    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
+    try:
+        data = await engine.prophesy_pod_design_package(**request.model_dump())
+        return SagaResponse(prophecy_type="pod_design_package", data=data)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
+
+@api_router.post("/prophesy/ecommerce-audit", response_model=SagaResponse, tags=["5. Commerce Prophecies (Requires Strategy Session)"])
 async def get_ecommerce_audit(request: EcommerceAuditRequest):
     """Performs a full business audit. Requires a valid strategy_session_id."""
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
     try: return SagaResponse(prophecy_type="ecommerce_audit", data=await engine.prophesy_ecommerce_audit(**request.model_dump()))
     except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized: {e}")
 
-@api_router.post("/prophesy/price-arbitrage", response_model=SagaResponse, tags=["4. Commerce Prophecies (Requires Strategy Session)"])
+@api_router.post("/prophesy/price-arbitrage", response_model=SagaResponse, tags=["5. Commerce Prophecies (Requires Strategy Session)"])
 async def get_price_arbitrage(request: PriceArbitrageRequest):
     """Finds buy-low, sell-high opportunities. Requires a valid strategy_session_id."""
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
     try: return SagaResponse(prophecy_type="price_arbitrage", data=await engine.prophesy_price_arbitrage(**request.model_dump()))
     except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized: {e}")
 
-@api_router.post("/prophesy/social-selling", response_model=SagaResponse, tags=["4. Commerce Prophecies (Requires Strategy Session)"])
+@api_router.post("/prophesy/social-selling", response_model=SagaResponse, tags=["5. Commerce Prophecies (Requires Strategy Session)"])
 async def get_social_selling_strategy(request: SocialSellingRequest):
     """Creates a social media sales plan. Requires a valid strategy_session_id."""
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
     try: return SagaResponse(prophecy_type="social_selling_strategy", data=await engine.prophesy_social_selling(**request.model_dump()))
     except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized: {e}")
 
-@api_router.post("/prophesy/product-route", response_model=SAgaResponse, tags=["4. Commerce Prophecies (Requires Strategy Session)"])
+@api_router.post("/prophesy/product-route", response_model=SagaResponse, tags=["5. Commerce Prophecies (Requires Strategy Session)"])
 async def get_product_route(request: ProductRouteRequest):
     """Finds a new product idea and its path to market. Requires a valid strategy_session_id."""
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
