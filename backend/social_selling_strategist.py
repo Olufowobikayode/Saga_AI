@@ -2,11 +2,11 @@
 import asyncio
 import logging
 import json
-import os # Added import for os
+import os
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
-from pytrends.request import TrendReq # For Google Trends integration
-from urllib.parse import urlparse # Added import for urlparse
+from pytrends.request import TrendReq
+from urllib.parse import urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -37,20 +37,22 @@ class SocialSellingStrategist:
             logger.error(f"Failed to generate AI response: {e}")
             return {"error": "AI generation failed.", "details": str(e)}
 
-    async def _get_trending_keywords(self, interest: str) -> List[str]:
-        """Fetches trending related queries from Google Trends."""
-        logger.info(f"Fetching Google Trends for trending keywords related to '{interest}'...")
+    async def _get_trending_keywords(self, interest: str, country_code: Optional[str] = None) -> List[str]:
+        """
+        Fetches trending related queries from Google Trends, localized by country code.
+        """
+        logger.info(f"Fetching Google Trends for trending keywords related to '{interest}' in country code '{country_code}'...")
         trending_list = []
         try:
-            # pytrends.related_queries is a synchronous blocking call, so use asyncio.to_thread
-            related_queries_data = await asyncio.to_thread(self.pytrends.related_queries, kw_list=[interest])
+            geo_param = country_code.upper() if country_code else ''
+            related_queries_data = await asyncio.to_thread(self.pytrends.related_queries, kw_list=[interest], geo=geo_param)
             
             if interest in related_queries_data and 'rising' in related_queries_data[interest]:
                 rising_df = related_queries_data[interest]['rising']
                 if not rising_df.empty:
                     trending_list = rising_df['query'].tolist()[:5]
         except Exception as e:
-            logger.error(f"Pytrends API failed for interest '{interest}': {e}")
+            logger.error(f"Pytrends API failed for interest '{interest}' in country '{country_code}': {e}")
         return trending_list
 
     async def analyze_social_selling(self, 
@@ -60,16 +62,26 @@ class SocialSellingStrategist:
                                      ads_daily_budget: float, 
                                      number_of_days: int, 
                                      amount_to_buy: int,
-                                     supplier_marketplace_link: Optional[str] = None,
-                                     user_tone_instruction: str = "") -> Dict: # Renamed parameter
+                                     supplier_marketplace_link: Optional[str] = None, # User-provided specific link
+                                     user_tone_instruction: str = "",
+                                     user_ip_address: Optional[str] = None,
+                                     target_country_name: Optional[str] = None,
+                                     product_category: Optional[str] = None,
+                                     product_subcategory: Optional[str] = None) -> Dict:
         """
         Calculates theoretical profitability for social selling, and suggests strategies.
-        The user_tone_instruction is passed in from the calling engine.
+        The user_tone_instruction, country, and category context are passed in from the calling engine.
         """
         logger.info(f"Analyzing social selling for '{product_name}'")
 
-        # user_tone_instruction is now expected to be provided by the calling context (e.g., NicheStackEngine)
-        
+        _country_code_for_scrapers = None
+        if target_country_name:
+            try:
+                import iso3166
+                _country_code_for_scrapers = iso3166.countries.get(target_country_name).alpha2
+            except (KeyError, ImportError):
+                pass
+
         # --- Data Gathering ---
         supplier_data = {"products": [], "identified_marketplace": "N/A"}
         if supplier_marketplace_link:
@@ -77,22 +89,33 @@ class SocialSellingStrategist:
                 parsed_url = urlparse(supplier_marketplace_link)
                 domain = parsed_url.netloc
                 supplier_data = await self.global_scraper.scrape_marketplace_listings(
-                    product_name, domain, max_products=5 # Get top 5 suppliers
+                    product_query=product_name,
+                    marketplace_domain=domain,
+                    max_products=5,
+                    target_country_code=_country_code_for_scrapers,
+                    product_category=product_category,
+                    product_subcategory=product_subcategory
                 )
                 logger.info(f"Scraped {len(supplier_data['products'])} products from supplier marketplace '{supplier_data['identified_marketplace']}'.")
             except Exception as e:
-                logger.error(f"Failed to scrape supplier marketplace {supplier_marketplace_link}: {e}")
-        else: # If no specific supplier link, try to find a general good sourcing option
+                logger.error(f"Failed to scrape specific supplier marketplace {supplier_marketplace_link}: {e}")
+        else:
+            # If no specific supplier link, trigger a broader search across all enabled marketplaces
+            logger.info("No specific supplier marketplace link provided. Attempting to find best suppliers across all enabled global marketplaces.")
             try:
                  supplier_data = await self.global_scraper.scrape_marketplace_listings(
-                    product_name, "aliexpress.com", max_products=5 # Default to AliExpress for general sourcing
+                    product_query=product_name,
+                    marketplace_domain=None, # Pass None to search all enabled marketplaces
+                    max_products=5,
+                    target_country_code=_country_code_for_scrapers,
+                    product_category=product_category,
+                    product_subcategory=product_subcategory
                 )
-                 logger.info(f"Defaulted to AliExpress and scraped {len(supplier_data['products'])} products for sourcing.")
+                 logger.info(f"Found {len(supplier_data['products'])} products from broad marketplace search for sourcing.")
             except Exception as e:
-                logger.error(f"Failed to scrape default AliExpress for sourcing: {e}")
+                logger.error(f"Failed during broad marketplace sourcing search: {e}")
         
-        # Get trending keywords for related product suggestions
-        trending_keywords = await self._get_trending_keywords(product_name)
+        trending_keywords = await self._get_trending_keywords(product_name, _country_code_for_scrapers)
 
         # --- Profitability Calculation ---
         total_ad_spend = (ads_daily_budget or 0.0) * (number_of_days or 0)
@@ -117,12 +140,26 @@ class SocialSellingStrategist:
         estimated_gross_profit = potential_revenue - total_cost_of_goods
         estimated_net_profit_before_fees = estimated_gross_profit - total_ad_spend
 
+        # Construct prompt context for AI
+        context_phrase = ""
+        if target_country_name and target_country_name.lower() != "global":
+            context_phrase += f" for the {target_country_name} market"
+        else:
+            context_phrase += " for a global audience"
+
+        if product_category:
+            context_phrase += f", specifically in the '{product_category}' category"
+            if product_subcategory:
+                context_phrase += f" (Subcategory: '{product_subcategory}')"
+
         # --- AI Prompt Construction ---
         prompt = f"""
-        You are a highly skilled social media marketing and e-commerce expert. Your task is to analyze the profitability of selling '{product_name}' on social platforms and develop a compelling strategy.
+        You are a highly skilled social media marketing and e-commerce expert. Your task is to analyze the profitability of selling '{product_name}' on social platforms and develop a compelling strategy {context_phrase}.
 
         --- USER'S SELLING CONTEXT ---
         Product Name: {product_name}
+        {f"Category: {product_category}" if product_category else ""}
+        {f"Subcategory: {product_subcategory}" if product_subcategory else ""}
         Desired Selling Price per Unit: ${product_selling_price:.2f}
         Quantity to Sell (desired purchase): {amount_to_buy} units
         Target Social Platforms: {', '.join(social_platforms_to_sell)}
@@ -201,15 +238,18 @@ async def main():
     strategist = SocialSellingStrategist(gemini_api_key=gemini_api_key)
 
     user_request_data = {
-        "product_name": "Portable Espresso Maker",
-        "product_selling_price": 59.99,
-        "social_platforms_to_sell": ["TikTok", "Instagram", "YouTube"],
-        "ads_daily_budget": 10.0,
-        "number_of_days": 30,
-        "amount_to_buy": 200,
-        "supplier_marketplace_link": "https://www.aliexpress.com/wholesale?SearchText=portable+espresso+maker",
-        # The user_tone_instruction would typically come from the NicheStackEngine
-        "user_tone_instruction": "We're a vibrant brand focused on lifestyle products for young, tech-savvy professionals. Our tone is always energetic and inspiring."
+        "product_name": "Eco-friendly Reusable Straws",
+        "product_selling_price": 12.99,
+        "social_platforms_to_sell": ["TikTok", "Instagram", "Facebook Page", "X (Twitter)", "LinkedIn"], # Expanded list
+        "ads_daily_budget": 5.0,
+        "number_of_days": 15,
+        "amount_to_buy": 500,
+        "supplier_marketplace_link": None, # Set to None to test broad sourcing
+        "user_tone_instruction": "We're a vibrant brand focused on sustainable products and community engagement.",
+        "user_ip_address": "192.168.1.1", # Dummy IP for example
+        "target_country_name": "United Kingdom", # Target UK for this example
+        "product_category": "Home & Kitchen",
+        "product_subcategory": "Reusable Products"
     }
 
     print(f"Analyzing social selling for: {user_request_data['product_name']}")
