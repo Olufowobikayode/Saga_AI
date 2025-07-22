@@ -1,11 +1,11 @@
-# file: backend/price_arbitrage_finder.py
-
+--- START OF FILE backend/price_arbitrage_finder.py ---
 import asyncio
 import logging
 import json
+import os # Added import for os
 from typing import Dict, Any, Optional
 import google.generativeai as genai
-from urllib.parse import urlparse
+from urllib.parse import urlparse # Added import for urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -28,35 +28,52 @@ class PriceArbitrageFinder:
             response = await self.model.generate_content_async(prompt)
             json_str = response.text.strip().removeprefix('```json').removesuffix('```').strip()
             return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"AI response was not valid JSON: {json_str[:500]}... Error: {e}")
+            return {"error": "AI response parsing failed: Invalid JSON.", "details": str(e), "raw_response_snippet": json_str[:500]}
         except Exception as e:
-            logger.error(f"Failed to generate or parse AI JSON response: {e}")
-            return {"error": "AI generation or parsing failed.", "details": str(e)}
+            logger.error(f"Failed to generate AI response: {e}")
+            return {"error": "AI generation failed.", "details": str(e)}
     
     async def find_arbitrage_opportunities(self, 
                                            product_name: str, 
                                            buy_marketplace_link: str, 
                                            sell_marketplace_link: str,
-                                           user_content_text: Optional[str] = None,
-                                           user_content_url: Optional[str] = None) -> Dict:
+                                           user_tone_instruction: str = "") -> Dict: # Renamed parameter
         """
         Compares prices for a product between two marketplaces to find arbitrage.
+        The user_tone_instruction is passed in from the calling engine.
         """
         logger.info(f"Finding arbitrage for '{product_name}' between {buy_marketplace_link} and {sell_marketplace_link}")
 
-        user_tone_instruction = await self.global_scraper._get_user_tone_instruction(user_content_text, user_content_url)
+        # user_tone_instruction is now expected to be provided by the calling context (e.g., NicheStackEngine)
+        # This function no longer fetches it directly using self.global_scraper._get_user_tone_instruction
 
         # Parse domains to determine which scraper config to use
         buy_domain = urlparse(buy_marketplace_link).netloc
         sell_domain = urlparse(sell_marketplace_link).netloc
 
+        buy_data = {"products": [], "identified_marketplace": "N/A"}
+        sell_data = {"products": [], "identified_marketplace": "N/A"}
+
         # Scrape buy marketplace
-        buy_data = await self.global_scraper.scrape_marketplace_listings(
-            product_name, buy_domain, max_products=5 # Get top 5 for buying
-        )
+        try:
+            buy_data = await self.global_scraper.scrape_marketplace_listings(
+                product_name, buy_domain, max_products=5 # Get top 5 for buying
+            )
+            logger.info(f"Scraped {len(buy_data['products'])} products from buy marketplace '{buy_data['identified_marketplace']}'.")
+        except Exception as e:
+            logger.error(f"Failed to scrape buy marketplace {buy_marketplace_link}: {e}")
+
         # Scrape sell marketplace
-        sell_data = await self.global_scraper.scrape_marketplace_listings(
-            product_name, sell_domain, max_products=5 # Get top 5 for selling
-        )
+        try:
+            sell_data = await self.global_scraper.scrape_marketplace_listings(
+                product_name, sell_domain, max_products=5 # Get top 5 for selling
+            )
+            logger.info(f"Scraped {len(sell_data['products'])} products from sell marketplace '{sell_data['identified_marketplace']}'.")
+        except Exception as e:
+            logger.error(f"Failed to scrape sell marketplace {sell_marketplace_link}: {e}")
+
 
         # Prepare for AI analysis
         prompt = f"""
@@ -121,6 +138,10 @@ class PriceArbitrageFinder:
 
 # --- Example Usage (for testing this script standalone) ---
 async def main():
+    import os # Added import
+    from dotenv import load_dotenv # Added import
+    load_dotenv() # Load .env for GEMINI_API_KEY
+
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
         print("GEMINI_API_KEY not found. Please set it as an environment variable.")
@@ -133,12 +154,12 @@ async def main():
     sell_link = "https://www.ebay.com/sch/i.html?_nkw=gaming+headset"
     
     print(f"Finding arbitrage for '{product}' between AliExpress and eBay...")
+    # For standalone testing, user_tone_instruction defaults to an empty string.
+    # In a real API call via the NicheStackEngine, this would be populated.
     arbitrage_results = await finder.find_arbitrage_opportunities(product, buy_link, sell_link)
     print("\n--- Arbitrage Finder Results ---")
     print(json.dumps(arbitrage_results, indent=2))
 
 if __name__ == "__main__":
-    import os
-    from dotenv import load_dotenv
-    load_dotenv() # Load .env for GEMINI_API_KEY
     asyncio.run(main())
+--- END OF FILE backend/price_arbitrage_finder.py ---
