@@ -18,7 +18,11 @@ selenium==4.22.0
 webdriver-manager==4.0.1
 aiohttp==3.9.5
 beautifulsoup4==4.12.3
-iso3166==2.1.1 # For consistent country code and name mapping
+iso3166==2.1.1
+
+# Utilities for Marketplace Discovery
+googlesearch-python==1.2.3
+tldextract==3.6.0
 
 # Utilities
 python-dotenv==1.0.1
