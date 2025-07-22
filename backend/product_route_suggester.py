@@ -2,11 +2,11 @@
 import asyncio
 import logging
 import json
-import os # Added import for os
+import os
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
-from pytrends.request import TrendReq # For Google Trends integration
-from urllib.parse import urlparse # Not directly used in this file, but often needed with marketplaces
+from pytrends.request import TrendReq
+from urllib.parse import urlparse
 
 # Import the global scraper to get marketplace data
 from global_ecommerce_scraper import GlobalEcommerceScraper
@@ -37,12 +37,15 @@ class ProductRouteSuggester:
             logger.error(f"Failed to generate AI response: {e}")
             return {"error": "AI generation failed.", "details": str(e)}
 
-    async def _get_trending_keywords_and_topics(self, interest: str) -> Dict:
-        """Fetches related and rising queries/topics from Google Trends."""
-        logger.info(f"Fetching Google Trends data for '{interest}'...")
+    async def _get_trending_keywords_and_topics(self, interest: str, country_code: Optional[str] = None) -> Dict:
+        """
+        Fetches related and rising queries/topics from Google Trends, localized by country code.
+        """
+        logger.info(f"Fetching Google Trends data for '{interest}' in country code '{country_code}'...")
         data = {"related_queries": [], "rising_queries": []}
         try:
-            await asyncio.to_thread(self.pytrends.build_payload, kw_list=[interest], timeframe='today 3-m')
+            geo_param = country_code.upper() if country_code else ''
+            await asyncio.to_thread(self.pytrends.build_payload, kw_list=[interest], timeframe='today 3-m', geo=geo_param)
             related_queries = await asyncio.to_thread(self.pytrends.related_queries)
             
             top = related_queries.get(interest, {}).get('top')
@@ -53,51 +56,85 @@ class ProductRouteSuggester:
             if rising is not None and not rising.empty:
                 data["rising_queries"] = rising['query'].tolist()[:5]
         except Exception as e:
-            logger.error(f"Pytrends API failed for interest '{interest}': {e}")
-            data["error"] = str(e) # Add error to the data dict
+            logger.error(f"Pytrends API failed for interest '{interest}' in country '{country_code}': {e}")
+            data["error"] = str(e)
         return data
 
     async def suggest_product_and_route(self, 
                                         niche_interest: str,
-                                        user_tone_instruction: str = "") -> Dict: # Changed parameters
+                                        user_tone_instruction: str = "",
+                                        user_ip_address: Optional[str] = None, # New parameter, not used directly here
+                                        target_country_name: Optional[str] = None, # New parameter
+                                        product_category: Optional[str] = None, # New parameter
+                                        product_subcategory: Optional[str] = None, # New parameter
+                                        user_content_text: Optional[str] = None, # Retained for consistency
+                                        user_content_url: Optional[str] = None) -> Dict: # Retained for consistency
         """
         Suggests a trending product and its optimal sourcing/selling route.
-        The user_tone_instruction is passed in from the calling engine.
+        The user_tone_instruction, country, and category context are passed in from the calling engine.
         """
         logger.info(f"Suggesting product and route for niche: '{niche_interest}'")
 
-        # user_tone_instruction is now expected to be provided by the calling context (e.g., NicheStackEngine)
+        # Country context and tone instruction are passed from the engine.
+        # This module uses country_code from the resolved context.
+        # For standalone testing, we assume _resolve_country_context in engine already determined country_code.
+        # So we derive a placeholder country_code for this module's internal use for trends data.
+        _country_code_for_trends = None
+        if target_country_name:
+            try:
+                import iso3166 # Temporarily import here for standalone testing if needed
+                _country_code_for_trends = iso3166.countries.get(target_country_name).alpha2
+            except (KeyError, ImportError):
+                pass # Will default to global trends if cannot resolve
 
         # --- Data Gathering ---
-        # 1. Get trending topics/queries from Google Trends
-        trend_data = await self._get_trending_keywords_and_topics(niche_interest)
+        # 1. Get trending topics/queries from Google Trends, localized
+        trend_data = await self._get_trending_keywords_and_topics(niche_interest, _country_code_for_trends)
         
         # 2. Scrape best-selling products from a general marketplace (e.g., Amazon.com) related to trending queries
         best_selling_products_from_general_search = []
-        # Use primary interest or first trending query as search term
-        search_term = niche_interest # Default to niche interest
+        search_term = niche_interest # Default
         if trend_data["rising_queries"]:
             search_term = trend_data["rising_queries"][0] # Use the top rising query if available
         
         if search_term:
             try:
+                # Pass resolved country code and category for localized/categorized search
                 general_marketplace_data = await self.global_scraper.scrape_marketplace_listings(
-                    search_term, "amazon.com", max_products=10 # Get top 10 from a major platform
+                    product_query=search_term,
+                    marketplace_domain="amazon.com", # Default to Amazon for initial product search
+                    max_products=10,
+                    target_country_code=_country_code_for_trends, # Pass country code
+                    product_category=product_category,             # Pass category
+                    product_subcategory=product_subcategory        # Pass subcategory
                 )
                 best_selling_products_from_general_search = general_marketplace_data["products"]
-                logger.info(f"Scraped {len(best_selling_products_from_general_search)} products from Amazon.com for search term '{search_term}'.")
+                logger.info(f"Scraped {len(best_selling_products_from_general_search)} products from Amazon.com for '{search_term}'.")
             except Exception as e:
                 logger.error(f"Failed to scrape Amazon.com for '{search_term}': {e}")
         else:
             logger.warning("No valid search term derived for general marketplace scraping.")
 
+        # Construct prompt context for AI
+        context_phrase = ""
+        if target_country_name and target_country_name.lower() != "global":
+            context_phrase += f" in the {target_country_name} market"
+        else:
+            context_phrase += " globally"
+
+        if product_category:
+            context_phrase += f", specifically in the '{product_category}' category"
+            if product_subcategory:
+                context_phrase += f" (Subcategory: '{product_subcategory}')"
 
         # --- AI Prompt Construction ---
         prompt = f"""
-        You are an innovative e-commerce product researcher and market strategist. Your goal is to identify a promising product within the '{niche_interest}' niche and outline an optimal "route" for a solopreneur to source and sell it for profit.
+        You are an innovative e-commerce product researcher and market strategist. Your goal is to identify a promising product within the '{niche_interest}' niche and outline an optimal "route" for a solopreneur to source and sell it for profit {context_phrase}.
 
         --- MARKET INTELLIGENCE ---
         Niche/Interest: {niche_interest}
+        {f"Primary Category: {product_category}" if product_category else ""}
+        {f"Specific Subcategory: {product_subcategory}" if product_subcategory else ""}
         Google Trends Data:
         {json.dumps(trend_data, indent=2)}
 
@@ -147,7 +184,7 @@ class ProductRouteSuggester:
 async def main():
     import os
     from dotenv import load_dotenv
-    load_dotenv() # Load .env for GEMINI_API_KEY
+    load_dotenv()
 
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
@@ -157,12 +194,20 @@ async def main():
     suggester = ProductRouteSuggester(gemini_api_key=gemini_api_key)
 
     niche = "eco-friendly home goods"
-    # user_content_sample_url = "https://www.treehugger.com/about-us-4858908" # Example for tone - now handled by engine
+    # Simulating the context that would come from the engine
+    country_name_example = "United States"
+    category_example = "Home & Kitchen"
+    subcategory_example = "Eco-friendly Cleaning"
+    user_tone_example = "Our brand is all about sustainable living and quality."
     
-    print(f"Suggesting product and route for niche: '{niche}'")
-    # In standalone testing, we just pass an empty string for tone instruction.
-    # In a real API call via the NicheStackEngine, this would be populated.
-    results = await suggester.suggest_product_and_route(niche, user_tone_instruction="")
+    print(f"Suggesting product and route for niche: '{niche}' (Country: {country_name_example}, Category: {category_example}, Subcategory: {subcategory_example})")
+    results = await suggester.suggest_product_and_route(
+        niche_interest=niche,
+        user_tone_instruction=user_tone_example,
+        target_country_name=country_name_example,
+        product_category=category_example,
+        product_subcategory=subcategory_example
+    )
     print("\n--- Product Route Suggestion Results ---")
     print(json.dumps(results, indent=2))
 
