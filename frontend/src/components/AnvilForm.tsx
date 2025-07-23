@@ -12,23 +12,24 @@ import SagaButton from './SagaButton';
  * to begin the marketing angle prophecy.
  */
 export default function AnvilForm() {
-  // SAGA LOGIC: Connect to the Mind of the Skald to get the 'commandAnvil' function.
   const commandAnvil = useMarketingStore((state) => state.commandAnvil);
   const isLoading = useMarketingStore((state) => state.status === 'forging_angles');
+  const error = useMarketingStore((state) => state.error);
 
-  // Local state for the form inputs.
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
+  const [targetAudience, setTargetAudience] = useState(''); // NEW field
+  // The productLink is not required by the angles API, so we can remove it for this specific form if desired,
+  // but we'll keep it for potential future use.
   const [productLink, setProductLink] = useState('');
 
   const handleSubmit = () => {
-    if (!productName || !productDescription) {
-      alert("The Skald requires a Name and Description to begin the forging.");
+    if (!productName || !productDescription || !targetAudience) {
+      alert("The Skald requires a Name, Description, and Target Audience to begin the forging.");
       return;
     }
-    // SAGA LOGIC: Call the command from our store with the form data.
-    // This will trigger the state change to 'forging_angles' and begin the ritual.
-    commandAnvil(productName, productDescription, productLink);
+    // Call the command from our store with all required data.
+    commandAnvil(productName, productDescription, targetAudience);
   };
 
   return (
@@ -65,6 +66,15 @@ export default function AnvilForm() {
           onChange={(e) => setProductDescription(e.target.value)}
         />
 
+        {/* NEW: Target Audience field, required by the backend. */}
+        <InputRune
+          id="targetAudience"
+          label="Target Audience"
+          placeholder="e.g., 'Tech-savvy professionals aged 30-50', 'Eco-conscious millennials'"
+          value={targetAudience}
+          onChange={(e) => setTargetAudience(e.target.value)}
+        />
+
         <InputRune
           id="productLink"
           label="Link"
@@ -80,6 +90,11 @@ export default function AnvilForm() {
             {isLoading ? "Forging Angles..." : "Forge Marketing Angles"}
           </SagaButton>
         </div>
+
+        {/* Display any errors that occur during the API call */}
+        {error && (
+          <p className="text-center text-red-400 mt-4">{error}</p>
+        )}
       </form>
     </motion.div>
   );
