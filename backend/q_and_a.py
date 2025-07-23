@@ -1,4 +1,3 @@
---- START OF FILE backend/q_and_a.py ---
 import asyncio
 import logging
 import json
@@ -7,6 +6,7 @@ from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
 from datetime import datetime
+import random # ### ENHANCEMENT: Import for randomized delays
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -16,13 +16,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
+# ### ENHANCEMENT: Import libraries for scraper evasion
+from selenium_stealth import stealth
+from fake_useragent import UserAgent
+
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:WISDOM] - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 # --- THE MASTER SCROLL OF COMMUNITY & FORUM REALMS: Fortified and Expanded ---
-# This scroll now includes the wisdom of the old SagaWebOracle, creating a single, powerful seer.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     # --- Community Realms (The Voice of the People) ---
     "Reddit": {
@@ -82,19 +85,45 @@ class CommunitySaga:
     I am the Seer of Community Whispers, an aspect of the great Saga. I journey
     through the digital halls of forums and communities to gather the true voice of
     the people—their questions, problems, and technical challenges.
+    This Seer is now enhanced with stealth capabilities to appear more human.
     """
 
+    def __init__(self):
+        # ### ENHANCEMENT: Initialize the UserAgent object once.
+        try:
+            self.ua = UserAgent()
+        except Exception:
+            self.ua = None
+
     def _get_driver(self) -> webdriver.Chrome:
-        """Configures and summons a Chrome spirit for our quest."""
+        """Configures and summons a stealthy Chrome spirit for our quest."""
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
+
+        # ### ENHANCEMENT 1: Use a randomized, real-world user agent for each request.
+        user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        options.add_argument(f"user-agent={user_agent}")
+
+        options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+        options.add_experimental_option('useAutomationExtension', False)
+
         try:
             service = Service(ChromeDriverManager().install())
-            return webdriver.Chrome(service=service, options=options)
+            driver = webdriver.Chrome(service=service, options=options)
+
+            # ### ENHANCEMENT 2: Apply selenium-stealth patches to the driver.
+            stealth(driver,
+                    languages=["en-US", "en"],
+                    vendor="Google Inc.",
+                    platform="Win32",
+                    webgl_vendor="Intel Inc.",
+                    renderer="Intel Iris OpenGL Engine",
+                    fix_hairline=True,
+                    )
+            
+            return driver
         except WebDriverException as e:
             logger.error(f"The Chrome spirit could not be summoned. Error: {e}")
             raise
@@ -111,7 +140,10 @@ class CommunitySaga:
             await asyncio.to_thread(driver.get, url)
             await asyncio.to_thread(WebDriverWait(driver, 15).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))))
-            await asyncio.sleep(2)
+            
+            # ### ENHANCEMENT 3: Use randomized delays to better mimic human behavior.
+            await asyncio.sleep(random.uniform(2.1, 3.9))
+            
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
 
             for el in elements[:max_items]:
@@ -199,4 +231,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(main(args.keyword, args.query_type))
---- END OF FILE backend/q_and_a.py ---
