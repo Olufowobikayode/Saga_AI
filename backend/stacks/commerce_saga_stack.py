@@ -1,4 +1,3 @@
---- START OF FILE backend/stacks/commerce_saga_stack.py ---
 import asyncio
 import logging
 import json
@@ -42,8 +41,10 @@ class CommerceSagaStack:
         intel = {}
         if audit_type in ["Store Audit", "Account Prediction"] and store_url:
             intel["user_store_content"] = await self.marketplace_oracle.read_user_store_scroll(store_url)
-            product_name_guess = " ".join(store_url.split('/')[-2:]).replace('-', ' ')
-            intel["competitor_data"] = await self.marketplace_oracle.divine_marketplace_sagas(product_query=product_name_guess, marketplace_domain="etsy.com")
+            # A simple way to guess the product from a URL
+            product_name_guess = " ".join(store_url.split('/')[-2:]).replace('-', ' ').replace('.html', '')
+            # ### FIX: Updated the method call to 'run_marketplace_divination' for consistency.
+            intel["competitor_data"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name_guess, marketplace_domain="etsy.com")
         
         prompt = f"""
         You are Saga, a master business analyst and financial strategist. A user requires a prophecy of the type: '{audit_type}'. Analyze the provided intelligence and deliver your wisdom.
@@ -51,7 +52,7 @@ class CommerceSagaStack:
         --- PROVIDED INTELLIGENCE ---
         **Audit Type:** {audit_type}
         **User's Store URL:** {store_url or 'N/A'}
-        **User's Store Content (Scraped):** {intel.get('user_store_content', 'N/A')}
+        **User's Store Content (Scraped):** {intel.get('user_store_content', 'N/A')[:5000]}
         **Top Competitors (from Etsy):** {json.dumps(intel.get('competitor_data'), indent=2, default=str)}
         **User's Pasted Account Statement Text:**
         ```text
@@ -66,26 +67,27 @@ class CommerceSagaStack:
         If the audit_type is 'Account Audit', use this JSON structure:
         {{
             "audit_type": "Account Audit",
-            "executive_summary": "High-level summary of financial health. State clearly if there is a net profit or loss.",
+            "executive_summary": "High-level summary of financial health. State clearly if there is a net profit or loss based on the statement text.",
             "spending_categorization": [
-                {{"category": "e.g., Marketing Ads", "total_spent": 1500.50, "percentage_of_total": "35%"}}
+                {{"category": "e.g., Marketing Ads", "total_spent": 1500.50, "percentage_of_total": "35%"}},
+                {{"category": "e.g., Software/Tools", "total_spent": 250.00, "percentage_of_total": "5%"}}
             ],
             "financial_counsel": {{
-                "invest_more_in": ["Identify categories with high ROI."],
-                "reduce_spending_on": ["Identify categories with low ROI."],
-                "stop_spending_on": ["Identify clear money sinks."]
+                "invest_more_in": ["Identify categories with high ROI or essential for business operations."],
+                "reduce_spending_on": ["Identify categories with low or unproven ROI."],
+                "stop_spending_on": ["Identify clear money sinks or redundant expenses."]
             }},
-            "investment_suggestions": "Suggest 2-3 general ways to invest profits."
+            "investment_suggestions": "Suggest 2-3 general ways to invest any potential profits for business growth."
         }}
 
         // --- STORE AUDIT --- //
         If the audit_type is 'Store Audit', use this JSON structure:
         {{
             "audit_type": "Store Audit",
-            "competitive_analysis": "Analyze the user's store vs. competitors. What do they do better?",
+            "competitive_analysis": "Analyze the user's store content and compare it to the top competitors found. What do the competitors do better in terms of product presentation, pricing, and marketing language?",
             "strategic_recommendations": {{
-                "areas_to_invest_in": ["e.g., 'Professional Product Photography'"],
-                "ways_to_beat_competitors": ["e.g., 'Offer a unique bundle'"]
+                "areas_to_invest_in": ["e.g., 'Professional Product Photography to match competitor quality'", "e.g., 'Rewriting product descriptions for better SEO'"],
+                "ways_to_beat_competitors": ["e.g., 'Offer a unique bundle not seen in competitor stores'", "e.g., 'Highlight a unique selling proposition that competitors lack'"]
             }}
         }}
 
@@ -93,11 +95,11 @@ class CommerceSagaStack:
         If the audit_type is 'Account Prediction', use this JSON structure:
         {{
             "audit_type": "Account Prediction",
-            "synthesis": "Combine financial and market data for a holistic view.",
-            "unified_action_plan": ["List the 3-5 most critical actions."],
+            "synthesis": "Combine insights from the user's financial statements (if provided) and the competitive market data for a holistic view of the business's position.",
+            "unified_action_plan": ["List the 3-5 most critical actions the user must take, combining financial and marketing advice."],
             "future_scenarios": {{
-                "prophecy_if_followed": "Best-case scenario for revenue/profit in 1-12 months if plan is followed.",
-                "prophecy_if_ignored": "Likely scenario if issues are not addressed."
+                "prophecy_if_followed": "A realistic best-case scenario for revenue/profit in the next 1-12 months if your action plan is followed.",
+                "prophecy_if_ignored": "A realistic, likely scenario for the business if the identified issues are not addressed."
             }}
         }}
         """
@@ -121,29 +123,34 @@ class CommerceSagaStack:
         **Additional Constraints:** {json.dumps(kwargs)}
 
         --- SAGA'S RESEARCH ---
-        **Products People Need:** {json.dumps(intel.get('suggested_product_research'), indent=2, default=str)}
+        **Products People Need (Inspiration):** {json.dumps(intel.get('suggested_product_research'), indent=2, default=str)}
 
         --- SAGA'S DECREED RULES ---
         {SUPPLIER_SELECTION_RULES}
         - You MUST estimate and include delivery/shipping fees ($5-$15 average).
+        - You MUST estimate and include platform selling fees (15% of selling price).
 
         **Your Prophetic Task:**
-        Based on the request, your research, and the rules, generate the arbitrage path. You must imagine you have found platforms/sellers that meet all criteria.
+        Based on the request, your research, and the rules, generate the arbitrage path. You must imagine you have found platforms/sellers that meet all criteria and then fill in the details. If a product is not provided, suggest one from your research.
 
         Your output MUST be a valid JSON object:
         {{
             "prophecy_mode": "{mode}",
-            "suggested_product": {{"name": "Product name.", "justification": "Why you suggested it."}},
+            "suggested_product": {{"name": "Product name.", "justification": "Why you suggested it based on your research or the user's query."}},
             "arbitrage_path": {{
-                "buy_from": {{"platform": "e.g., AliExpress", "seller_name": "Credible Seller", "seller_rating": "4.5+", "seller_age_years": "5+", "units_sold_history": "5000+", "product_cost": "Realistic low cost"}},
-                "sell_on": {{"platform": "e.g., Amazon", "estimated_selling_price": "Realistic high price"}}
+                "buy_from": {{"platform": "e.g., Alibaba.com or AliExpress", "seller_name": "Credible Example Seller", "seller_rating": "4.5+", "seller_age_years": "5+", "units_sold_history": "5000+", "product_cost": "A realistic low cost for the item."}},
+                "sell_on": {{"platform": "e.g., Amazon or Etsy", "estimated_selling_price": "A realistic higher price for the item on this platform."}}
             }},
             "profit_calculation": {{
-                "estimated_revenue_per_item": "Selling price.",
-                "estimated_costs_per_item": [{{"item": "Product Cost", "amount": 0}}, {{"item": "Platform Fees (15%)", "amount": 0}}, {{"item": "Shipping", "amount": 0}}],
-                "estimated_net_profit_per_item": "Revenue - costs."
+                "estimated_revenue_per_item": "The selling price.",
+                "estimated_costs_per_item": [
+                    {{"item": "Product Cost", "amount": 0.0}},
+                    {{"item": "Estimated Platform Fees (15%)", "amount": 0.0}},
+                    {{"item": "Estimated Shipping", "amount": 0.0}}
+                ],
+                "estimated_net_profit_per_item": "Revenue - all costs."
             }},
-            "counsel": "Your final wisdom."
+            "counsel": "Your final wisdom, including advice on validating suppliers and considering hidden costs."
         }}
         """
         return await get_prophecy_from_oracle(self.model, prompt)
@@ -155,7 +162,8 @@ class CommerceSagaStack:
         product_name = kwargs.get('product_name')
         intel = {}
         if product_name:
-            intel["top_suppliers"] = await self.marketplace_oracle.divine_marketplace_sagas(product_query=product_name, marketplace_domain="alibaba.com")
+            # ### FIX: Updated the method call to 'run_marketplace_divination' for consistency.
+            intel["top_suppliers"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name, marketplace_domain="alibaba.com")
 
         prompt = f"""
         You are Saga, a master social commerce strategist. A user requires a complete plan to sell '{product_name}' on social media, based on specific profit goals.
@@ -171,28 +179,28 @@ class CommerceSagaStack:
         - The final calculated profit MUST meet or exceed the user's 'desired_profit_per_product'.
 
         **Your Prophetic Task:**
-        Find a supplier that meets the rules and construct a full sales plan.
+        Analyze the top suppliers from your research. Choose the best one that meets the rules and allows for the user's profit goal. Then, construct a full sales plan. If no supplier in the data is suitable, create a plausible, ideal supplier that meets the criteria for the plan.
 
         Your output MUST be a valid JSON object:
         {{
             "chosen_supplier": {{
                 "platform": "Alibaba.com",
                 "seller_name": "A plausible seller name from your research that meets the rules.",
-                "product_cost_per_unit": "The cost that allows the user's profit goal to be met."
+                "product_cost_per_unit": "The cost from the chosen supplier that allows the user's profit goal to be met."
             }},
             "financial_plan": {{
                 "user_selling_price": {kwargs.get('social_selling_price')},
                 "costs_per_unit": [
-                    {{"item": "Product Cost", "amount": "Cost from chosen supplier."}},
+                    {{"item": "Product Cost", "amount": 0.0}},
                     {{"item": "Estimated Platform Fees (10%)", "amount": 0.10 * kwargs.get('social_selling_price', 0)}},
-                    {{"item": "Estimated Shipping", "amount": "An estimated shipping fee."}}
+                    {{"item": "Estimated Shipping", "amount": 0.0}}
                 ],
-                "final_profit_per_unit": "Selling Price - All Costs.",
-                "units_to_sell_to_cover_daily_ads": "Calculation: {kwargs.get('ads_daily_budget')} / (Final Profit Per Unit)."
+                "final_profit_per_unit": "The final calculated profit: Selling Price - All Costs.",
+                "units_to_sell_to_cover_daily_ads": "Calculation: Daily Ad Budget / (Final Profit Per Unit). Show the numbers."
             }},
             "action_plan": {{
-                "units_to_buy": "Suggest a safe starting number of units to buy.",
-                "sales_pitch": "A short, powerful pitch to use on the chosen social platform."
+                "units_to_buy": "Suggest a safe starting number of units to buy (e.g., 25-50).",
+                "sales_pitch": "A short, powerful sales pitch to use on the chosen social platform."
             }}
         }}
         """
@@ -216,32 +224,30 @@ class CommerceSagaStack:
 
         --- SAGA'S DECREED RULES ---
         {SUPPLIER_SELECTION_RULES}
-        - The product MUST be sourced from a global B2B marketplace (like Alibaba).
-        - The potential selling price MUST be significantly higher than the sourcing price.
+        - The product MUST be sourceable from a global B2B marketplace (like Alibaba).
+        - The potential selling price MUST be significantly higher than the sourcing price (at least 3x markup).
 
         **Your Prophetic Task:**
-        Based on your research, suggest ONE promising product and its complete route to market.
+        Based on your research, suggest ONE promising product and its complete route to market. Synthesize the trends and community needs to find a unique opportunity.
 
         Your output MUST be a valid JSON object:
         {{
             "suggested_product": {{
-                "name": "A specific product name based on your research.",
-                "description": "A brief description of the product and why it's a good opportunity.",
-                "justification": "Explain WHY you chose this product, referencing your research."
+                "name": "A specific product name based on your research (e.g., 'Eco-friendly bamboo kitchen utensils set').",
+                "description": "A brief description of the product and why it's a good opportunity in the current market.",
+                "justification": "Explain WHY you chose this product, explicitly referencing your research (e.g., 'This aligns with the rising trend for 'sustainable home goods' and answers community questions about eco-friendly products.')."
             }},
             "market_route": {{
                 "sourcing": {{
                     "platform": "Alibaba.com",
-                    "estimated_cost_per_unit": "A realistic low price for this item in bulk."
+                    "estimated_cost_per_unit": "A realistic low price for this item in bulk (e.g., $3.50)."
                 }},
                 "selling": {{
-                    "platform_suggestion": "The best place to sell this (e.g., 'Local Facebook Marketplace', 'Global via Shopify Store').",
-                    "estimated_selling_price": "A realistic high price, ensuring a strong profit margin."
+                    "platform_suggestion": "The best place to sell this (e.g., 'A personal Shopify store targeting eco-conscious consumers via Instagram', 'Local Facebook Marketplace for quick sales').",
+                    "estimated_selling_price": "A realistic high price, ensuring a strong profit margin (e.g., $19.99)."
                 }}
             }},
-            "profit_omen": "A brief summary of the potential profit margin (e.g., 'This path shows a potential 300-500% markup, creating a strong profit opportunity.')."
+            "profit_omen": "A brief summary of the potential profit margin (e.g., 'This path shows a potential 400-600% markup, creating a strong profit opportunity even after accounting for marketing and shipping costs.')."
         }}
         """
         return await get_prophecy_from_oracle(self.model, prompt)
-
---- END OF FILE backend/stacks/commerce_saga_stack.py ---
