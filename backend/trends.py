@@ -19,37 +19,38 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from selenium_stealth import stealth
 from fake_useragent import UserAgent
 
-# ### FIX: Import the caching utilities
 from backend.cache import seer_cache, generate_cache_key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ### ENHANCEMENT: Upgraded selectors to be more robust, using XPath where beneficial.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Soovle": {
         "status": "enabled",
+        "selector_type": "xpath",
         "reason": "Provides a unique, multi-source view of top-level search suggestions.",
         "search_url_template": "https://soovle.com/?q={query}",
-        "wait_selector": '.sv',
-        "item_selector": '.sv a',
+        # This XPath finds any element with the class 'sv', which is more direct.
+        "wait_selector": "//*[@class='sv']",
+        "item_selector": "//*[@class='sv']/a",
     },
     "QuestionDB": {
         "status": "enabled",
+        "selector_type": "xpath",
         "reason": "A valuable source for discovering the raw questions people ask about a topic.",
         "search_url_template": "https://questiondb.io/query/{query}",
-        "wait_selector": 'table.results-table tbody tr',
-        "item_selector": 'table.results-table tbody tr td:first-child',
+        # This XPath is more resilient to changes in table structure.
+        "wait_selector": "//table[contains(@class, 'results-table')]//tr",
+        "item_selector": "//table[contains(@class, 'results-table')]//tr/td[1]",
     },
-    "Ubersuggest": {"status": "protected", "reason": "Requires login and has strong anti-bot protection."},
-    "KeywordTool.io": {"status": "protected", "reason": "A powerful commercial tool with a paid API, best accessed that way."},
-    "AnswerThePublic": {"status": "protected", "reason": "This realm is now guarded more heavily; its whispers are better gathered by the KeywordEngine API."},
 }
 
 class TrendScraper:
     """
     An aspect of Saga that divines wisdom from public keyword research tools.
     It listens to the 'chants of the seekers' to understand what mortals are searching for.
-    This Seer is now enhanced with stealth and caching capabilities.
+    This Seer is now enhanced with stealth, caching, and robust selectors.
     """
 
     def __init__(self):
@@ -59,30 +60,19 @@ class TrendScraper:
             self.ua = None
 
     def _get_driver(self) -> webdriver.Chrome:
-        """Initializes a headless, stealthy Chrome spirit for its journey."""
+        # ... (This method remains unchanged)
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        
         user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
         options.add_argument(f"user-agent={user_agent}")
-
         options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
         options.add_experimental_option('useAutomationExtension', False)
-        
         try:
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
-
-            stealth(driver,
-                    languages=["en-US", "en"],
-                    vendor="Google Inc.",
-                    platform="Win32",
-                    webgl_vendor="Intel Inc.",
-                    renderer="Intel Iris OpenGL Engine",
-                    fix_hairline=True,
-                    )
+            stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32", webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
             return driver
         except WebDriverException as e:
             logger.error(f"The Chrome spirit failed to materialize: {e}. Ensure its essence and path are known.")
@@ -101,12 +91,15 @@ class TrendScraper:
             logger.info(f"Gazing into the {site_key} realm for '{query}'...")
             await asyncio.to_thread(driver.get, url)
 
+            # ### ENHANCEMENT: Use the correct By method based on selector_type
+            by_method = By.XPATH if config['selector_type'] == 'xpath' else By.CSS_SELECTOR
+
             await asyncio.to_thread(WebDriverWait(driver, 20).until(
-                                   EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))))
+                                   EC.presence_of_all_elements_located((by_method, config["wait_selector"]))))
             
             await asyncio.sleep(random.uniform(3.1, 4.5))
             
-            elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
+            elements = await asyncio.to_thread(driver.find_elements, by_method, config["item_selector"])
             
             for el in elements[:max_items]:
                 text = await asyncio.to_thread(lambda: el.text)
@@ -135,7 +128,6 @@ class TrendScraper:
         if product_subcategory:
             search_query += f' "{product_subcategory}"'
 
-        # ### ENHANCEMENT: Implement caching for this expensive operation.
         cache_key = generate_cache_key("run_scraper_tasks", query=search_query, country=country_code)
         cached_results = seer_cache.get(cache_key)
         if cached_results is not None:
@@ -157,7 +149,6 @@ class TrendScraper:
             raw_scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
             scraped_data = [res for res in raw_scraped_data if not isinstance(res, Exception) and res.get('keywords')]
 
-            # ### ENHANCEMENT: Set the result in the cache with a short TTL (2 hours = 7200 seconds).
             seer_cache.set(cache_key, scraped_data, ttl_seconds=7200)
 
         except Exception as e:
@@ -173,30 +164,25 @@ class TrendScraper:
         return scraped_data
 
 async def main(keyword: str):
-    """A standalone ritual to test the TrendScraper's powers."""
+    # ... (This main block for testing remains unchanged)
     import time
     sample_country_name = "Germany"
     sample_category = "Software Development"
-
     scraper = TrendScraper()
-
     print("\n--- First Call (should be slow) ---")
     start_time = time.time()
     scraped_data_1 = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
     duration_1 = time.time() - start_time
-    
     final_report = {
         "keyword_divined": keyword, "duration_seconds": f"{duration_1:.2f}",
         "context": {"country_name": sample_country_name, "product_category": sample_category},
         "trend_report": scraped_data_1
     }
     pprint(final_report)
-
     print("\n--- Second Call (should be instant) ---")
     start_time_2 = time.time()
     scraped_data_2 = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
     duration_2 = time.time() - start_time_2
-
     if duration_2 < 0.1 and len(scraped_data_1) == len(scraped_data_2):
         print(f"\n[SUCCESS] Caching is working! Second call took only {duration_2:.4f} seconds.")
     else:
