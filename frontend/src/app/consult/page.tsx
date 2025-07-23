@@ -1,5 +1,6 @@
 // --- START OF FILE src/app/consult/page.tsx ---
 import React from 'react';
+import ConsultationForm from '@/components/ConsultationForm'; // Summoning the form we just built.
 
 /**
  * The Consultation Chamber: The main application page where users
@@ -7,7 +8,7 @@ import React from 'react';
  */
 export default function ConsultPage() {
   return (
-    <div className="bg-cosmic-gradient min-h-screen py-20 px-4">
+    <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
       <div className="max-w-3xl mx-auto">
         
         {/* Page Header */}
@@ -20,12 +21,11 @@ export default function ConsultPage() {
           </p>
         </header>
 
-        {/* The main form will be built here in the next steps. */}
-        <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
-          <p className="text-center text-saga-text-dark">
-            [The form for submitting your interest, niche, and links will appear here.]
-          </p>
-        </div>
+        {/* 
+          The main form is now placed here, replacing the placeholder.
+          All the logic for inputs and state is neatly contained within this component.
+        */}
+        <ConsultationForm />
 
       </div>
     </div>
