@@ -5,7 +5,38 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
 
-// --- Helper components remain the same ---
+// --- Helper Components ---
+
+// Updated to handle more complex, structured content for targeting info.
+const InfoCard = ({ title, content }: { title: string; content: string | object }) => {
+  const renderContent = () => {
+    if (typeof content === 'string') {
+      return <p className="text-saga-text-dark whitespace-pre-wrap font-sans">{content}</p>;
+    }
+    // Handle structured content for targeting info
+    if (typeof content === 'object' && content !== null) {
+      return (
+        <ul className="space-y-2">
+          {Object.entries(content).map(([key, value]) => (
+            <li key={key} className="text-saga-text-dark">
+              <strong className="text-saga-text-light font-semibold">{key}: </strong> 
+              {Array.isArray(value) ? value.join(', ') : value}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="bg-saga-surface p-6 rounded-lg border border-white/10">
+      <h3 className="font-serif text-xl font-bold text-saga-secondary mb-4">{title}</h3>
+      {renderContent()}
+    </div>
+  );
+};
+
 const CopyCard = ({ title, content }: { title: string; content: string }) => {
   const handleCopy = () => { navigator.clipboard.writeText(content); };
   return (
@@ -14,17 +45,11 @@ const CopyCard = ({ title, content }: { title: string; content: string }) => {
         <h3 className="font-serif text-xl font-bold text-saga-secondary">{title}</h3>
         <button onClick={handleCopy} className="bg-saga-bg text-saga-primary px-3 py-1 rounded-md text-sm hover:bg-saga-primary hover:text-white transition-colors">Copy</button>
       </div>
-      {/* Use a pre-formatted block for code, and paragraph for text */}
-      {title.toLowerCase().includes('html') ? (
-        <pre className="text-saga-text-dark whitespace-pre-wrap font-mono bg-saga-bg p-4 rounded-md text-sm overflow-x-auto">
-          <code>{content}</code>
-        </pre>
-      ) : (
-        <p className="text-saga-text-dark whitespace-pre-wrap font-sans">{content}</p>
-      )}
+      <p className="text-saga-text-dark whitespace-pre-wrap font-sans">{content}</p>
     </div>
   );
 };
+
 const ActionCard = ({ title, description, icon, onClick }: { title: string; description: string; icon: string; onClick: () => void; }) => {
   return (
     <button onClick={onClick} className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 text-left hover:border-saga-primary hover:scale-105 transition-all duration-300">
@@ -42,57 +67,71 @@ export default function FinalScroll() {
     return <div className="text-center p-8">The prophecy is faint... No asset was found.</div>;
   }
 
-  // SAGA LOGIC: This function determines which layout to render based on the asset type.
+  // SAGA LOGIC: This function now renders the new 5-card layout for text assets.
+  const renderTextAsset = () => (
+    <div className="space-y-8">
+      {/* Card 1: The Scroll (Copy) - Not Clickable */}
+      {finalAsset.copy && <CopyCard title={finalAsset.copy.title} content={finalAsset.copy.content} />}
+      
+      {/* Card 2: The Audience Rune (Targeting) - Not Clickable */}
+      {finalAsset.audience_rune && <InfoCard title={finalAsset.audience_rune.title} content={finalAsset.audience_rune.content} />}
+      
+      {/* Card 3: The Scribe's Sigils (Platform Setup) - Not Clickable */}
+      {finalAsset.platform_sigils && <InfoCard title={finalAsset.platform_sigils.title} content={finalAsset.platform_sigils.content} />}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Card 4: The Image Orb - Clickable */}
+        {finalAsset.image_orb && (
+          <ActionCard 
+            title={finalAsset.image_orb.title}
+            description={finalAsset.image_orb.description}
+            icon="🖼️"
+            onClick={() => unveilPrompt('Image')}
+          />
+        )}
+
+        {/* Card 5: The Motion Orb - Clickable */}
+        {finalAsset.motion_orb && (
+          <ActionCard 
+            title={finalAsset.motion_orb.title}
+            description={finalAsset.motion_orb.description}
+            icon="🎬"
+            onClick={() => unveilPrompt('Video')}
+          />
+        )}
+      </div>
+    </div>
+  );
+  
+  // The logic for other asset types remains the same.
+  const renderHtmlAsset = () => (
+    <div className="space-y-8">
+      {finalAsset.html_code && <CopyCard title={finalAsset.html_code.title} content={finalAsset.html_code.content} />}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {finalAsset.image_prompts && finalAsset.image_prompts.map((prompt: any, index: number) => (
+          <ActionCard key={index} title={`Generate ${prompt.section}`} description={`Invoke a ritual to receive the prompt for the ${prompt.section.toLowerCase()}.`} icon="🖼️" onClick={() => unveilPrompt('Image')} />
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderReviewAsset = () => (
+    <div className="space-y-8">
+      {finalAsset.reviews && finalAsset.reviews.map((review: any, index: number) => (
+        <CopyCard key={index} title={`Review Option ${index + 1}`} content={review.content} />
+      ))}
+    </div>
+  );
+  
   const renderAsset = () => {
     switch (chosenAssetType) {
       case 'Funnel Page':
       case 'Landing Page':
-        return (
-          <div className="space-y-8">
-            {/* Card 1: The HTML Code (Not Clickable) */}
-            {finalAsset.html_code && <CopyCard title={finalAsset.html_code.title} content={finalAsset.html_code.content} />}
-            
-            {/* Clickable cards for each image prompt */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {finalAsset.image_prompts && finalAsset.image_prompts.map((prompt: any, index: number) => (
-                <ActionCard
-                  key={index}
-                  title={`Generate ${prompt.section}`}
-                  description={`Invoke a ritual to receive the prompt for the ${prompt.section.toLowerCase()}.`}
-                  icon="🖼️"
-                  onClick={() => {
-                    // This is a simplified version. A real implementation might need to pass the specific prompt.
-                    // For now, we'll just trigger the standard image prompt unveil.
-                    unveilPrompt('Image');
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        );
-
+        return renderHtmlAsset();
       case 'Affiliate Review':
-        // For reviews, we just display multiple copy cards.
-        return (
-          <div className="space-y-8">
-            {finalAsset.reviews && finalAsset.reviews.map((review: any, index: number) => (
-              <CopyCard key={index} title={`Review Option ${index + 1}`} content={review.content} />
-            ))}
-          </div>
-        );
-
-      // Default case for Ad Copy, Email Copy, Affiliate Copy
-      default:
-        return (
-          <div className="space-y-8">
-            {finalAsset.post_text && <CopyCard title={finalAsset.post_text.title} content={finalAsset.post_text.content} />}
-            {finalAsset.body_copy && <CopyCard title={finalAsset.body_copy.title} content={finalAsset.body_copy.content} />}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {finalAsset.image_prompt && <ActionCard title="Generate Image Prompt" description="Invoke a ritual to receive a detailed prompt for AI image generators." icon="🖼️" onClick={() => unveilPrompt('Image')} />}
-              {finalAsset.video_prompt && <ActionCard title="Generate Video Prompt" description="Invoke a ritual to receive a detailed prompt for AI video generators." icon="🎬" onClick={() => unveilPrompt('Video')} />}
-            </div>
-          </div>
-        );
+        return renderReviewAsset();
+      default: // Ad Copy, Email Copy, Affiliate Copy
+        return renderTextAsset();
     }
   };
 
