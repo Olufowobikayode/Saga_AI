@@ -1,26 +1,25 @@
 // --- START OF FILE src/app/page.tsx ---
 import HeroSection from "@/components/HeroSection";
-import FeaturesSection from "@/components/FeaturesSection"; // Summoning the Features Section we just built.
+import FeaturesSection from "@/components/FeaturesSection";
+import CTASection from "@/components/CTASection"; // Summoning the CTA Section we just built.
 
 export default function LandingPage() {
   return (
     <main className="overflow-x-hidden">
       {/* 
-        The Landing Page is constructed from large, thematic sections.
-        First, the grand entrance.
+        The Landing Page is constructed from three thematic sections,
+        creating a complete narrative for the user.
       */}
+      
+      {/* 1. The grand entrance to capture attention. */}
       <HeroSection />
 
-      {/* 
-        Second, as the user scrolls, the Scroll of Power is revealed.
-      */}
+      {/* 2. The scroll of power to explain the value. */}
       <FeaturesSection />
 
-      {/* 
-        In the future, we will add more sections below this one, such as:
-        - A section showcasing the different prophecies.
-        - A final call to action.
-      */}
+      {/* 3. The final command to drive action. */}
+      <CTASection />
+
     </main>
   );
 }
