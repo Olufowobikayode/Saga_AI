@@ -5,58 +5,18 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
 
-// SAGA UI: CORRECTED list of Asset Type cards, now including Email Copy.
 const assetTypes = [
-  {
-    id: 'Ad Copy',
-    title: "Ad Copy",
-    description: "Forge persuasive copy for social media and search engine ads.",
-    icon: "🎯"
-  },
-  {
-    id: 'Email Copy',
-    title: "Email Copy",
-    description: "Compose high-open-rate emails for newsletters and campaigns.",
-    icon: "✉️"
-  },
-  {
-    id: 'Affiliate Copy',
-    title: "Affiliate Copy",
-    description: "Craft compelling messages for your partners to share.",
-    icon: "🤝"
-  },
-  {
-    id: 'Funnel Page',
-    title: "Funnel Page",
-    description: "Generate the complete HTML for a high-converting funnel page.",
-    icon: "🌊"
-  },
-  {
-    id: 'Landing Page',
-    title: "Landing Page",
-    description: "Create the full HTML for a beautiful, persuasive landing page.",
-    icon: "🏠"
-  },
-  {
-    id: 'Affiliate Review',
-    title: "Affiliate Review",
-    description: "Produce authentic, trustworthy reviews to promote affiliate products.",
-    icon: "⭐"
-  }
+  { id: 'Ad Copy', title: "Ad Copy", description: "Forge persuasive copy for social media and search engine ads.", icon: "🎯" },
+  { id: 'Email Copy', title: "Email Copy", description: "Compose high-open-rate emails for newsletters and campaigns.", icon: "✉️" },
+  { id: 'Affiliate Copy', title: "Affiliate Copy", description: "Craft compelling messages for your partners to share.", icon: "🤝" },
+  { id: 'Funnel Page', title: "Funnel Page", description: "Generate the complete HTML for a high-converting funnel page.", icon: "🌊" },
+  { id: 'Landing Page', title: "Landing Page", description: "Create the full HTML for a beautiful, persuasive landing page.", icon: "🏠" },
+  { id: 'Affiliate Review', title: "Affiliate Review", description: "Produce authentic, trustworthy reviews to promote affiliate products.", icon: "⭐" }
 ];
 
-/**
- * HallOfAngles: Displays the available marketing asset types for the user to choose from.
- * This is the second major decision point in the Skald's Forge.
- */
 export default function HallOfAngles() {
-  const angles = useMarketingStore((state) => state.angles);
-
-  const handleCardClick = (assetType: string) => {
-    console.log(`Selected asset type: ${assetType}`);
-    console.log('Available angles from backend:', angles);
-    // In the next step, we will implement the logic to select a strategic angle and call the store.
-  };
+  // SAGA LOGIC: Get the new 'chooseAssetType' function from the store.
+  const chooseAssetType = useMarketingStore((state) => state.chooseAssetType);
 
   return (
     <motion.div
@@ -84,7 +44,8 @@ export default function HallOfAngles() {
             transition={{ duration: 0.5, delay: index * 0.1 }}
           >
             <button
-              onClick={() => handleCardClick(asset.id)}
+              // SAGA LOGIC: When a card is clicked, call the rite from the store.
+              onClick={() => chooseAssetType(asset.id)}
               className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
                          hover:border-saga-primary hover:scale-105 transition-all duration-300"
             >
