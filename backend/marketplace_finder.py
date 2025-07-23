@@ -1,4 +1,3 @@
---- START OF FILE backend/marketplace_finder.py ---
 import time
 import json
 import logging
@@ -6,6 +5,9 @@ from urllib.parse import urlparse
 import tldextract
 from googlesearch import search
 from typing import List, Dict, Set
+
+# ### ENHANCEMENT: Import UserAgent to randomize the identity of the scout's queries.
+from fake_useragent import UserAgent
 
 # Set up logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:SCOUT] - %(message)s')
@@ -17,11 +19,17 @@ class MarketplaceScout:
     """
     Saga's scout, tasked with discovering new realms of commerce and knowledge across the web.
     Its capabilities have been expanded to find general marketplaces, niche-specific havens,
-    and lists of the finest artifacts.
+    and lists of the finest artifacts. It now uses randomized user agents to avoid detection.
     """
     def __init__(self):
         self.found_domains: Set[str] = set()
         
+        # ### ENHANCEMENT: Initialize UserAgent object
+        try:
+            self.ua = UserAgent()
+        except Exception:
+            self.ua = None
+
         # --- 1. Foundational Knowledge: The Seed List of Known Marketplaces ---
         self.SEED_MARKETPLACES: List[str] = [
             "https://www.amazon.com", "https://www.ebay.com", "https://www.aliexpress.com", "https://www.etsy.com",
@@ -29,7 +37,6 @@ class MarketplaceScout:
             "https://www.alibaba.com", "https://www.mercadolibre.com", "https://shopee.com", "https://www.lazada.com",
             "https://www.flipkart.com", "https://allegro.pl", "https://www.zalando.com", "https://www.newegg.com",
             "https://www.wayfair.com", "https://www.facebook.com/marketplace", "https://www.craigslist.org"
-            # A more focused seed list for clarity
         ]
 
         # --- 2. Smart Query Generation ---
@@ -56,7 +63,9 @@ class MarketplaceScout:
         """A more robust and patient method for searching, with better error handling."""
         logger.info(f"Scout is searching for: '{query}'...")
         try:
-            return list(search(query, num=num_results, stop=num_results, pause=3.0))
+            # ### ENHANCEMENT: Provide a random user agent to the search function.
+            user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+            return list(search(query, num_results=num_results, stop=num_results, pause=3.0, user_agent=user_agent))
         except Exception as e:
             logger.error(f"The scout was halted while searching for '{query}': {e}")
             if "HTTP Error 429" in str(e):
@@ -134,4 +143,3 @@ if __name__ == "__main__":
     print("Found potential niche realms:")
     for realm in niche_realms[:5]: # Print top 5 for brevity
         print(f"- {realm}")
---- END OF FILE backend/marketplace_finder.py ---
