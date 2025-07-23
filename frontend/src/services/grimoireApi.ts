@@ -28,7 +28,6 @@ export const getAllScrolls = async (): Promise<GrimoirePage[]> => {
     return await response.json();
   } catch (error) {
     console.error("Failed to retrieve scrolls from the Grimoire:", error);
-    // Return an empty array on failure so the UI doesn't crash.
     return [];
   }
 };
@@ -46,6 +45,31 @@ export const getScrollBySlug = async (slug: string): Promise<GrimoirePage | null
   } catch (error) {
     console.error(`Failed to retrieve the scroll '${slug}':`, error);
     return null;
+  }
+};
+
+// NEW: Function to inscribe a new scroll.
+export const createScroll = async (
+  pageData: { title: string; summary: string; content: string; tags: string[] },
+  adminKey: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/inscribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-api-key': adminKey, // The sacred key.
+      },
+      body: JSON.stringify(pageData),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "The Oracle rejected the inscription.");
+    }
+    return { success: true, message: "The scroll has been successfully inscribed." };
+  } catch (error: any) {
+    console.error("Failed to inscribe the scroll:", error);
+    return { success: false, message: error.message };
   }
 };
 // --- END OF FILE src/services/grimoireApi.ts ---
