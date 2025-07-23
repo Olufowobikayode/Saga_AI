@@ -1,4 +1,3 @@
---- START OF FILE backend/global_ecommerce_scraper.py ---
 import asyncio
 import logging
 import re
@@ -49,8 +48,8 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "domains": ["com"],
         "product_wait_selector": 'div[data-role="product-item"]',
         "product_item_selector": 'div[data-role="product-item"]',
-        "product_title_selector": 'h3.manhattan--titleText--2S8kGjB', # Class names are fragile
-        "product_link_selector": 'a.manhattan--container--1lP57Ag', # Must select 'a' tag for href
+        "product_title_selector": 'h3.manhattan--titleText--2S8kGjB',
+        "product_link_selector": 'a.manhattan--container--1lP57Ag',
         "product_link_attr": 'href',
         "product_price_selector": '.manhattan--price-sale--1CCSZfK',
         "product_sales_history_selector": '.manhattan--trade--2cIXdEw',
@@ -60,12 +59,15 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
 
 class GlobalMarketplaceOracle:
     """
-    A specialized oracle within the SagaEngine. It divines the value, history, and
-    standing of commercial artifacts (products) from global marketplaces.
+    Saga's primary Seer for the realms of commerce.
+    This oracle is responsible for scraping product information, such as price,
+    ratings, and sales history, from various global e-commerce platforms.
+    It also has the ability to read the general text content from any given URL.
+    Its intelligence is crucial for the CommerceSagaStack and other strategic modules.
     """
 
     def __init__(self):
-        # The __init__ method is now cleaner, as the driver is summoned only when needed.
+        # The __init__ method is clean, as the driver is summoned only when needed.
         pass
 
     def _get_driver(self) -> webdriver.Chrome:
@@ -156,13 +158,15 @@ class GlobalMarketplaceOracle:
             logger.debug(f"The sales saga of an artifact was unclear: '{sales_str}'")
             return 0
 
-    async def divine_marketplace_sagas(self, # RENAMED
-                                       product_query: str,
-                                       marketplace_domain: Optional[str] = None,
-                                       max_products: int = 10,
-                                       target_country_code: Optional[str] = None) -> Dict:
+    # ### FIX: Renamed this method for consistency with other Seer modules (e.g., run_community_gathering).
+    async def run_marketplace_divination(self,
+                                         product_query: str,
+                                         marketplace_domain: Optional[str] = None,
+                                         max_products: int = 10,
+                                         target_country_code: Optional[str] = None) -> Dict:
         """
         Casts its sight upon a configured marketplace to read the sagas of its artifacts.
+        This is the primary public method for this Seer.
         """
         all_products = []
         identified_marketplace = "N/A"
@@ -187,7 +191,6 @@ class GlobalMarketplaceOracle:
         url = target_config["base_url_template"].format(query=quote_plus(product_query), domain=domain_to_use)
         logger.info(f"Casting gaze upon the realm of {identified_marketplace} for artifacts matching '{product_query}'...")
         
-        # UPDATED: Use lighter magic first
         html = await self._fetch_html_with_aiohttp(url)
         if not html:
             html = await self._fetch_html_with_selenium(url)
@@ -240,8 +243,8 @@ class GlobalMarketplaceOracle:
                 continue
 
         # Sort worthy artifacts by greatness, then sales, then value.
-        worthy_artifacts = [p for p in all_products if p['rating'] >= 4.0]
-        sorted_artifacts = sorted(worthy_artifacts, key=lambda x: (-x['rating'], -x['sales_history_count'], x['price']))
+        worthy_artifacts = [p for p in all_products if p.get('rating', 0.0) >= 4.0]
+        sorted_artifacts = sorted(worthy_artifacts, key=lambda x: (-x.get('rating', 0.0), -x.get('sales_history_count', 0), x.get('price', float('inf'))))
         
         return {
             "products": sorted_artifacts,
@@ -255,7 +258,6 @@ class GlobalMarketplaceOracle:
         """
         logger.info(f"Attempting to read the user's store scroll from: {user_store_url}")
         
-        # Use the lighter, faster method first.
         content = await self._fetch_html_with_aiohttp(user_store_url)
         if not content:
             logger.warning(f"The raven could not read the scroll, dispatching a more powerful Chrome spirit to {user_store_url}")
@@ -263,10 +265,10 @@ class GlobalMarketplaceOracle:
 
         if content:
             soup = BeautifulSoup(content, 'html.parser')
-            for tag in soup(["script", "style", "nav", "footer", "header"]):
+            for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()
             text = soup.get_text(separator=' ', strip=True)
-            return text[:15000]
+            # Return up to 15,000 characters for a thorough tone analysis
+            return text[:15000] 
         
         return None
---- END OF FILE backend/global_ecommerce_scraper.py ---
