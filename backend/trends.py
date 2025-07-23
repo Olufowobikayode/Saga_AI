@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
 from datetime import datetime
-import random # ### ENHANCEMENT: Import for randomized delays
+import random
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -16,15 +16,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-# ### ENHANCEMENT: Import libraries for scraper evasion
 from selenium_stealth import stealth
 from fake_useragent import UserAgent
 
-# --- Configuration ---
+# ### FIX: Import the caching utilities
+from backend.cache import seer_cache, generate_cache_key
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- SAGA'S SCROLL OF KEYWORD REALMS ---
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Soovle": {
         "status": "enabled",
@@ -49,11 +49,10 @@ class TrendScraper:
     """
     An aspect of Saga that divines wisdom from public keyword research tools.
     It listens to the 'chants of the seekers' to understand what mortals are searching for.
-    This Seer is now enhanced with stealth capabilities to appear more human.
+    This Seer is now enhanced with stealth and caching capabilities.
     """
 
     def __init__(self):
-        # ### ENHANCEMENT: Initialize the UserAgent object once.
         try:
             self.ua = UserAgent()
         except Exception:
@@ -66,7 +65,6 @@ class TrendScraper:
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         
-        # ### ENHANCEMENT 1: Use a randomized, real-world user agent for each request.
         user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
         options.add_argument(f"user-agent={user_agent}")
 
@@ -77,7 +75,6 @@ class TrendScraper:
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
 
-            # ### ENHANCEMENT 2: Apply selenium-stealth patches to the driver.
             stealth(driver,
                     languages=["en-US", "en"],
                     vendor="Google Inc.",
@@ -107,7 +104,6 @@ class TrendScraper:
             await asyncio.to_thread(WebDriverWait(driver, 20).until(
                                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))))
             
-            # ### ENHANCEMENT 3: Use randomized delays to better mimic human behavior.
             await asyncio.sleep(random.uniform(3.1, 4.5))
             
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
@@ -131,12 +127,19 @@ class TrendScraper:
                                 product_category: Optional[str] = None, product_subcategory: Optional[str] = None) -> List[Dict]:
         """
         The main public rite for this seer. It orchestrates divination from all 'enabled' keyword realms.
+        This operation is cached to prevent excessive scraping.
         """
         search_query = keyword
         if product_category:
             search_query += f' "{product_category}"'
         if product_subcategory:
             search_query += f' "{product_subcategory}"'
+
+        # ### ENHANCEMENT: Implement caching for this expensive operation.
+        cache_key = generate_cache_key("run_scraper_tasks", query=search_query, country=country_code)
+        cached_results = seer_cache.get(cache_key)
+        if cached_results is not None:
+            return cached_results
 
         logger.info(f"--- Divining keyword trends for '{search_query}' (Realm: {country_name or 'Global'}) ---")
         driver = None
@@ -151,8 +154,11 @@ class TrendScraper:
                 else:
                     logger.warning(f"Skipping the realm of '{site_key}': {config['reason']}")
             
-            scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
-            scraped_data = [res for res in scraped_data if not isinstance(res, Exception) and res.get('keywords')]
+            raw_scraped_data = await asyncio.gather(*tasks, return_exceptions=True)
+            scraped_data = [res for res in raw_scraped_data if not isinstance(res, Exception) and res.get('keywords')]
+
+            # ### ENHANCEMENT: Set the result in the cache with a short TTL (2 hours = 7200 seconds).
+            seer_cache.set(cache_key, scraped_data, ttl_seconds=7200)
 
         except Exception as e:
             logger.critical(f"A great disturbance prevented the divination of trends: {e}")
@@ -168,32 +174,33 @@ class TrendScraper:
 
 async def main(keyword: str):
     """A standalone ritual to test the TrendScraper's powers."""
+    import time
     sample_country_name = "Germany"
     sample_category = "Software Development"
 
     scraper = TrendScraper()
-    scraped_data = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
+
+    print("\n--- First Call (should be slow) ---")
+    start_time = time.time()
+    scraped_data_1 = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
+    duration_1 = time.time() - start_time
     
     final_report = {
-        "keyword_divined": keyword,
-        "context": {
-            "country_name": sample_country_name,
-            "product_category": sample_category,
-        },
-        "timestamp": datetime.now().isoformat(),
-        "trend_report": scraped_data
+        "keyword_divined": keyword, "duration_seconds": f"{duration_1:.2f}",
+        "context": {"country_name": sample_country_name, "product_category": sample_category},
+        "trend_report": scraped_data_1
     }
-    
-    logger.info("--- SCROLL OF TRENDING KEYWORDS ---")
     pprint(final_report)
-    
-    filename = f"keyword_trend_report_{keyword.replace(' ', '_')}.json"
-    try:
-        with open(filename, "w", encoding='utf-8') as f:
-            json.dump(final_report, f, indent=2, ensure_ascii=False)
-        logger.info(f"--- Scroll of Trending Keywords has been inscribed to {filename} ---")
-    except IOError as e:
-        logger.error(f"Failed to inscribe the scroll ({filename}): {e}")
+
+    print("\n--- Second Call (should be instant) ---")
+    start_time_2 = time.time()
+    scraped_data_2 = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
+    duration_2 = time.time() - start_time_2
+
+    if duration_2 < 0.1 and len(scraped_data_1) == len(scraped_data_2):
+        print(f"\n[SUCCESS] Caching is working! Second call took only {duration_2:.4f} seconds.")
+    else:
+        print(f"\n[FAILURE] Caching is not working correctly. Second call took {duration_2:.2f} seconds.")
 
 
 if __name__ == "__main__":
