@@ -1,4 +1,3 @@
---- START OF FILE backend/server.py ---
 import os
 import logging
 from pathlib import Path
@@ -9,7 +8,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Any, Optional, List, Dict
+from typing import Any, Optional, List, Dict, Literal
 
 from backend.engine import SagaEngine
 from backend.marketplace_finder import MarketplaceScout
@@ -28,35 +27,37 @@ class SagaResponse(BaseModel):
     prophecy_type: str
     data: Any
 
-# --- Commerce Saga Models ---
+# ### FIX: Consolidated and clarified Commerce Saga request models to match the unified stack.
+
 class CommerceAuditRequest(BaseModel):
-    audit_type: str = Field(..., examples=["Account Audit", "Store Audit", "Account Prediction"])
-    statement_text: Optional[str] = Field(None, description="Pasted text from a TXT, CSV, or DOC file of account statements.")
-    store_url: Optional[str] = Field(None, description="URL of the user's store for Store Audit and Prediction.")
+    prophecy_type: Literal["Commerce Audit"] = Field("Commerce Audit", description="The type of prophecy to invoke.")
+    audit_type: Literal["Account Audit", "Store Audit", "Account Prediction"] = Field(..., examples=["Account Audit", "Store Audit"], description="The specific type of audit to perform.")
+    statement_text: Optional[str] = Field(None, description="Pasted text from a TXT, CSV, or DOC file of account statements for 'Account Audit' or 'Account Prediction'.")
+    store_url: Optional[str] = Field(None, description="URL of the user's store for 'Store Audit' or 'Account Prediction'.")
 
 class ArbitragePathsRequest(BaseModel):
-    mode: str = Field(..., examples=["User_Buys_User_Sells", "Saga_Buys_User_Sells", "User_Buys_Saga_Sells", "Saga_Buys_Saga_Sells"])
-    product_name: Optional[str] = None
-    buy_from_url: Optional[str] = None
-    sell_on_url: Optional[str] = None
-    amount_to_buy: Optional[int] = None
-    ads_daily_budget: Optional[float] = None
-    category: Optional[str] = None
-    subcategory: Optional[str] = None
+    prophecy_type: Literal["Arbitrage Paths"] = Field("Arbitrage Paths", description="The type of prophecy to invoke.")
+    mode: Literal["User_Buys_User_Sells", "Saga_Buys_User_Sells", "User_Buys_Saga_Sells", "Saga_Buys_Saga_Sells"] = Field(..., description="The mode of arbitrage to analyze.")
+    product_name: Optional[str] = Field(None, description="The product to find arbitrage for. Required for user-defined modes.")
+    buy_from_url: Optional[str] = Field(None, description="The URL of the marketplace to buy from. Required for user-defined modes.")
+    sell_on_url: Optional[str] = Field(None, description="The URL of the marketplace to sell on. Required for user-defined modes.")
+    category: Optional[str] = Field(None, description="Optional product category to refine the search.")
+    subcategory: Optional[str] = Field(None, description="Optional product subcategory to refine the search.")
 
 class SocialSellingSagaRequest(BaseModel):
-    niche: str
-    product_name: str
-    social_platform: str
-    social_selling_price: float
-    ads_daily_budget: float = Field(..., gt=4.99, lt=1000.01)
-    desired_profit_per_product: float
-    product_category: Optional[str] = None
-    product_subcategory: Optional[str] = None
+    prophecy_type: Literal["Social Selling Saga"] = Field("Social Selling Saga", description="The type of prophecy to invoke.")
+    product_name: str = Field(..., description="The name of the product to create a saga for.")
+    social_selling_price: float = Field(..., description="The target price to sell the product at on social media.")
+    desired_profit_per_product: float = Field(..., description="The user's target profit per unit sold, after costs.")
+    social_platform: str = Field("Instagram", description="The primary social platform for the campaign.")
+    ads_daily_budget: float = Field(10.0, gt=4.99, lt=1000.01, description="The daily budget for social media ads.")
+    product_category: Optional[str] = Field(None, description="Optional product category to refine the strategy.")
+    product_subcategory: Optional[str] = Field(None, description="Optional product subcategory to refine the strategy.")
 
 class ProductRouteRequest(BaseModel):
-    location_type: str = Field(..., examples=["Global", "My Location"])
-
+    prophecy_type: Literal["Product Route"] = Field("Product Route", description="The type of prophecy to invoke.")
+    location_type: Literal["Global", "My Location"] = Field(..., description="The target market scope for the product route.")
+    
 # --- Other Stack Models ---
 class GrandStrategyRequest(BaseModel):
     interest: str
@@ -72,7 +73,7 @@ class MarketingAnglesRequest(BaseModel):
     product_name: str
     product_description: str
     target_audience: str
-    asset_type: str = Field(..., examples=["Ad Copy", "Landing Page", "Email Copy"])
+    asset_type: Literal["Ad Copy", "Landing Page", "Email Copy", "Funnel Page", "Affiliate Copy"]
 
 class MarketingAssetRequest(BaseModel):
     marketing_session_id: str
@@ -117,33 +118,33 @@ async def get_new_venture_visions(request: NewVentureRequest):
     data = await engine.prophesy_new_venture_visions(**request.model_dump())
     return SagaResponse(prophecy_type="new_venture_visions", data=data)
 
-@api_router.post("/prophesy/commerce/audit", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
-async def get_commerce_audit(request: CommerceAuditRequest):
-    """Performs an Account Audit, Store Audit, or Account Prediction."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    data = await engine.prophesy_commerce_saga(prophecy_type="Commerce Audit", **request.model_dump())
-    return SagaResponse(prophecy_type="commerce_audit", data=data)
+# ### FIX: Consolidated the four separate commerce endpoints into a single, unified endpoint.
+# This aligns with the 'CommerceSagaStack' design and simplifies the API surface.
 
-@api_router.post("/prophesy/commerce/arbitrage-paths", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
-async def get_arbitrage_paths(request: ArbitragePathsRequest):
-    """Finds buy-low, sell-high opportunities based on one of four modes."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    data = await engine.prophesy_commerce_saga(prophecy_type="Arbitrage Paths", **request.model_dump())
-    return SagaResponse(prophecy_type="arbitrage_paths", data=data)
+@api_router.post("/prophesy/commerce", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
+async def get_commerce_prophecy(request: CommerceAuditRequest | ArbitragePathsRequest | SocialSellingSagaRequest | ProductRouteRequest):
+    """
+    A unified endpoint for all commerce-related prophecies.
+    - **Commerce Audit**: Performs an Account Audit, Store Audit, or Account Prediction.
+    - **Arbitrage Paths**: Finds buy-low, sell-high opportunities based on one of four modes.
+    - **Social Selling Saga**: Generates a complete social selling plan based on profit goals.
+    - **Product Route**: Finds a high-profit-margin product to sell globally or locally.
+    """
+    if not engine:
+        raise HTTPException(status_code=503, detail="Saga is slumbering.")
+    
+    request_data = request.model_dump()
+    prophecy_type = request_data.pop("prophecy_type") # Extract prophecy type to pass to engine
+    
+    try:
+        data = await engine.prophesy_commerce_saga(prophecy_type=prophecy_type, **request_data)
+        return SagaResponse(prophecy_type=prophecy_type.lower().replace(" ", "_"), data=data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error during commerce prophecy '{prophecy_type}': {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while divining the prophecy.")
 
-@api_router.post("/prophesy/commerce/social-selling-saga", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
-async def get_social_selling_saga(request: SocialSellingSagaRequest):
-    """Generates a complete social selling plan based on profit goals."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    data = await engine.prophesy_commerce_saga(prophecy_type="Social Selling Saga", **request.model_dump())
-    return SagaResponse(prophecy_type="social_selling_saga", data=data)
-
-@api_router.post("/prophesy/commerce/product-route", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
-async def get_product_route(request: ProductRouteRequest):
-    """Finds a high-profit-margin product to sell globally or locally."""
-    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    data = await engine.prophesy_commerce_saga(prophecy_type="Product Route", **request.model_dump())
-    return SagaResponse(prophecy_type="product_route", data=data)
 
 @api_router.post("/prophesy/marketing/angles", response_model=SagaResponse, tags=["4. Marketing Prophecies"])
 async def get_marketing_angles(request: MarketingAnglesRequest):
@@ -193,4 +194,3 @@ async def startup_event():
         logger.info("Saga's Engine and Scout are awake and ready.")
     else:
         logger.error("GEMINI_API_KEY not found. Saga cannot awaken.")
---- END OF FILE backend/server.py ---
