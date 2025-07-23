@@ -7,10 +7,8 @@ import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import AnvilForm from './AnvilForm';
 import HallOfAngles from './HallOfAngles';
-import ScribesChamber from './ScribesChamber'; // Summoning the Scribe's Chamber.
-
-// Placeholder for the final results screen.
-const FinalScroll = () => <div className="text-center p-8 bg-saga-surface rounded-lg">Placeholder for Final Scroll (Asset Display)</div>;
+import ScribesChamber from './ScribesChamber';
+import FinalScroll from './FinalScroll'; // Summoning the real FinalScroll.
 
 /**
  * ForgeManager: The master controller for the entire Skald's Forge workflow.
@@ -36,9 +34,7 @@ export default function ForgeManager() {
       case 'angles_revealed':
         return <HallOfAngles />;
 
-      // NEW LOGIC: When the status is 'awaiting_scribe', we show the ScribesChamber.
       case 'awaiting_scribe':
-        // We must ensure chosenAssetType is not null before rendering.
         if (!chosenAssetType) return <div className="text-center p-8">Error: Asset Type not chosen.</div>;
         return (
           <ScribesChamber 
@@ -48,6 +44,7 @@ export default function ForgeManager() {
         );
 
       case 'asset_revealed':
+        // Now rendering the real Final Scroll instead of the placeholder.
         return <FinalScroll />;
 
       case 'forging_angles':
