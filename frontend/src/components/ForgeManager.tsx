@@ -8,17 +8,23 @@ import RitualScreen from './RitualScreen';
 import AnvilForm from './AnvilForm';
 import HallOfAngles from './HallOfAngles';
 import ScribesChamber from './ScribesChamber';
-import FinalScroll from './FinalScroll'; // Summoning the real FinalScroll.
+import FinalScroll from './FinalScroll';
+import PromptUnveiled from './PromptUnveiled'; // Summoning the final component.
 
 /**
  * ForgeManager: The master controller for the entire Skald's Forge workflow.
  * It reads the status from the marketingStore and renders the appropriate UI.
  */
 export default function ForgeManager() {
-  const status = useMarketingStore((state) => state.status);
-  const invokeForge = useMarketingStore((state) => state.invokeForge);
-  const chosenAssetType = useMarketingStore((state) => state.chosenAssetType);
-  const commandScribe = useMarketingStore((state) => state.commandScribe);
+  // SAGA LOGIC: Connect to the Mind of the Skald to get all necessary state and functions.
+  const { 
+    status, 
+    invokeForge, 
+    chosenAssetType, 
+    commandScribe, 
+    unveiledPrompt, 
+    returnToScroll 
+  } = useMarketingStore();
 
   useEffect(() => {
     if (status === 'idle') {
@@ -26,6 +32,7 @@ export default function ForgeManager() {
     }
   }, [status, invokeForge]);
 
+  // This function now handles every possible state in our complex workflow.
   const renderCurrentStage = () => {
     switch (status) {
       case 'awaiting_anvil':
@@ -44,11 +51,33 @@ export default function ForgeManager() {
         );
 
       case 'asset_revealed':
-        // Now rendering the real Final Scroll instead of the placeholder.
         return <FinalScroll />;
 
+      // NEW LOGIC: When the status is 'prompt_unveiled', we show the PromptUnveiled component.
+      case 'prompt_unveiled':
+        if (!unveiledPrompt) return <div className="text-center p-8">Error: The prompt was lost in the ether.</div>;
+        
+        // We define the platform details here based on the prompt type.
+        const platformDetails = unveiledPrompt.type === 'Image' 
+          ? { name: 'Midjourney', url: 'https://www.midjourney.com/', instructions: 'Copy the prompt below and paste it into the Midjourney Discord bot to generate your image.' }
+          : { name: 'RunwayML', url: 'https://runwayml.com/', instructions: 'Copy the prompt below and use it in a text-to-video generator like RunwayML or Sora to create your video.' };
+
+        return (
+          <PromptUnveiled
+            promptType={unveiledPrompt.type}
+            promptTitle={unveiledPrompt.title}
+            promptContent={unveiledPrompt.content}
+            platformName={platformDetails.name}
+            platformUrl={platformDetails.url}
+            instructions={platformDetails.instructions}
+            onBack={returnToScroll} // The back button calls the rite to return to the previous state.
+          />
+        );
+
+      // The ritual screen is shown for all "forging" states.
       case 'forging_angles':
       case 'forging_asset':
+      case 'forging_prompt':
         return <RitualScreen />;
       
       default:
@@ -60,7 +89,7 @@ export default function ForgeManager() {
     <div>
       <AnimatePresence mode="wait">
         {renderCurrentStage()}
-      </AnimatePresence>
+      </An-imatePresence>
     </div>
   );
 }
