@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import random
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse, quote_plus
 from bs4 import BeautifulSoup
@@ -12,6 +13,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import aiohttp
+
+# ### ENHANCEMENT: Import libraries for scraper evasion
+from selenium_stealth import stealth
+from fake_useragent import UserAgent
 
 logger = logging.getLogger(__name__)
 
@@ -62,35 +67,57 @@ class GlobalMarketplaceOracle:
     Saga's primary Seer for the realms of commerce.
     This oracle is responsible for scraping product information, such as price,
     ratings, and sales history, from various global e-commerce platforms.
-    It also has the ability to read the general text content from any given URL.
-    Its intelligence is crucial for the CommerceSagaStack and other strategic modules.
+    It now includes several evasion techniques to appear more human.
     """
 
     def __init__(self):
-        # The __init__ method is clean, as the driver is summoned only when needed.
-        pass
+        # ### ENHANCEMENT: Initialize the UserAgent object once.
+        try:
+            self.ua = UserAgent()
+        except Exception:
+            # Fallback if the user-agent service is down
+            self.ua = None
 
     def _get_driver(self) -> webdriver.Chrome:
-        """Summons a Chrome spirit for its journey into the realms of commerce."""
+        """Summons an enhanced, stealthy Chrome spirit for its journey."""
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        
+        # ### ENHANCEMENT 1: Use a randomized, real-world user agent for each request.
+        user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+        options.add_argument(f"user-agent={user_agent}")
+        
+        options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+        options.add_experimental_option('useAutomationExtension', False)
         
         service = Service(ChromeDriverManager().install())
-        return webdriver.Chrome(service=service, options=options)
+        driver = webdriver.Chrome(service=service, options=options)
+
+        # ### ENHANCEMENT 2: Apply selenium-stealth patches to the driver.
+        # This modifies the driver instance to hide common automation flags.
+        stealth(driver,
+                languages=["en-US", "en"],
+                vendor="Google Inc.",
+                platform="Win32",
+                webgl_vendor="Intel Inc.",
+                renderer="Intel Iris OpenGL Engine",
+                fix_hairline=True,
+                )
+        
+        return driver
 
     async def _fetch_html_with_selenium(self, url: str) -> Optional[str]:
-        """Fetches the fully rendered scroll of a URL using a Chrome spirit."""
+        """Fetches the fully rendered scroll of a URL using an enhanced Chrome spirit."""
         driver = None
         try:
             driver = self._get_driver()
-            logger.info(f"Dispatching Chrome spirit to read the scroll at {url}...")
+            logger.info(f"Dispatching stealthy Chrome spirit to read the scroll at {url}...")
             await asyncio.to_thread(driver.get, url)
             await asyncio.to_thread(WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, 'body'))))
-            await asyncio.sleep(3)
+            # ### ENHANCEMENT 3: Use randomized delays to better mimic human behavior.
+            await asyncio.sleep(random.uniform(2.8, 4.2))
             return await asyncio.to_thread(lambda: driver.page_source)
         except Exception as e:
             logger.error(f"The Chrome spirit failed to read the scroll at {url}: {e}")
@@ -101,9 +128,8 @@ class GlobalMarketplaceOracle:
 
     async def _fetch_html_with_aiohttp(self, url: str) -> Optional[str]:
         """Fetches the raw HTML of a scroll using a swift raven (aiohttp)."""
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-        }
+        user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+        headers = { 'User-Agent': user_agent }
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.get(url, timeout=15) as response:
@@ -117,31 +143,24 @@ class GlobalMarketplaceOracle:
             return None
 
     def _parse_value(self, price_str: str, fraction_str: Optional[str] = None) -> float:
-        """A more resilient rune to decipher the value from strings of text."""
         if not price_str: return 0.0
         try:
-            # Remove all non-digit characters except the decimal point
             price_text = re.sub(r'[^\d.]', '', price_str)
             if fraction_str:
                 price_text += '.' + re.sub(r'[^\d]', '', fraction_str)
             return float(price_text) if price_text else 0.0
         except (ValueError, TypeError):
-            logger.debug(f"The value of an artifact was shrouded in mystery: '{price_str}'")
             return 0.0
 
     def _parse_rating(self, rating_str: str) -> float:
-        """A rune to decipher the greatness of an artifact from text."""
         if not rating_str: return 0.0
         try:
-            # Find the first number (integer or float) in the string
             match = re.search(r'(\d[\d,.]*)', rating_str.replace(',', '.'))
             return float(match.group(1)) if match else 0.0
         except (ValueError, TypeError):
-            logger.debug(f"The greatness of an artifact was indecipherable: '{rating_str}'")
             return 0.0
 
     def _parse_sales_history(self, sales_str: str) -> int:
-        """A more resilient rune to decipher the sales saga of an artifact."""
         if not sales_str: return 0
         try:
             sales_str = sales_str.lower().replace('sold', '').replace('+', '').replace(',', '').strip()
@@ -155,10 +174,8 @@ class GlobalMarketplaceOracle:
                 num *= 1_000_000
             return int(num)
         except (ValueError, TypeError):
-            logger.debug(f"The sales saga of an artifact was unclear: '{sales_str}'")
             return 0
 
-    # ### FIX: Renamed this method for consistency with other Seer modules (e.g., run_community_gathering).
     async def run_marketplace_divination(self,
                                          product_query: str,
                                          marketplace_domain: Optional[str] = None,
@@ -171,7 +188,6 @@ class GlobalMarketplaceOracle:
         all_products = []
         identified_marketplace = "N/A"
 
-        # Find the matching config for the provided domain
         target_config = None
         if marketplace_domain:
             for key, config in ECOMMERCE_SITE_CONFIGS.items():
@@ -212,7 +228,6 @@ class GlobalMarketplaceOracle:
                 if link_el and link_el.has_attr(target_config["product_link_attr"]):
                     link = link_el[target_config["product_link_attr"]]
                 
-                # Ensure link is absolute
                 if link and not link.startswith('http'):
                     base_url = f"https://www.{identified_marketplace}.{domain_to_use}"
                     link = f"{base_url}{link}"
@@ -232,7 +247,7 @@ class GlobalMarketplaceOracle:
                 seller_el = el.select_one(target_config.get("seller_name_selector", ""))
                 seller_name = seller_el.text.strip() if seller_el else "An unknown purveyor"
 
-                if price > 0: # Only add artifacts with a valid price
+                if price > 0:
                     all_products.append({
                         "title": title, "price": price, "rating": rating,
                         "sales_history_count": sales_history, "seller_name": seller_name,
@@ -242,7 +257,6 @@ class GlobalMarketplaceOracle:
                 logger.debug(f"Failed to divine all details for one artifact in {identified_marketplace}: {item_e}")
                 continue
 
-        # Sort worthy artifacts by greatness, then sales, then value.
         worthy_artifacts = [p for p in all_products if p.get('rating', 0.0) >= 4.0]
         sorted_artifacts = sorted(worthy_artifacts, key=lambda x: (-x.get('rating', 0.0), -x.get('sales_history_count', 0), x.get('price', float('inf'))))
         
@@ -253,9 +267,6 @@ class GlobalMarketplaceOracle:
         }
 
     async def read_user_store_scroll(self, user_store_url: str) -> Optional[str]:
-        """
-        Reads the general text from a user's store scroll for the AI to analyze its tone and style.
-        """
         logger.info(f"Attempting to read the user's store scroll from: {user_store_url}")
         
         content = await self._fetch_html_with_aiohttp(user_store_url)
@@ -268,7 +279,6 @@ class GlobalMarketplaceOracle:
             for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()
             text = soup.get_text(separator=' ', strip=True)
-            # Return up to 15,000 characters for a thorough tone analysis
             return text[:15000] 
         
         return None
