@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
 from datetime import datetime
-import random # ### ENHANCEMENT: Import for randomized delays
+import random
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -16,18 +16,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-# ### ENHANCEMENT: Import libraries for scraper evasion
 from selenium_stealth import stealth
 from fake_useragent import UserAgent
 
-# --- Configuration ---
+# ### FIX: Import the caching utilities
+from backend.cache import seer_cache, generate_cache_key
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:WISDOM] - %(message)s')
 logger = logging.getLogger(__name__)
 
-
-# --- THE MASTER SCROLL OF COMMUNITY & FORUM REALMS: Fortified and Expanded ---
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
-    # --- Community Realms (The Voice of the People) ---
     "Reddit": {
         "status": "enabled",
         "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment",
@@ -42,7 +40,6 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "item_selector": '.qu-userText',
         "reason": "A primary forum for questions and explanations."
     },
-    # --- Technical Realms (From the Halls of the Builders) ---
     "Stack Overflow": {
         "status": "enabled",
         "search_url_template": "https://stackoverflow.com/search?q={query}",
@@ -57,7 +54,6 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "item_selector": '.issue-list-item .markdown-title a',
         "reason": "Direct insight into software problems and feature requests."
     },
-    # --- Thought Leadership Realm ---
     "Medium": {
         "status": "enabled",
         "search_url_template": "https://medium.com/search?q={query}",
@@ -65,13 +61,11 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "item_selector": 'article h2',
         "reason": "Captures expert sagas and tutorials."
     },
-    # --- Deprecated or Protected Realms ---
     "Answers.com": {"status": "protected", "reason": "Heavy JS wards and CAPTCHA runes."},
     "Ask.fm": {"status": "protected", "reason": "Login-centric; not for broad divination."},
     "Brainly": {"status": "protected", "reason": "Requires login and has strong anti-bot wards."},
 }
 
-# --- THE GRIMOIRE OF QUERIES ---
 QUERY_GRIMOIRE: Dict[str, str] = {
     "pain_point": '"{interest}" problem OR "how to" OR "I need help with" OR "{interest}" issues',
     "questions": 'who OR what OR when OR where OR why OR how "{interest}"',
@@ -84,12 +78,10 @@ class CommunitySaga:
     """
     I am the Seer of Community Whispers, an aspect of the great Saga. I journey
     through the digital halls of forums and communities to gather the true voice of
-    the people—their questions, problems, and technical challenges.
-    This Seer is now enhanced with stealth capabilities to appear more human.
+    the people. This Seer is now enhanced with stealth and caching capabilities.
     """
 
     def __init__(self):
-        # ### ENHANCEMENT: Initialize the UserAgent object once.
         try:
             self.ua = UserAgent()
         except Exception:
@@ -102,7 +94,6 @@ class CommunitySaga:
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
 
-        # ### ENHANCEMENT 1: Use a randomized, real-world user agent for each request.
         user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         options.add_argument(f"user-agent={user_agent}")
 
@@ -113,7 +104,6 @@ class CommunitySaga:
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
 
-            # ### ENHANCEMENT 2: Apply selenium-stealth patches to the driver.
             stealth(driver,
                     languages=["en-US", "en"],
                     vendor="Google Inc.",
@@ -141,7 +131,6 @@ class CommunitySaga:
             await asyncio.to_thread(WebDriverWait(driver, 15).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))))
             
-            # ### ENHANCEMENT 3: Use randomized delays to better mimic human behavior.
             await asyncio.sleep(random.uniform(2.1, 3.9))
             
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
@@ -167,13 +156,19 @@ class CommunitySaga:
                                        sites_to_scan: Optional[List[str]] = None) -> List[Dict]:
         """
         I orchestrate the grand gathering of voices from specified community realms.
-        If no sites are specified, I will consult all enabled realms.
+        This operation is cached to prevent excessive scraping.
         """
+        # ### ENHANCEMENT: Implement caching for this expensive operation.
+        realms_to_visit = sites_to_scan if sites_to_scan else sorted([key for key, config in SITE_CONFIGS.items() if config['status'] == 'enabled'])
+        cache_key = generate_cache_key("run_community_gathering", interest=interest, query_type=query_type, sites=",".join(realms_to_visit))
+        
+        cached_results = seer_cache.get(cache_key)
+        if cached_results is not None:
+            return cached_results
+
         driver = None
         gathered_data = []
         
-        realms_to_visit = sites_to_scan if sites_to_scan else [key for key, config in SITE_CONFIGS.items() if config['status'] == 'enabled']
-
         try:
             driver = self._get_driver()
             
@@ -189,12 +184,15 @@ class CommunitySaga:
                 else:
                     logger.warning(f"I will not gaze upon the realm of '{site_key}', as it is not in my enabled scrolls.")
 
-            gathered_data = await asyncio.gather(*tasks, return_exceptions=True)
-            gathered_data = [res for res in gathered_data if not isinstance(res, Exception) and res.get('results')]
+            raw_gathered_data = await asyncio.gather(*tasks, return_exceptions=True)
+            gathered_data = [res for res in raw_gathered_data if not isinstance(res, Exception) and res.get('results')]
+
+            # ### ENHANCEMENT: Set the result in the cache with a medium TTL (4 hours = 14400 seconds).
+            seer_cache.set(cache_key, gathered_data, ttl_seconds=14400)
 
         except Exception as e:
             logger.critical(f"A great disturbance has disrupted the gathering of whispers. My sight is clouded. Error: {e}")
-            return [] # Return empty list on critical failure
+            return []
         finally:
             if driver:
                 logger.info("The gathering of whispers is complete. The Chrome spirit is dismissed.")
@@ -205,22 +203,32 @@ class CommunitySaga:
 
 async def main(keyword: str, query_type: str):
     """A standalone ritual to test my powers of community divination."""
+    import time
     logger.info(f"--- SAGA'S INSIGHT ENGINE: GATHERING OF WHISPERS ---")
     logger.info(f"Divining wisdom for keyword: '{keyword}' using query type: '{query_type}'")
 
     saga_seer = CommunitySaga()
     
-    scraped_data = await saga_seer.run_community_gathering(keyword, query_type=query_type)
-
-    final_report = {
-        "divined_for": keyword,
-        "query_type": query_type,
-        "timestamp_of_vision": datetime.now().isoformat(),
-        "community_whispers_gathered": scraped_data
+    print("\n--- First Call (should be slow) ---")
+    start_time = time.time()
+    scraped_data_1 = await saga_seer.run_community_gathering(keyword, query_type=query_type)
+    duration_1 = time.time() - start_time
+    
+    final_report_1 = {
+        "divined_for": keyword, "query_type": query_type, "duration_seconds": f"{duration_1:.2f}",
+        "community_whispers_gathered": scraped_data_1
     }
+    pprint(final_report_1)
 
-    logger.info("--- SCROLL OF COMMUNITY WISDOM ---")
-    pprint(final_report)
+    print("\n--- Second Call (should be instant) ---")
+    start_time_2 = time.time()
+    scraped_data_2 = await saga_seer.run_community_gathering(keyword, query_type=query_type)
+    duration_2 = time.time() - start_time_2
+
+    if duration_2 < 0.1 and len(scraped_data_1) == len(scraped_data_2):
+        print(f"\n[SUCCESS] Caching is working! Second call took only {duration_2:.4f} seconds.")
+    else:
+        print(f"\n[FAILURE] Caching is not working correctly. Second call took {duration_2:.2f} seconds.")
 
 
 if __name__ == "__main__":
