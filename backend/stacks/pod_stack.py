@@ -1,4 +1,3 @@
---- START OF FILE backend/stacks/pod_stack.py ---
 import asyncio
 import logging
 import json
@@ -37,10 +36,11 @@ class PODSagaStack:
         """
         logger.info(f"POD SAGA (PHASE 1): Divining opportunities for niche: '{niche_interest}'...")
 
+        # ### FIX: Updated the method call to 'run_marketplace_divination' for consistency.
         tasks = {
             "keyword_trends": self.keyword_rune_keeper.get_full_keyword_runes(niche_interest),
             "community_desires": self.community_seer.run_community_gathering(f'{niche_interest} t-shirt ideas', query_type="questions"),
-            "top_selling_designs": self.marketplace_oracle.divine_marketplace_sagas(product_query=f'{niche_interest} shirt', marketplace_domain="etsy.com", max_products=5),
+            "top_selling_designs": self.marketplace_oracle.run_marketplace_divination(product_query=f'{niche_interest} shirt', marketplace_domain="etsy.com", max_products=5),
             "pod_platform_suggestions": self.scout.find_niche_realms(f"print on demand for {niche_interest}", num_results=3)
         }
         intel = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -63,8 +63,8 @@ class PODSagaStack:
         Your output MUST be a valid JSON object with a single key, "design_concepts". Each concept card must contain:
         - "concept_id": A unique identifier.
         - "title": A catchy name for the design concept (e.g., "Retro-Futurist Catstronaut," "Minimalist Geometric Wolf").
-        - "description": A brief explanation of the concept and its appeal.
-        - "justification": Explain WHY this is a good idea by explicitly referencing the gathered intelligence.
+        - "description": "A brief explanation of the concept and its appeal."
+        - "justification": "Explain WHY this is a good idea by explicitly referencing the gathered intelligence."
         - "suggested_products": An array of product types this design would excel on (e.g., ["T-Shirt (dark colors)", "Mug", "Sticker"]).
         """
         opportunities_prophecy = await get_prophecy_from_oracle(self.model, prompt)
@@ -133,5 +133,3 @@ class PODSagaStack:
         }}
         """
         return await get_prophecy_from_oracle(self.model, prompt)
-
---- END OF FILE backend/stacks/pod_stack.py ---
