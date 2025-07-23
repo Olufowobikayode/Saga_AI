@@ -1,10 +1,11 @@
 // --- START OF FILE src/app/forge/page.tsx ---
 import React from 'react';
 import Link from 'next/link';
+import ForgeManager from '@/components/ForgeManager'; // Summoning the Forge Manager.
 
 /**
  * The Skald's Forge: The main page for the Marketing Saga Stack.
- * This is where users will generate all marketing-related prophecies.
+ * All of its complex, multi-stage logic is now handled by the ForgeManager.
  */
 export default function ForgePage() {
   return (
@@ -22,19 +23,11 @@ export default function ForgePage() {
         </header>
 
         {/* 
-          This is where the main logic for this page will go.
-          We will build a "manager" component for this page, just like we did for the
-          consultation page, to handle the different states:
-          1. Show the initial form to get marketing angles.
-          2. Show a loading screen while angles are generated.
-          3. Show the generated "Angle Cards" for the user to choose from.
-          4. Show the final generated asset.
+          The ForgeManager is now placed here. It will read from the marketingStore
+          and automatically display the correct UI for the user's current stage
+          in the marketing prophecy workflow.
         */}
-        <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
-          <p className="text-center text-saga-text-dark">
-            [The form for generating Marketing Angles will appear here.]
-          </p>
-        </div>
+        <ForgeManager />
 
         {/* Navigation Link to return to the main hall */}
         <div className="text-center mt-16">
