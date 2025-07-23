@@ -18,13 +18,14 @@ webdriver-manager==4.0.1
 aiohttp==3.9.5
 beautifulsoup4==4.12.3
 iso3166==2.1.1
-### ENHANCEMENT: Added libraries for scraper evasion
 selenium-stealth==1.0.6
 fake-useragent==1.5.1
 
 # Utilities for Marketplace Discovery
 googlesearch-python==1.2.3
 tldextract==3.6.0
+### ENHANCEMENT: Added the primary search library
+duckduckgo-search==5.3.1.post1
 
 # Utilities
 python-dotenv==1.0.1
