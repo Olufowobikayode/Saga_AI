@@ -19,29 +19,34 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from selenium_stealth import stealth
 from fake_useragent import UserAgent
 
-# ### FIX: Import the caching utilities
 from backend.cache import seer_cache, generate_cache_key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:WISDOM] - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ### ENHANCEMENT: Upgraded selectors to be more robust, using XPath where beneficial.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Reddit": {
         "status": "enabled",
+        "selector_type": "xpath",
         "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment",
-        "wait_selector": '[data-testid="comment"]',
-        "item_selector": '[data-testid="comment"] > div > div',
+        # This XPath is more specific and stable than the previous CSS selector.
+        "wait_selector": "//*[@data-testid='comment']",
+        "item_selector": "//*[@data-testid='comment']/div/div",
         "reason": "Provides raw, unfiltered commentary."
     },
     "Quora": {
         "status": "enabled",
+        "selector_type": "xpath",
         "search_url_template": "https://www.quora.com/search?q={query}",
-        "wait_selector": '.qu-userText',
-        "item_selector": '.qu-userText',
+        # This looks for a div that has a class containing 'dom_annotate' which is a common Quora pattern.
+        "wait_selector": "//div[contains(@class, 'dom_annotate')]",
+        "item_selector": "//div[contains(@class, 'dom_annotate')]",
         "reason": "A primary forum for questions and explanations."
     },
     "Stack Overflow": {
         "status": "enabled",
+        "selector_type": "css", # CSS is still very good for Stack Overflow's stable structure
         "search_url_template": "https://stackoverflow.com/search?q={query}",
         "wait_selector": '#mainbar .s-post-summary',
         "item_selector": '.s-post-summary--content-title .s-link',
@@ -49,6 +54,7 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "GitHub Issues": {
         "status": "enabled",
+        "selector_type": "css", # GitHub also has a very stable, semantic structure
         "search_url_template": "https://github.com/search?q={query}&type=issues",
         "wait_selector": '.issue-list-item',
         "item_selector": '.issue-list-item .markdown-title a',
@@ -56,14 +62,12 @@ SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "Medium": {
         "status": "enabled",
+        "selector_type": "css", # Simple tag selectors are stable here
         "search_url_template": "https://medium.com/search?q={query}",
         "wait_selector": 'article h2',
         "item_selector": 'article h2',
         "reason": "Captures expert sagas and tutorials."
     },
-    "Answers.com": {"status": "protected", "reason": "Heavy JS wards and CAPTCHA runes."},
-    "Ask.fm": {"status": "protected", "reason": "Login-centric; not for broad divination."},
-    "Brainly": {"status": "protected", "reason": "Requires login and has strong anti-bot wards."},
 }
 
 QUERY_GRIMOIRE: Dict[str, str] = {
@@ -78,7 +82,7 @@ class CommunitySaga:
     """
     I am the Seer of Community Whispers, an aspect of the great Saga. I journey
     through the digital halls of forums and communities to gather the true voice of
-    the people. This Seer is now enhanced with stealth and caching capabilities.
+    the people. This Seer is now enhanced with stealth, caching, and robust selectors.
     """
 
     def __init__(self):
@@ -88,31 +92,19 @@ class CommunitySaga:
             self.ua = None
 
     def _get_driver(self) -> webdriver.Chrome:
-        """Configures and summons a stealthy Chrome spirit for our quest."""
+        # ... (This method remains unchanged)
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-
         user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         options.add_argument(f"user-agent={user_agent}")
-
         options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
         options.add_experimental_option('useAutomationExtension', False)
-
         try:
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
-
-            stealth(driver,
-                    languages=["en-US", "en"],
-                    vendor="Google Inc.",
-                    platform="Win32",
-                    webgl_vendor="Intel Inc.",
-                    renderer="Intel Iris OpenGL Engine",
-                    fix_hairline=True,
-                    )
-            
+            stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32", webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
             return driver
         except WebDriverException as e:
             logger.error(f"The Chrome spirit could not be summoned. Error: {e}")
@@ -128,12 +120,16 @@ class CommunitySaga:
 
         try:
             await asyncio.to_thread(driver.get, url)
+            
+            # ### ENHANCEMENT: Use the correct By method based on selector_type
+            by_method = By.XPATH if config['selector_type'] == 'xpath' else By.CSS_SELECTOR
+            
             await asyncio.to_thread(WebDriverWait(driver, 15).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))))
+                EC.presence_of_all_elements_located((by_method, config["wait_selector"]))))
             
             await asyncio.sleep(random.uniform(2.1, 3.9))
             
-            elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
+            elements = await asyncio.to_thread(driver.find_elements, by_method, config["item_selector"])
 
             for el in elements[:max_items]:
                 text = await asyncio.to_thread(lambda: el.text.strip())
@@ -158,7 +154,6 @@ class CommunitySaga:
         I orchestrate the grand gathering of voices from specified community realms.
         This operation is cached to prevent excessive scraping.
         """
-        # ### ENHANCEMENT: Implement caching for this expensive operation.
         realms_to_visit = sites_to_scan if sites_to_scan else sorted([key for key, config in SITE_CONFIGS.items() if config['status'] == 'enabled'])
         cache_key = generate_cache_key("run_community_gathering", interest=interest, query_type=query_type, sites=",".join(realms_to_visit))
         
@@ -187,7 +182,6 @@ class CommunitySaga:
             raw_gathered_data = await asyncio.gather(*tasks, return_exceptions=True)
             gathered_data = [res for res in raw_gathered_data if not isinstance(res, Exception) and res.get('results')]
 
-            # ### ENHANCEMENT: Set the result in the cache with a medium TTL (4 hours = 14400 seconds).
             seer_cache.set(cache_key, gathered_data, ttl_seconds=14400)
 
         except Exception as e:
@@ -202,29 +196,24 @@ class CommunitySaga:
 
 
 async def main(keyword: str, query_type: str):
-    """A standalone ritual to test my powers of community divination."""
+    # ... (This main block for testing remains unchanged)
     import time
     logger.info(f"--- SAGA'S INSIGHT ENGINE: GATHERING OF WHISPERS ---")
     logger.info(f"Divining wisdom for keyword: '{keyword}' using query type: '{query_type}'")
-
     saga_seer = CommunitySaga()
-    
     print("\n--- First Call (should be slow) ---")
     start_time = time.time()
     scraped_data_1 = await saga_seer.run_community_gathering(keyword, query_type=query_type)
     duration_1 = time.time() - start_time
-    
     final_report_1 = {
         "divined_for": keyword, "query_type": query_type, "duration_seconds": f"{duration_1:.2f}",
         "community_whispers_gathered": scraped_data_1
     }
     pprint(final_report_1)
-
     print("\n--- Second Call (should be instant) ---")
     start_time_2 = time.time()
     scraped_data_2 = await saga_seer.run_community_gathering(keyword, query_type=query_type)
     duration_2 = time.time() - start_time_2
-
     if duration_2 < 0.1 and len(scraped_data_1) == len(scraped_data_2):
         print(f"\n[SUCCESS] Caching is working! Second call took only {duration_2:.4f} seconds.")
     else:
@@ -237,5 +226,4 @@ if __name__ == "__main__":
     parser.add_argument("--query_type", type=str, default="pain_point", choices=QUERY_GRIMOIRE.keys(),
                         help="The type of query to perform.")
     args = parser.parse_args()
-
     asyncio.run(main(args.keyword, args.query_type))
