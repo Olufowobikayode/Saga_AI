@@ -1,4 +1,3 @@
---- START OF FILE backend/engine.py ---
 import asyncio
 import logging
 import json
@@ -13,11 +12,13 @@ import google.generativeai as genai
 from backend.q_and_a import CommunitySaga
 from backend.trends import TrendScraper
 from backend.keyword_engine import KeywordRuneKeeper
+# ### FIX: Changed the import to use the correct class name 'GlobalMarketplaceOracle' for consistency.
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
-from backend.ecommerce_audit_analyzer import EcommerceAuditAnalyzer
-from backend.price_arbitrage_finder import PriceArbitrageFinder
-from backend.social_selling_strategist import SocialSellingStrategist
-from backend.product_route_suggester import ProductRouteSuggester
+# ### FIX: Removed imports for legacy analyzers that are now superseded by CommerceSagaStack.
+# from backend.ecommerce_audit_analyzer import EcommerceAuditAnalyzer
+# from backend.price_arbitrage_finder import PriceArbitrageFinder
+# from backend.social_selling_strategist import SocialSellingStrategist
+# from backend.product_route_suggester import ProductRouteSuggester
 from backend.utils import get_prophecy_from_oracle
 
 # --- Import the STACKS ---
@@ -90,13 +91,12 @@ class SagaEngine:
             marketplace_oracle=self.marketplace_oracle
         )
         
-        # NOTE: The original, less powerful seers are now fully superseded by the CommerceSagaStack.
-        # We keep them instantiated in case a direct, simple call is ever needed, but the primary
-        # user-facing prophecies will now flow through the more powerful CommerceSagaStack.
-        self.audit_analyzer = EcommerceAuditAnalyzer(self.gemini_api_key, self.marketplace_oracle)
-        self.price_arbitrage_finder = PriceArbitrageFinder(self.gemini_api_key, self.marketplace_oracle)
-        self.social_selling_strategist = SocialSellingStrategist(self.gemini_api_key, self.marketplace_oracle)
-        self.product_route_suggester = ProductRouteSuggester(self.gemini_api_key, self.marketplace_oracle)
+        # ### FIX: Removed the instantiation of all legacy analyzer modules.
+        # The CommerceSagaStack now handles all their functionalities in a more robust and integrated way.
+        # self.audit_analyzer = EcommerceAuditAnalyzer(self.gemini_api_key, self.marketplace_oracle)
+        # self.price_arbitrage_finder = PriceArbitrageFinder(self.gemini_api_key, self.marketplace_oracle)
+        # self.social_selling_strategist = SocialSellingStrategist(self.gemini_api_key, self.marketplace_oracle)
+        # self.product_route_suggester = ProductRouteSuggester(self.gemini_api_key, self.marketplace_oracle)
         
         self.strategy_session_cache = {}
 
@@ -156,6 +156,7 @@ class SagaEngine:
             country_name=country_context["country_name"], user_tone_instruction=user_tone_instruction
         )
         venture_session_id = str(uuid.uuid4())
+        # ### FIX: The venture stack now returns a complex object. Cache the whole thing.
         self.strategy_session_cache[venture_session_id] = venture_data
         return {"venture_session_id": venture_session_id, "visions": venture_data.get("initial_visions")}
 
@@ -219,5 +220,3 @@ class SagaEngine:
             return await self.commerce_saga_stack.prophesy_product_route(**kwargs)
         else:
             raise ValueError(f"Unknown Commerce Saga prophecy type: '{prophecy_type}'")
-
---- END OF FILE backend/engine.py ---
