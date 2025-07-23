@@ -8,9 +8,10 @@ import RitualScreen from './RitualScreen';
 import AnvilForm from './AnvilForm';
 import HallOfAngles from './HallOfAngles';
 import ScribesChamber from './ScribesChamber';
-import PlatformChamber from './PlatformChamber'; // Summoning the new Platform Chamber.
+import PlatformChamber from './PlatformChamber';
 import FinalScroll from './FinalScroll';
 import PromptUnveiled from './PromptUnveiled';
+import ScrollUnfurled from './ScrollUnfurled'; // Summoning the final component.
 
 /**
  * ForgeManager: The master controller for the entire Skald's Forge workflow.
@@ -22,7 +23,8 @@ export default function ForgeManager() {
     invokeForge, 
     chosenAssetType, 
     commandScribe, 
-    unveiledPrompt, 
+    unveiledPrompt,
+    unfurledContent,
     returnToScroll 
   } = useMarketingStore();
 
@@ -40,7 +42,6 @@ export default function ForgeManager() {
       case 'angles_revealed':
         return <HallOfAngles />;
 
-      // NEW LOGIC: When the status is 'awaiting_platform', show the PlatformChamber.
       case 'awaiting_platform':
         return <PlatformChamber />;
 
@@ -55,6 +56,17 @@ export default function ForgeManager() {
 
       case 'asset_revealed':
         return <FinalScroll />;
+        
+      // NEW LOGIC: When the status is 'scroll_unfurled', show the ScrollUnfurled component.
+      case 'scroll_unfurled':
+        if (!unfurledContent) return <div className="text-center p-8">Error: The scroll content was lost.</div>;
+        return (
+            <ScrollUnfurled 
+                title={unfurledContent.title}
+                content={unfurledContent.content}
+                onBack={returnToScroll}
+            />
+        );
 
       case 'prompt_unveiled':
         if (!unveiledPrompt) return <div className="text-center p-8">Error: The prompt was lost in the ether.</div>;
@@ -73,8 +85,10 @@ export default function ForgeManager() {
           />
         );
 
+      // The ritual screen is shown for all "forging" and "unfurling" states.
       case 'forging_angles':
       case 'forging_asset':
+      case 'unfurling_scroll':
       case 'forging_prompt':
         return <RitualScreen />;
       
