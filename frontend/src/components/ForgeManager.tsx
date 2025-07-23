@@ -6,12 +6,11 @@ import { useMarketingStore } from '@/store/marketingStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import AnvilForm from './AnvilForm';
-import HallOfAngles from './HallOfAngles'; // Summoning the real HallOfAngles.
+import HallOfAngles from './HallOfAngles';
+import ScribesChamber from './ScribesChamber'; // Summoning the Scribe's Chamber.
 
-// We will create this new component in the upcoming steps.
-// For now, we'll use a placeholder.
+// Placeholder for the final results screen.
 const FinalScroll = () => <div className="text-center p-8 bg-saga-surface rounded-lg">Placeholder for Final Scroll (Asset Display)</div>;
-
 
 /**
  * ForgeManager: The master controller for the entire Skald's Forge workflow.
@@ -20,10 +19,11 @@ const FinalScroll = () => <div className="text-center p-8 bg-saga-surface rounde
 export default function ForgeManager() {
   const status = useMarketingStore((state) => state.status);
   const invokeForge = useMarketingStore((state) => state.invokeForge);
+  const chosenAssetType = useMarketingStore((state) => state.chosenAssetType);
+  const commandScribe = useMarketingStore((state) => state.commandScribe);
 
   useEffect(() => {
     if (status === 'idle') {
-      // For now, we will just set the state. We will add the ritual later.
       invokeForge();
     }
   }, [status, invokeForge]);
@@ -34,8 +34,18 @@ export default function ForgeManager() {
         return <AnvilForm />;
       
       case 'angles_revealed':
-        // Now rendering the real Hall of Angles instead of the placeholder.
         return <HallOfAngles />;
+
+      // NEW LOGIC: When the status is 'awaiting_scribe', we show the ScribesChamber.
+      case 'awaiting_scribe':
+        // We must ensure chosenAssetType is not null before rendering.
+        if (!chosenAssetType) return <div className="text-center p-8">Error: Asset Type not chosen.</div>;
+        return (
+          <ScribesChamber 
+            assetType={chosenAssetType} 
+            onLengthSelect={(length) => commandScribe(length)} 
+          />
+        );
 
       case 'asset_revealed':
         return <FinalScroll />;
