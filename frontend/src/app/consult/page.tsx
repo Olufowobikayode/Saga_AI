@@ -1,17 +1,16 @@
 // --- START OF FILE src/app/consult/page.tsx ---
 import React from 'react';
-import ConsultationForm from '@/components/ConsultationForm'; // Summoning the form we just built.
+import ConsultationManager from '@/components/ConsultationManager'; // Summoning the manager.
 
 /**
- * The Consultation Chamber: The main application page where users
- * submit their queries to Saga.
+ * The Consultation Chamber: This page now delegates all logic to the
+ * ConsultationManager, which will decide what to show the user.
  */
 export default function ConsultPage() {
   return (
     <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
       <div className="max-w-3xl mx-auto">
         
-        {/* Page Header */}
         <header className="text-center mb-12">
           <h1 className="font-serif text-5xl md:text-6xl font-bold text-saga-secondary">
             The Altar of Inquiry
@@ -22,10 +21,11 @@ export default function ConsultPage() {
         </header>
 
         {/* 
-          The main form is now placed here, replacing the placeholder.
-          All the logic for inputs and state is neatly contained within this component.
+          The ConsultationManager now controls this entire section.
+          It will show the form, the ritual screen, or the results
+          based on the central application state.
         */}
-        <ConsultationForm />
+        <ConsultationManager />
 
       </div>
     </div>
