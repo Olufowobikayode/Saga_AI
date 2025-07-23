@@ -1,4 +1,3 @@
---- START OF FILE backend/price_arbitrage_finder.py ---
 import asyncio
 import logging
 import json
@@ -7,7 +6,7 @@ from typing import Dict, Any, Optional
 import google.generativeai as genai
 from urllib.parse import urlparse
 
-# Import the global scraper to get marketplace data
+# ### FIX: Imported the correct class 'GlobalMarketplaceOracle' instead of the old 'GlobalEcommerceScraper'.
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 
 logger = logging.getLogger(__name__)
@@ -17,10 +16,13 @@ class PriceArbitrageFinder:
     A specialist seer within the SagaEngine, tasked with finding 'buy low, sell high'
     opportunities. It divines the hidden paths of value by comparing the price of
     artifacts across different global marketplaces.
+    This module is considered a legacy component but has been corrected for functionality.
+    The more powerful and comprehensive CommerceSagaStack is the recommended alternative.
     """
     def __init__(self, gemini_api_key: str, global_scraper: Optional[GlobalMarketplaceOracle] = None):
         genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-2.5-pro')
+        # ### FIX: Updated the type hint and class instantiation to use the correct 'GlobalMarketplaceOracle'.
         self.global_scraper = global_scraper if global_scraper else GlobalMarketplaceOracle()
 
     async def _generate_json_response(self, prompt: str) -> Dict:
@@ -54,7 +56,7 @@ class PriceArbitrageFinder:
         sell_domain = urlparse(sell_marketplace_link).netloc
 
         # RETRIEVAL: Gather the histories from the two marketplaces.
-        # --- UPDATED: Using the new, correct method name ---
+        # This method call was already correct, but the class reference was not.
         buy_task = self.global_scraper.divine_marketplace_sagas(
             product_query=product_name, marketplace_domain=buy_domain, max_products=5, target_country_code=target_country_code
         )
@@ -126,4 +128,3 @@ class PriceArbitrageFinder:
         """
         
         return await self._generate_json_response(prompt)
---- END OF FILE backend/price_arbitrage_finder.py ---
