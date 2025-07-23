@@ -20,11 +20,12 @@ beautifulsoup4==4.12.3
 iso3166==2.1.1
 selenium-stealth==1.0.6
 fake-useragent==1.5.1
+### ENHANCEMENT: Added the high-performance lxml parser for robust XPath support
+lxml==5.2.2
 
 # Utilities for Marketplace Discovery
 googlesearch-python==1.2.3
 tldextract==3.6.0
-### ENHANCEMENT: Added the primary search library
 duckduckgo-search==5.3.1.post1
 
 # Utilities
