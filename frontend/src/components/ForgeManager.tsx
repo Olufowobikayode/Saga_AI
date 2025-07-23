@@ -5,11 +5,11 @@ import React, { useEffect } from 'react';
 import { useMarketingStore } from '@/store/marketingStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import AnvilForm from './AnvilForm'; // Summoning the real AnvilForm.
+import AnvilForm from './AnvilForm';
+import HallOfAngles from './HallOfAngles'; // Summoning the real HallOfAngles.
 
-// We will create these new components in the upcoming steps.
-// For now, we'll use placeholders.
-const HallOfAngles = () => <div className="text-center p-8 bg-saga-surface rounded-lg">Placeholder for Hall of Angles (Asset Type Selection)</div>;
+// We will create this new component in the upcoming steps.
+// For now, we'll use a placeholder.
 const FinalScroll = () => <div className="text-center p-8 bg-saga-surface rounded-lg">Placeholder for Final Scroll (Asset Display)</div>;
 
 
@@ -31,10 +31,10 @@ export default function ForgeManager() {
   const renderCurrentStage = () => {
     switch (status) {
       case 'awaiting_anvil':
-        // Now rendering the real form instead of the placeholder.
         return <AnvilForm />;
       
       case 'angles_revealed':
+        // Now rendering the real Hall of Angles instead of the placeholder.
         return <HallOfAngles />;
 
       case 'asset_revealed':
