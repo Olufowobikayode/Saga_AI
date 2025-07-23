@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-saga-bg text-saga-text-light font-sans;
+  background-image: radial-gradient(circle at top, #16152C 0%, #0D0C1D 100%);
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #16152C;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #A78BFA;
+  border-radius: 10px;
+  border: 2px solid #16152C;
+}
