@@ -1,4 +1,3 @@
---- START OF FILE backend/stacks/new_ventures_stack.py ---
 import asyncio
 import logging
 import json
@@ -22,7 +21,7 @@ class NewVenturesStack:
     A specialized stack for the complete, two-phase Prophecy of Beginnings.
     Phase 1 reveals 10 captivating business visions based on a broad interest.
     Phase 2 unveils a detailed business blueprint for a chosen vision.
-    This stack has been rebuilt to use Saga's full, enhanced intelligence capabilities.
+    This stack uses Saga's full, enhanced intelligence capabilities.
     """
     def __init__(self, model: genai.GenerativeModel, **seers: Any):
         """Initializes the stack with the connection to the AI oracle and all available seers."""
@@ -92,7 +91,9 @@ class NewVenturesStack:
         # Return both the visions for the user AND the data needed for Phase 2.
         return {
             "initial_visions": initial_prophecy.get("visions", []),
-            "retrieved_histories_for_blueprint": retrieved_histories
+            "retrieved_histories_for_blueprint": retrieved_histories,
+            "user_tone_instruction": user_tone_instruction, # Pass context to next phase
+            "country_name": country_name # Pass context to next phase
         }
 
     async def prophesy_detailed_blueprint(self, chosen_vision: Dict[str, Any], retrieved_histories: Dict[str, Any], user_tone_instruction: str, country_name: str) -> Dict[str, Any]:
@@ -104,7 +105,8 @@ class NewVenturesStack:
 
         # Use the top keyword from trends to find sourcing/competitor examples
         top_keyword = retrieved_histories.get("keyword_runes", {}).get("google_trends", {}).get("rising", [vision_title])[0]
-        marketplace_examples = await self.marketplace_oracle.divine_marketplace_sagas(product_query=top_keyword, marketplace_domain="amazon.com", max_products=5, target_country_code=None)
+        # ### FIX: Updated the method call to 'run_marketplace_divination' for consistency.
+        marketplace_examples = await self.marketplace_oracle.run_marketplace_divination(product_query=top_keyword, marketplace_domain="amazon.com", max_products=5, target_country_code=None)
 
         prompt = f"""
         You are Saga, the Norse goddess of wisdom, acting as a master strategist. A mortal has chosen to pursue a specific vision you revealed: **'{vision_title}'**. Now, you must provide them with the Scroll of Fate—a complete business blueprint to guide their hand for the {country_name} market.
@@ -155,4 +157,3 @@ class NewVenturesStack:
         """
         
         return await get_prophecy_from_oracle(self.model, prompt)
---- END OF FILE backend/stacks/new_ventures_stack.py ---
