@@ -3,6 +3,7 @@ import logging
 import re
 import random
 from typing import List, Dict, Any, Optional
+
 from urllib.parse import urlparse, quote_plus
 from bs4 import BeautifulSoup
 
@@ -14,13 +15,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import aiohttp
 
-# ### ENHANCEMENT: Import libraries for scraper evasion
 from selenium_stealth import stealth
 from fake_useragent import UserAgent
 
+# ### FIX: Import the caching utilities
+from backend.cache import seer_cache, generate_cache_key
+
 logger = logging.getLogger(__name__)
 
-# --- SAGA'S ATLAS OF COMMERCE REALMS ---
 ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "amazon": {
         "status": "enabled",
@@ -65,17 +67,14 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
 class GlobalMarketplaceOracle:
     """
     Saga's primary Seer for the realms of commerce.
-    This oracle is responsible for scraping product information, such as price,
-    ratings, and sales history, from various global e-commerce platforms.
-    It now includes several evasion techniques to appear more human.
+    This oracle is responsible for scraping product information from global e-commerce platforms.
+    It now includes stealth evasion techniques and a long-lived cache to ensure reliability and performance.
     """
 
     def __init__(self):
-        # ### ENHANCEMENT: Initialize the UserAgent object once.
         try:
             self.ua = UserAgent()
         except Exception:
-            # Fallback if the user-agent service is down
             self.ua = None
 
     def _get_driver(self) -> webdriver.Chrome:
@@ -85,7 +84,6 @@ class GlobalMarketplaceOracle:
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         
-        # ### ENHANCEMENT 1: Use a randomized, real-world user agent for each request.
         user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
         options.add_argument(f"user-agent={user_agent}")
         
@@ -95,8 +93,6 @@ class GlobalMarketplaceOracle:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
 
-        # ### ENHANCEMENT 2: Apply selenium-stealth patches to the driver.
-        # This modifies the driver instance to hide common automation flags.
         stealth(driver,
                 languages=["en-US", "en"],
                 vendor="Google Inc.",
@@ -116,7 +112,6 @@ class GlobalMarketplaceOracle:
             logger.info(f"Dispatching stealthy Chrome spirit to read the scroll at {url}...")
             await asyncio.to_thread(driver.get, url)
             await asyncio.to_thread(WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, 'body'))))
-            # ### ENHANCEMENT 3: Use randomized delays to better mimic human behavior.
             await asyncio.sleep(random.uniform(2.8, 4.2))
             return await asyncio.to_thread(lambda: driver.page_source)
         except Exception as e:
@@ -183,8 +178,14 @@ class GlobalMarketplaceOracle:
                                          target_country_code: Optional[str] = None) -> Dict:
         """
         Casts its sight upon a configured marketplace to read the sagas of its artifacts.
-        This is the primary public method for this Seer.
+        This operation is cached for 24 hours to protect against IP blocks.
         """
+        # ### ENHANCEMENT: Implement caching for this expensive operation.
+        cache_key = generate_cache_key("run_marketplace_divination", query=product_query, domain=marketplace_domain, country=target_country_code)
+        cached_results = seer_cache.get(cache_key)
+        if cached_results is not None:
+            return cached_results
+
         all_products = []
         identified_marketplace = "N/A"
 
@@ -260,13 +261,28 @@ class GlobalMarketplaceOracle:
         worthy_artifacts = [p for p in all_products if p.get('rating', 0.0) >= 4.0]
         sorted_artifacts = sorted(worthy_artifacts, key=lambda x: (-x.get('rating', 0.0), -x.get('sales_history_count', 0), x.get('price', float('inf'))))
         
-        return {
+        final_results = {
             "products": sorted_artifacts,
             "identified_marketplace": identified_marketplace,
             "raw_artifacts_found_count": len(all_products)
         }
 
+        # ### ENHANCEMENT: Set the result in the cache with a long TTL (24 hours = 86400 seconds).
+        seer_cache.set(cache_key, final_results, ttl_seconds=86400)
+
+        return final_results
+
     async def read_user_store_scroll(self, user_store_url: str) -> Optional[str]:
+        """
+        Reads the general text from a user's store scroll for the AI to analyze its tone and style.
+        This operation is also cached.
+        """
+        # ### ENHANCEMENT: Implement caching for this expensive operation.
+        cache_key = generate_cache_key("read_user_store_scroll", url=user_store_url)
+        cached_results = seer_cache.get(cache_key)
+        if cached_results is not None:
+            return cached_results
+
         logger.info(f"Attempting to read the user's store scroll from: {user_store_url}")
         
         content = await self._fetch_html_with_aiohttp(user_store_url)
@@ -279,6 +295,11 @@ class GlobalMarketplaceOracle:
             for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()
             text = soup.get_text(separator=' ', strip=True)
-            return text[:15000] 
+            final_text = text[:15000]
+            
+            # ### ENHANCEMENT: Set the result in the cache with a long TTL (24 hours = 86400 seconds).
+            seer_cache.set(cache_key, final_text, ttl_seconds=86400)
+            
+            return final_text
         
         return None
