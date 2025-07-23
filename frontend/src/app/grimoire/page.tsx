@@ -1,4 +1,3 @@
-```tsx
 // --- START OF FILE src/app/grimoire/page.tsx ---
 import React from 'react';
 import Link from 'next/link';
