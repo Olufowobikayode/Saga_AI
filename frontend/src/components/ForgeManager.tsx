@@ -9,9 +9,10 @@ import AnvilForm from './AnvilForm';
 import HallOfAngles from './HallOfAngles';
 import ScribesChamber from './ScribesChamber';
 import PlatformChamber from './PlatformChamber';
+import TextPlatformChamber from './TextPlatformChamber'; // Summoning the new text platform chamber.
 import FinalScroll from './FinalScroll';
 import PromptUnveiled from './PromptUnveiled';
-import ScrollUnfurled from './ScrollUnfurled'; // Summoning the final component.
+import ScrollUnfurled from './ScrollUnfurled';
 
 /**
  * ForgeManager: The master controller for the entire Skald's Forge workflow.
@@ -21,8 +22,6 @@ export default function ForgeManager() {
   const { 
     status, 
     invokeForge, 
-    chosenAssetType, 
-    commandScribe, 
     unveiledPrompt,
     unfurledContent,
     returnToScroll 
@@ -42,22 +41,19 @@ export default function ForgeManager() {
       case 'angles_revealed':
         return <HallOfAngles />;
 
-      case 'awaiting_platform':
+      case 'awaiting_platform_html':
         return <PlatformChamber />;
 
       case 'awaiting_scribe':
-        if (!chosenAssetType) return <div className="text-center p-8">Error: Asset Type not chosen.</div>;
-        return (
-          <ScribesChamber 
-            assetType={chosenAssetType} 
-            onLengthSelect={(length) => commandScribe(length)} 
-          />
-        );
+        return <ScribesChamber />;
+
+      // NEW LOGIC: When the status is 'awaiting_platform_text', show the TextPlatformChamber.
+      case 'awaiting_platform_text':
+        return <TextPlatformChamber />;
 
       case 'asset_revealed':
         return <FinalScroll />;
         
-      // NEW LOGIC: When the status is 'scroll_unfurled', show the ScrollUnfurled component.
       case 'scroll_unfurled':
         if (!unfurledContent) return <div className="text-center p-8">Error: The scroll content was lost.</div>;
         return (
@@ -71,8 +67,8 @@ export default function ForgeManager() {
       case 'prompt_unveiled':
         if (!unveiledPrompt) return <div className="text-center p-8">Error: The prompt was lost in the ether.</div>;
         const platformDetails = unveiledPrompt.type === 'Image' 
-          ? { name: 'Midjourney', url: 'https://www.midjourney.com/', instructions: 'Copy the prompt below and paste it into the Midjourney Discord bot to generate your image.' }
-          : { name: 'RunwayML', url: 'https://runwayml.com/', instructions: 'Copy the prompt below and use it in a text-to-video generator like RunwayML or Sora to create your video.' };
+          ? { name: 'Midjourney', url: 'https://www.midjourney.com/', instructions: 'Copy the prompt below and paste it into the Midjourney Discord bot.' }
+          : { name: 'RunwayML', url: 'https://runwayml.com/', instructions: 'Copy the prompt below and use it in a text-to-video generator.' };
         return (
           <PromptUnveiled
             promptType={unveiledPrompt.type}
@@ -85,7 +81,6 @@ export default function ForgeManager() {
           />
         );
 
-      // The ritual screen is shown for all "forging" and "unfurling" states.
       case 'forging_angles':
       case 'forging_asset':
       case 'unfurling_scroll':
