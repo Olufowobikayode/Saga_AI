@@ -1,4 +1,3 @@
---- START OF FILE backend/ecommerce_audit_analyzer.py ---
 import asyncio
 import logging
 import json
@@ -7,8 +6,8 @@ from typing import List, Dict, Any, Optional
 import google.generativeai as genai
 from urllib.parse import urlparse
 
-# Import the global scraper to get marketplace data
-from backend.global_ecommerce_scraper import GlobalEcommerceScraper
+# ### FIX: Imported the correct class 'GlobalMarketplaceOracle' instead of the old 'GlobalEcommerceScraper'.
+from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +16,14 @@ class EcommerceAuditAnalyzer:
     """
     Performs an AI-driven strategic and operational audit based on user inputs
     and publicly available scraped data. It does NOT process private financial files.
+    This module is considered a legacy component but has been corrected for functionality.
+    The more powerful and comprehensive CommerceSagaStack is the recommended alternative.
     """
-    def __init__(self, gemini_api_key: str, global_scraper: Optional[GlobalEcommerceScraper] = None):
+    def __init__(self, gemini_api_key: str, global_scraper: Optional[GlobalMarketplaceOracle] = None):
         genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-2.5-pro')
-        # Use provided global_scraper instance if available, otherwise create a new one
-        self.global_scraper = global_scraper if global_scraper else GlobalEcommerceScraper()
+        # ### FIX: Updated the type hint and class instantiation to use the correct 'GlobalMarketplaceOracle'.
+        self.global_scraper = global_scraper if global_scraper else GlobalMarketplaceOracle()
 
     async def _generate_json_response(self, prompt: str) -> Dict:
         """Helper to get a structured JSON response from the AI model."""
@@ -37,20 +38,14 @@ class EcommerceAuditAnalyzer:
             logger.error(f"Failed to generate AI response: {e}")
             return {"error": "AI generation failed.", "details": str(e)}
 
-    # Removed _get_user_tone_instruction as it's centralized in engine.py now
-    # This method will now receive the tone instruction string directly.
-
     async def run_audit_and_strategy(self, 
                                      product_name: str,
-                                     # Tone instruction received directly
-                                     user_tone_instruction: str = "", # New parameter
-                                     # Country context received directly
-                                     target_country_code: Optional[str] = None, # New parameter
-                                     country_name_for_ai: Optional[str] = None, # New parameter
-                                     is_global_search: Optional[bool] = False, # New parameter
-                                     # Original parameters
-                                     user_content_text: Optional[str] = None, # Retained for potential logging/reference, though tone string is primary
-                                     user_content_url: Optional[str] = None,  # Retained for potential logging/reference
+                                     user_tone_instruction: str = "",
+                                     target_country_code: Optional[str] = None,
+                                     country_name_for_ai: Optional[str] = None,
+                                     is_global_search: Optional[bool] = False,
+                                     user_content_text: Optional[str] = None,
+                                     user_content_url: Optional[str] = None,
                                      user_store_url: Optional[str] = None,
                                      marketplace_link: Optional[str] = None,
                                      product_selling_price: Optional[float] = None,
@@ -63,18 +58,12 @@ class EcommerceAuditAnalyzer:
         """
         logger.info(f"Starting E-commerce Audit & Strategy for product: '{product_name}'")
 
-        # user_tone_instruction is now passed directly from the engine.
-        # The user_content_text/url are kept as parameters but are not directly used here for tone analysis.
-        
-        # --- Data Gathering ---
         user_store_content_sample = "Not provided or could not be scraped."
         if user_store_url:
-            # This line assumes the scraper has a method named 'get_user_store_content'
-            # Based on the file `global_ecommerce_scraper.py`, the method is `read_user_store_scroll`
-            # This is a hidden error I will correct.
+            # The method 'read_user_store_scroll' exists and is correct.
             user_store_content = await self.global_scraper.read_user_store_scroll(user_store_url)
             if user_store_content:
-                user_store_content_sample = user_store_content
+                user_store_content_sample = user_store_content[:2000] # Truncate for prompt efficiency
                 logger.info("Retrieved user store content for audit.")
 
         marketplace_sourcing_data = {"products": [], "identified_marketplace": "N/A"}
@@ -82,10 +71,9 @@ class EcommerceAuditAnalyzer:
             try:
                 parsed_url = urlparse(marketplace_link)
                 domain = parsed_url.netloc
-                # This line assumes a method 'scrape_marketplace_listings'.
-                # Based on `global_ecommerce_scraper.py`, the method is `divine_from_marketplaces`.
-                # I will correct this second hidden error.
-                marketplace_sourcing_data = await self.global_scraper.divine_from_marketplaces(
+                # ### FIX: Corrected the method call from the non-existent 'divine_from_marketplaces'
+                # to the correct, refactored method 'divine_marketplace_sagas'.
+                marketplace_sourcing_data = await self.global_scraper.divine_marketplace_sagas(
                     product_query=product_name, marketplace_domain=domain, max_products=10,
                     target_country_code=target_country_code
                 )
@@ -167,7 +155,7 @@ class EcommerceAuditAnalyzer:
             }},
             "sourcing_strategy_recommendations": {{
                 "best_10_suppliers": [
-                    {{"supplier_name": "Supplier X", "product_title": "Product A", "price": 10.50, "rating": 4.8, "sales_history": 5000, "link": "url"}},
+                    {{"supplier_name": "Supplier X", "product_title": "Product A", "price": 10.50, "rating": 4.8, "sales_history_count": 5000, "link": "url"}},
                     // ... up to 10 entries from marketplace_sourcing_data['products']
                 ],
                 "sourcing_advice": "Strategy for negotiating, checking quality, and logistics."
@@ -204,25 +192,24 @@ async def main():
         print("GEMINI_API_KEY not found. Please set it as an environment variable.")
         return
 
-    # In standalone testing, we instantiate GlobalEcommerceScraper for the analyzer
-    # In the full app, the engine will pass its shared instance.
-    global_scraper_instance = GlobalEcommerceScraper()
+    # ### FIX: Instantiated the correct 'GlobalMarketplaceOracle' class for the analyzer.
+    global_scraper_instance = GlobalMarketplaceOracle()
     analyzer = EcommerceAuditAnalyzer(gemini_api_key=gemini_api_key, global_scraper=global_scraper_instance)
 
     user_request_data = {
         "product_name": "Ergonomic Office Chair",
         "user_content_text": "Welcome to my store! We sell high-quality, comfortable office furniture designed for productivity and well-being. Our mission is to make your workspace a haven.",
-        "user_store_url": "https://www.example.com/mystore", # Replace with a real store URL for better test
-        "marketplace_link": "https://www.amazon.com/ergonomic-office-chair", # Replace with real Amazon search URL
+        "user_store_url": "https://www.fully.com/chairs/re-spec.html", # Replace with a real store URL for better test
+        "marketplace_link": "https://www.amazon.com/s?k=ergonomic+office+chair", # Replace with real Amazon search URL
         "product_selling_price": 299.99,
         "social_platforms_to_sell": ["Facebook Marketplace", "Instagram", "Pinterest"],
         "ads_daily_budget": 15.0,
         "number_of_days": 60,
         "amount_to_buy": 100,
-        "user_tone_instruction": "Welcome to my store! We sell high-quality, comfortable office furniture designed for productivity and well-being. Our mission is to make your workspace a haven.", # Simulate engine passing tone
-        "target_country_code": "US", # Simulate engine passing country
-        "country_name_for_ai": "United States", # Simulate engine passing country
-        "is_global_search": False, # Simulate engine passing global flag
+        "user_tone_instruction": "Welcome to my store! We sell high-quality, comfortable office furniture designed for productivity and well-being. Our mission is to make your workspace a haven.",
+        "target_country_code": "US",
+        "country_name_for_ai": "United States",
+        "is_global_search": False,
     }
 
     print(f"Running E-commerce Audit for: {user_request_data['product_name']}")
@@ -230,11 +217,10 @@ async def main():
     print("\n--- E-commerce Audit Results ---")
     print(json.dumps(audit_results, indent=2))
     
-    if "report_summary_text" in audit_results:
+    if audit_results and "report_summary_text" in audit_results:
         print("\n--- Report Summary (for copying) ---")
         print(audit_results["report_summary_text"])
 
 
 if __name__ == "__main__":
     asyncio.run(main())
---- END OF FILE backend/ecommerce_audit_analyzer.py ---
