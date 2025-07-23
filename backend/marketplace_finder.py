@@ -3,82 +3,83 @@ import json
 import logging
 from urllib.parse import urlparse
 import tldextract
-from googlesearch import search
-from typing import List, Dict, Set
+from typing import List, Set, Literal
 
-# ### ENHANCEMENT: Import UserAgent to randomize the identity of the scout's queries.
+# ### ENHANCEMENT: Import multiple search libraries for resilience
+from googlesearch import search as google_search
+from duckduckgo_search import DDGS
+
 from fake_useragent import UserAgent
 
-# Set up logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:SCOUT] - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Foundational Knowledge & Search Queries are now combined into a more powerful class ---
+SearchEngine = Literal["duckduckgo", "google"]
 
 class MarketplaceScout:
     """
-    Saga's scout, tasked with discovering new realms of commerce and knowledge across the web.
-    Its capabilities have been expanded to find general marketplaces, niche-specific havens,
-    and lists of the finest artifacts. It now uses randomized user agents to avoid detection.
+    Saga's multi-engine scout, tasked with discovering realms of commerce and knowledge.
+    It primarily uses DuckDuckGo for reliability and can use Google for deep dives,
+    making it resilient and versatile.
     """
     def __init__(self):
         self.found_domains: Set[str] = set()
-        
-        # ### ENHANCEMENT: Initialize UserAgent object
         try:
             self.ua = UserAgent()
         except Exception:
             self.ua = None
 
-        # --- 1. Foundational Knowledge: The Seed List of Known Marketplaces ---
+        # --- Foundational Knowledge: The Seed List of Known Marketplaces ---
         self.SEED_MARKETPLACES: List[str] = [
             "https://www.amazon.com", "https://www.ebay.com", "https://www.aliexpress.com", "https://www.etsy.com",
             "https://www.walmart.com/marketplace", "https://www.rakuten.com", "https://world.taobao.com",
             "https://www.alibaba.com", "https://www.mercadolibre.com", "https://shopee.com", "https://www.lazada.com",
-            "https://www.flipkart.com", "https://allegro.pl", "https://www.zalando.com", "https://www.newegg.com",
-            "https://www.wayfair.com", "https://www.facebook.com/marketplace", "https://www.craigslist.org"
         ]
 
-        # --- 2. Smart Query Generation ---
+        # --- Smart Query Generation ---
         self.GENERAL_SEARCH_QUERIES: List[str] = [
             "top e-commerce marketplaces 2025", "largest online shopping platforms global",
             "list of global c2c marketplaces", "alternatives to Amazon marketplace",
-            "leading online marketplaces in Europe", "top e-commerce sites in Southeast Asia"
         ]
 
-        # --- NEW: Queries for Niche and "Best Of" Discovery ---
         self.NICHE_SEARCH_QUERIES_TEMPLATE: str = 'best marketplaces for selling {niche}'
         self.BEST_PRODUCTS_QUERIES_TEMPLATE: str = 'best {interest} products of 2025'
         self.QA_SITE_QUERIES_TEMPLATE: str = 'top q&a sites for {interest}'
         
-        # --- 3. Filtering and Validation Rules ---
+        # --- Filtering and Validation Rules ---
         self.EXCLUSION_LIST: List[str] = [
             'wikipedia.org', 'youtube.com', 'pinterest.com', 'forbes.com', 'cnbc.com', 'businessinsider.com',
             'techcrunch.com', 'reddit.com', 'quora.com', 'stackoverflow.com', 'github.com', 'shopify.com',
-            'medium.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'twitter.com', 'tiktok.com',
-            'softwareadvice.com', 'capterra.com', 'getapp.com', 'bigcommerce.com', 'wix.com', 'squarespace.com'
         ]
 
-    def _search_google(self, query: str, num_results: int = 10) -> List[str]:
-        """A more robust and patient method for searching, with better error handling."""
-        logger.info(f"Scout is searching for: '{query}'...")
+    def _search(self, query: str, num_results: int = 10, engine: SearchEngine = "duckduckgo") -> List[str]:
+        """A master search method that can delegate to different search engines."""
+        logger.info(f"Scout is searching for: '{query}' using {engine.capitalize()}...")
         try:
-            # ### ENHANCEMENT: Provide a random user agent to the search function.
-            user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-            return list(search(query, num_results=num_results, stop=num_results, pause=3.0, user_agent=user_agent))
+            if engine == "duckduckgo":
+                # DuckDuckGo is more reliable and less likely to block
+                with DDGS() as ddgs:
+                    results = [r['href'] for r in ddgs.text(query, max_results=num_results)]
+                return results
+            
+            elif engine == "google":
+                # Google gives high-quality results but is prone to blocking
+                user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+                return list(google_search(query, num_results=num_results, stop=num_results, pause=3.0, user_agent=user_agent))
+
         except Exception as e:
-            logger.error(f"The scout was halted while searching for '{query}': {e}")
+            logger.error(f"The scout was halted while searching '{query}' with {engine}: {e}")
             if "HTTP Error 429" in str(e):
-                logger.warning("Google's guardians have noticed our presence. Pausing for 3 minutes...")
+                logger.warning(f"{engine.capitalize()}'s guardians have noticed our presence. Pausing...")
                 time.sleep(180)
-            else:
-                logger.warning("An unknown obstacle was encountered. Pausing for 30 seconds...")
-                time.sleep(30)
         return []
 
     def _validate_and_add_domain(self, url: str) -> None:
         """Parses a URL, validates it, and adds the domain to the found list if it's new and valid."""
         try:
+            # Skip non-http links which can appear in results
+            if not url.startswith(('http://', 'https://')):
+                return
             domain = tldextract.extract(url).registered_domain
             if not domain or domain in self.EXCLUSION_LIST or domain in self.found_domains:
                 return
@@ -90,12 +91,13 @@ class MarketplaceScout:
             logger.warning(f"Could not parse or validate URL {url}: {e}")
 
     def find_general_marketplaces(self, output_filename: str = "discovered_marketplaces.txt") -> List[str]:
-        """Discovers general e-commerce marketplaces."""
+        """Discovers general e-commerce marketplaces using the primary, reliable engine."""
         logger.info("--- Scout commencing mission: Discover General Marketplaces ---")
         self.found_domains = {tldextract.extract(url).registered_domain for url in self.SEED_MARKETPLACES}
         
         for query in self.GENERAL_SEARCH_QUERIES:
-            results = self._search_google(query)
+            # Use the most reliable engine for general discovery
+            results = self._search(query, engine="duckduckgo")
             for url in results:
                 self._validate_and_add_domain(url)
         
@@ -111,35 +113,43 @@ class MarketplaceScout:
 
     def find_niche_realms(self, topic: str, num_results: int = 10) -> List[str]:
         """
-        Performs a focused search for niche-specific marketplaces or communities.
-        Returns a list of URLs.
+        Performs a focused, resilient search for niche-specific realms.
+        It tries the reliable engine first, then falls back to the deep-dive engine.
         """
         logger.info(f"--- Scout commencing mission: Discover Niche Realms for '{topic}' ---")
-        urls = []
         
-        # Search for niche marketplaces
-        niche_query = self.NICHE_SEARCH_QUERIES_TEMPLATE.format(niche=topic)
-        urls.extend(self._search_google(niche_query, num_results))
+        queries = [
+            self.NICHE_SEARCH_QUERIES_TEMPLATE.format(niche=topic),
+            self.BEST_PRODUCTS_QUERIES_TEMPLATE.format(interest=topic),
+            self.QA_SITE_QUERIES_TEMPLATE.format(interest=topic)
+        ]
         
-        # Search for "best of" lists which often contain product links
-        best_of_query = self.BEST_PRODUCTS_QUERIES_TEMPLATE.format(interest=topic)
-        urls.extend(self._search_google(best_of_query, num_results))
+        all_urls = set()
 
-        # Search for Q&A sites related to the topic
-        qa_query = self.QA_SITE_QUERIES_TEMPLATE.format(interest=topic)
-        urls.extend(self._search_google(qa_query, num_results))
+        for query in queries:
+            # 1. Try with the fast, reliable engine first
+            results = self._search(query, num_results=num_results, engine="duckduckgo")
+            
+            # 2. If it fails or returns too few results, use the deep-dive engine as a fallback
+            if len(results) < num_results / 2:
+                logger.warning(f"DuckDuckGo returned few results for '{query}'. Falling back to Google for a deep dive.")
+                time.sleep(2) # Be respectful between engine switches
+                google_results = self._search(query, num_results=num_results, engine="google")
+                results.extend(google_results)
 
-        logger.info(f"Scout has returned with {len(urls)} potential niche realms for '{topic}'.")
-        return list(set(urls)) # Return unique URLs
+            for url in results:
+                all_urls.add(url)
 
-# Standalone execution for general marketplace discovery
+        logger.info(f"Scout has returned with {len(all_urls)} potential niche realms for '{topic}'.")
+        return list(all_urls)
+
+# Standalone execution for testing
 if __name__ == "__main__":
     scout = MarketplaceScout()
-    scout.find_general_marketplaces()
-
-    # Example of how the new functions would be used
-    print("\n--- Testing Niche Discovery ---")
-    niche_realms = scout.find_niche_realms("handmade leather goods")
+    
+    print("\n--- Testing Niche Discovery with Multi-Engine Fallback ---")
+    niche_realms = scout.find_niche_realms("fountain pen restoration")
     print("Found potential niche realms:")
-    for realm in niche_realms[:5]: # Print top 5 for brevity
+    for i, realm in enumerate(niche_realms):
+        if i >= 15: break # Print top 15 for brevity
         print(f"- {realm}")
