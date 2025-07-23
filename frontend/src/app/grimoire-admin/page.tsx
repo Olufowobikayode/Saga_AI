@@ -1,18 +1,10 @@
 // --- START OF FILE src/app/grimoire-admin/page.tsx ---
-'use client'; // This page uses state for the login form, so it's a client component.
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import InputRune from '@/components/InputRune';
 import SagaButton from '@/components/SagaButton';
-
-// We will create the ScriptoriumForm component in the next step.
-// For now, it is a placeholder that will only be shown *after* successful login.
-const ScriptoriumFormPlaceholder = () => (
-    <div className="text-center text-saga-primary font-serif text-2xl p-8 bg-saga-surface rounded-lg">
-        Authentication successful. The Scriptorium awaits your command.
-    </div>
-);
-
+import ScriptoriumForm from '@/components/ScriptoriumForm'; // Summoning the real form.
 
 /**
  * The Admin Page: A secure gateway to the Scriptorium where new wisdom is inscribed.
@@ -23,13 +15,10 @@ export default function GrimoireAdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState('');
 
-  // This function handles the login attempt.
   const handleLogin = () => {
     if (adminKey) {
-      // Security Check: In a real-world scenario with multiple users, you would verify this key 
-      // with a backend endpoint. For our use case (a single admin), saving the valid key
-      // to browser storage is a secure and effective way to maintain the session.
-      // The *real* security check happens in the backend on every API call.
+      // The key is stored to maintain the session.
+      // The REAL security check happens on the backend for every API call.
       localStorage.setItem('saga-admin-key', adminKey);
       setIsAuthenticated(true);
       setError('');
@@ -38,7 +27,6 @@ export default function GrimoireAdminPage() {
     }
   };
   
-  // This effect checks if the user is already "logged in" when the page loads.
   useEffect(() => {
     const storedKey = localStorage.getItem('saga-admin-key');
     if (storedKey) {
@@ -58,9 +46,9 @@ export default function GrimoireAdminPage() {
           </p>
         </header>
 
-        {/* SAGA LOGIC: Conditionally render either the login form or the main content */}
+        {/* SAGA LOGIC: Render the ScriptoriumForm after authentication, not the placeholder. */}
         {isAuthenticated ? (
-          <ScriptoriumFormPlaceholder />
+          <ScriptoriumForm />
         ) : (
           <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
             <form 
@@ -71,7 +59,7 @@ export default function GrimoireAdminPage() {
                 id="adminKey"
                 label="Provide the Sacred Admin Key"
                 placeholder="Enter your secret key..."
-                type="password" // Use password type to hide the key
+                type="password"
                 value={adminKey}
                 onChange={(e) => setAdminKey(e.target.value)}
               />
