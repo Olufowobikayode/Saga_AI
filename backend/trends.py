@@ -1,4 +1,3 @@
---- START OF FILE backend/trends.py ---
 import asyncio
 import logging
 import json
@@ -7,6 +6,7 @@ from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
 from datetime import datetime
+import random # ### ENHANCEMENT: Import for randomized delays
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -15,6 +15,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+
+# ### ENHANCEMENT: Import libraries for scraper evasion
+from selenium_stealth import stealth
+from fake_useragent import UserAgent
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
@@ -45,19 +49,44 @@ class TrendScraper:
     """
     An aspect of Saga that divines wisdom from public keyword research tools.
     It listens to the 'chants of the seekers' to understand what mortals are searching for.
+    This Seer is now enhanced with stealth capabilities to appear more human.
     """
 
+    def __init__(self):
+        # ### ENHANCEMENT: Initialize the UserAgent object once.
+        try:
+            self.ua = UserAgent()
+        except Exception:
+            self.ua = None
+
     def _get_driver(self) -> webdriver.Chrome:
-        """Initializes a headless Chrome spirit for its journey."""
+        """Initializes a headless, stealthy Chrome spirit for its journey."""
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        
+        # ### ENHANCEMENT 1: Use a randomized, real-world user agent for each request.
+        user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+        options.add_argument(f"user-agent={user_agent}")
+
+        options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+        options.add_experimental_option('useAutomationExtension', False)
+        
         try:
             service = Service(ChromeDriverManager().install())
-            return webdriver.Chrome(service=service, options=options)
+            driver = webdriver.Chrome(service=service, options=options)
+
+            # ### ENHANCEMENT 2: Apply selenium-stealth patches to the driver.
+            stealth(driver,
+                    languages=["en-US", "en"],
+                    vendor="Google Inc.",
+                    platform="Win32",
+                    webgl_vendor="Intel Inc.",
+                    renderer="Intel Iris OpenGL Engine",
+                    fix_hairline=True,
+                    )
+            return driver
         except WebDriverException as e:
             logger.error(f"The Chrome spirit failed to materialize: {e}. Ensure its essence and path are known.")
             raise
@@ -77,7 +106,9 @@ class TrendScraper:
 
             await asyncio.to_thread(WebDriverWait(driver, 20).until(
                                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, config["wait_selector"]))))
-            await asyncio.sleep(3) # Allow the realm's echoes to settle.
+            
+            # ### ENHANCEMENT 3: Use randomized delays to better mimic human behavior.
+            await asyncio.sleep(random.uniform(3.1, 4.5))
             
             elements = await asyncio.to_thread(driver.find_elements, By.CSS_SELECTOR, config["item_selector"])
             
@@ -101,7 +132,6 @@ class TrendScraper:
         """
         The main public rite for this seer. It orchestrates divination from all 'enabled' keyword realms.
         """
-        # --- UPDATED: Construct a more focused query if categories are provided ---
         search_query = keyword
         if product_category:
             search_query += f' "{product_category}"'
@@ -117,7 +147,6 @@ class TrendScraper:
 
             for site_key, config in SITE_CONFIGS.items():
                 if config["status"] == "enabled":
-                    # Pass the newly constructed, more specific search_query
                     tasks.append(self._divine_from_realm(driver, site_key, search_query))
                 else:
                     logger.warning(f"Skipping the realm of '{site_key}': {config['reason']}")
@@ -143,7 +172,6 @@ async def main(keyword: str):
     sample_category = "Software Development"
 
     scraper = TrendScraper()
-    # Test the enhanced functionality by providing category context
     scraped_data = await scraper.run_scraper_tasks(keyword, country_name=sample_country_name, product_category=sample_category)
     
     final_report = {
@@ -173,4 +201,3 @@ if __name__ == "__main__":
     parser.add_argument("keyword", type=str, help="The core keyword or niche to divine.")
     args = parser.parse_args()
     asyncio.run(main(args.keyword))
---- END OF FILE backend/trends.py ---
