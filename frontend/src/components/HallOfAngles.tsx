@@ -5,7 +5,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
 
-// SAGA UI: Defining the data for our Asset Type cards.
+// SAGA UI: CORRECTED list of Asset Type cards, now including Email Copy.
 const assetTypes = [
   {
     id: 'Ad Copy',
@@ -14,13 +14,19 @@ const assetTypes = [
     icon: "🎯"
   },
   {
+    id: 'Email Copy',
+    title: "Email Copy",
+    description: "Compose high-open-rate emails for newsletters and campaigns.",
+    icon: "✉️"
+  },
+  {
     id: 'Affiliate Copy',
     title: "Affiliate Copy",
-    description: "Craft compelling emails and messages for your partners to share.",
+    description: "Craft compelling messages for your partners to share.",
     icon: "🤝"
   },
   {
-    id: 'Funnel',
+    id: 'Funnel Page',
     title: "Funnel Page",
     description: "Generate the complete HTML for a high-converting funnel page.",
     icon: "🌊"
@@ -44,14 +50,9 @@ const assetTypes = [
  * This is the second major decision point in the Skald's Forge.
  */
 export default function HallOfAngles() {
-  // SAGA LOGIC: We will need the 'chooseAngle' function later, but for now, we just need to display the cards.
-  // const chooseAngle = useMarketingStore((state) => state.chooseAngle);
   const angles = useMarketingStore((state) => state.angles);
 
   const handleCardClick = (assetType: string) => {
-    // This is a placeholder for the next step.
-    // We will need to pass both the chosen ANGLE and the ASSET TYPE to the store.
-    // For now, we'll just log it.
     console.log(`Selected asset type: ${assetType}`);
     console.log('Available angles from backend:', angles);
     // In the next step, we will implement the logic to select a strategic angle and call the store.
