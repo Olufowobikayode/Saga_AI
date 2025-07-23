@@ -5,11 +5,12 @@ from urllib.parse import urlparse
 import tldextract
 from typing import List, Set, Literal
 
-# ### ENHANCEMENT: Import multiple search libraries for resilience
 from googlesearch import search as google_search
 from duckduckgo_search import DDGS
-
 from fake_useragent import UserAgent
+
+# ### FIX: Import the caching utilities
+from backend.cache import seer_cache, generate_cache_key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:SCOUT] - %(message)s')
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ class MarketplaceScout:
     """
     Saga's multi-engine scout, tasked with discovering realms of commerce and knowledge.
     It primarily uses DuckDuckGo for reliability and can use Google for deep dives,
-    making it resilient and versatile.
+    making it resilient and versatile. It now uses a cache to avoid repeated searches.
     """
     def __init__(self):
         self.found_domains: Set[str] = set()
@@ -29,14 +30,12 @@ class MarketplaceScout:
         except Exception:
             self.ua = None
 
-        # --- Foundational Knowledge: The Seed List of Known Marketplaces ---
         self.SEED_MARKETPLACES: List[str] = [
             "https://www.amazon.com", "https://www.ebay.com", "https://www.aliexpress.com", "https://www.etsy.com",
             "https://www.walmart.com/marketplace", "https://www.rakuten.com", "https://world.taobao.com",
             "https://www.alibaba.com", "https://www.mercadolibre.com", "https://shopee.com", "https://www.lazada.com",
         ]
 
-        # --- Smart Query Generation ---
         self.GENERAL_SEARCH_QUERIES: List[str] = [
             "top e-commerce marketplaces 2025", "largest online shopping platforms global",
             "list of global c2c marketplaces", "alternatives to Amazon marketplace",
@@ -46,7 +45,6 @@ class MarketplaceScout:
         self.BEST_PRODUCTS_QUERIES_TEMPLATE: str = 'best {interest} products of 2025'
         self.QA_SITE_QUERIES_TEMPLATE: str = 'top q&a sites for {interest}'
         
-        # --- Filtering and Validation Rules ---
         self.EXCLUSION_LIST: List[str] = [
             'wikipedia.org', 'youtube.com', 'pinterest.com', 'forbes.com', 'cnbc.com', 'businessinsider.com',
             'techcrunch.com', 'reddit.com', 'quora.com', 'stackoverflow.com', 'github.com', 'shopify.com',
@@ -57,13 +55,11 @@ class MarketplaceScout:
         logger.info(f"Scout is searching for: '{query}' using {engine.capitalize()}...")
         try:
             if engine == "duckduckgo":
-                # DuckDuckGo is more reliable and less likely to block
                 with DDGS() as ddgs:
                     results = [r['href'] for r in ddgs.text(query, max_results=num_results)]
                 return results
             
             elif engine == "google":
-                # Google gives high-quality results but is prone to blocking
                 user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
                 return list(google_search(query, num_results=num_results, stop=num_results, pause=3.0, user_agent=user_agent))
 
@@ -77,7 +73,6 @@ class MarketplaceScout:
     def _validate_and_add_domain(self, url: str) -> None:
         """Parses a URL, validates it, and adds the domain to the found list if it's new and valid."""
         try:
-            # Skip non-http links which can appear in results
             if not url.startswith(('http://', 'https://')):
                 return
             domain = tldextract.extract(url).registered_domain
@@ -96,7 +91,6 @@ class MarketplaceScout:
         self.found_domains = {tldextract.extract(url).registered_domain for url in self.SEED_MARKETPLACES}
         
         for query in self.GENERAL_SEARCH_QUERIES:
-            # Use the most reliable engine for general discovery
             results = self._search(query, engine="duckduckgo")
             for url in results:
                 self._validate_and_add_domain(url)
@@ -113,9 +107,14 @@ class MarketplaceScout:
 
     def find_niche_realms(self, topic: str, num_results: int = 10) -> List[str]:
         """
-        Performs a focused, resilient search for niche-specific realms.
-        It tries the reliable engine first, then falls back to the deep-dive engine.
+        Performs a focused, resilient, and cached search for niche-specific realms.
         """
+        # ### ENHANCEMENT: Implement caching for this expensive operation.
+        cache_key = generate_cache_key("find_niche_realms", topic=topic, num_results=num_results)
+        cached_results = seer_cache.get(cache_key)
+        if cached_results is not None:
+            return cached_results
+
         logger.info(f"--- Scout commencing mission: Discover Niche Realms for '{topic}' ---")
         
         queries = [
@@ -127,29 +126,43 @@ class MarketplaceScout:
         all_urls = set()
 
         for query in queries:
-            # 1. Try with the fast, reliable engine first
             results = self._search(query, num_results=num_results, engine="duckduckgo")
             
-            # 2. If it fails or returns too few results, use the deep-dive engine as a fallback
             if len(results) < num_results / 2:
                 logger.warning(f"DuckDuckGo returned few results for '{query}'. Falling back to Google for a deep dive.")
-                time.sleep(2) # Be respectful between engine switches
+                time.sleep(2)
                 google_results = self._search(query, num_results=num_results, engine="google")
                 results.extend(google_results)
 
             for url in results:
                 all_urls.add(url)
 
-        logger.info(f"Scout has returned with {len(all_urls)} potential niche realms for '{topic}'.")
-        return list(all_urls)
+        final_results = list(all_urls)
+        logger.info(f"Scout has returned with {len(final_results)} potential niche realms for '{topic}'.")
+        
+        # ### ENHANCEMENT: Set the result in the cache with a long TTL (1 day = 86400 seconds).
+        seer_cache.set(cache_key, final_results, ttl_seconds=86400)
+        
+        return final_results
 
 # Standalone execution for testing
 if __name__ == "__main__":
     scout = MarketplaceScout()
     
-    print("\n--- Testing Niche Discovery with Multi-Engine Fallback ---")
-    niche_realms = scout.find_niche_realms("fountain pen restoration")
-    print("Found potential niche realms:")
-    for i, realm in enumerate(niche_realms):
-        if i >= 15: break # Print top 15 for brevity
-        print(f"- {realm}")
+    print("\n--- Testing Niche Discovery with Caching ---")
+    start_time = time.time()
+    print("--- First Call (should be slow) ---")
+    niche_realms_1 = scout.find_niche_realms("fountain pen restoration")
+    duration_1 = time.time() - start_time
+    print(f"Found {len(niche_realms_1)} realms in {duration_1:.2f} seconds.")
+
+    start_time_2 = time.time()
+    print("\n--- Second Call (should be instant) ---")
+    niche_realms_2 = scout.find_niche_realms("fountain pen restoration")
+    duration_2 = time.time() - start_time_2
+    print(f"Found {len(niche_realms_2)} realms in {duration_2:.4f} seconds.")
+
+    if duration_2 < 0.1 and len(niche_realms_1) == len(niche_realms_2):
+        print("\n[SUCCESS] Caching is working as expected!")
+    else:
+        print("\n[FAILURE] Caching is not working correctly.")
