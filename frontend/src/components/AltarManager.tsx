@@ -7,11 +7,8 @@ import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import QueryForm from './QueryForm';
 import ArtifactForm from './ArtifactForm';
-import RealmForm from './RealmForm'; // Summoning the real Realm Form.
-
-// We will replace this placeholder in the final step.
-const HallOfProphecies = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for Hall of Prophecies</div>;
-
+import RealmForm from './RealmForm';
+import HallOfProphecies from './HallOfProphecies'; // Summoning the real Hall of Prophecies.
 
 /**
  * AltarManager: The master controller for the multi-stage Grand Strategic Ritual.
@@ -36,13 +33,13 @@ export default function AltarManager() {
 
       // Stage 3: The Realm
       case 'awaiting_realm':
-        // Now rendering the real form instead of the placeholder.
         return <RealmForm />;
       case 'performing_grand_rite':
         return <RitualScreen />;
 
       // The Final Destination
       case 'prophesied':
+        // Now rendering the real Hall of Prophecies instead of the placeholder.
         return <HallOfProphecies />;
 
       // Default/Idle State
