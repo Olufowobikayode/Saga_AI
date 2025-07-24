@@ -5,10 +5,10 @@ import React from 'react';
 import { usePodStore } from '@/store/podStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
+import StyleChamber from './StyleChamber'; // Summoning the real Style Chamber.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const StyleChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for StyleChamber</div>;
 const HallOfConcepts = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for HallOfConcepts</div>;
 const DesignPackageScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for DesignPackageScroll</div>;
 
@@ -18,14 +18,13 @@ const DesignPackageScroll = () => <div className="p-8 bg-saga-surface rounded-lg
  * It reads the status from the podStore and renders the appropriate UI.
  */
 export default function ArtisanManager() {
-  // SAGA LOGIC: Connect to the Mind of the Artisan.
   const status = usePodStore((state) => state.status);
 
-  // This function will decide which component to show based on the prophecy's stage.
   const renderCurrentStage = () => {
     switch (status) {
       // Phase 1: The Opportunity Hunt
       case 'awaiting_style':
+        // Now rendering the real component instead of the placeholder.
         return <StyleChamber />;
       case 'hunting_opportunities':
         return <RitualScreen />;
