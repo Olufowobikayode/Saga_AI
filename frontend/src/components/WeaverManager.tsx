@@ -8,11 +8,11 @@ import RitualScreen from './RitualScreen';
 import SparkForm from './SparkForm';
 import HallOfSparks from './HallOfSparks';
 import WeaversCrossroads from './WeaversCrossroads';
-import ToneChamber from './ToneChamber'; // Summoning the real Tone Chamber.
+import ToneChamber from './ToneChamber';
+import RealmChamber from './RealmChamber'; // Summoning the real Realm Chamber.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const RealmChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for RealmChamber</div>;
 const ScribesChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ScribesChamber</div>;
 const EchoChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for EchoChamber</div>;
 const FinalContentScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for FinalContentScroll</div>;
@@ -39,9 +39,9 @@ export default function WeaverManager() {
 
       // Social Post Path
       case 'awaiting_tone':
-        // Now rendering the real component instead of the placeholder.
         return <ToneChamber />;
       case 'awaiting_realm':
+        // Now rendering the real component instead of the placeholder.
         return <RealmChamber />;
       case 'awaiting_length':
         return <ScribesChamber />;
