@@ -1,4 +1,4 @@
---- START OF FILE backend/stacks/grand_strategy_stack.py ---
+# --- START OF FILE backend/stacks/grand_strategy_stack.py ---
 import asyncio
 import logging
 import json
@@ -10,54 +10,62 @@ import google.generativeai as genai
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.q_and_a import CommunitySaga
 from backend.trends import TrendScraper
-# --- NEW: Import the MarketplaceScout for niche discovery ---
 from backend.marketplace_finder import MarketplaceScout
+# NEW: We need the oracle to scrape the user's provided link.
+from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 from backend.utils import get_prophecy_from_oracle
 
 logger = logging.getLogger(__name__)
 
 class GrandStrategyStack:
     """
-    The Commander Stack of the SagaEngine. It is the mandatory starting point for any major venture.
-    It divines the high-level blueprint for market domination, providing the "Content Pillars"
-    that serve as commands for all tactical stacks.
-    Its intelligence gathering is now more comprehensive than ever.
+    The Commander Stack of the SagaEngine. It now accepts a full "Strategic Briefing"
+    to forge a hyper-personalized master plan for market domination.
     """
-    def __init__(self, model: genai.GenerativeModel, keyword_rune_keeper: KeywordRuneKeeper, community_seer: CommunitySaga, trend_scraper: TrendScraper):
+    def __init__(self, model: genai.GenerativeModel, **seers: Any):
         """
         Initializes the Commander Stack with the necessary seers for strategic divination.
         """
         self.model = model
-        self.keyword_rune_keeper = keyword_rune_keeper
-        self.community_seer = community_seer
-        self.trend_scraper = trend_scraper
-        # --- NEW: The stack now has its own scout ---
-        self.scout = MarketplaceScout()
+        self.keyword_rune_keeper: KeywordRuneKeeper = seers['keyword_rune_keeper']
+        self.community_seer: CommunitySaga = seers['community_seer']
+        self.trend_scraper: TrendScraper = seers['trend_scraper']
+        self.scout: MarketplaceScout = MarketplaceScout()
+        # NEW: The stack now has the marketplace oracle for deep analysis of user assets.
+        self.marketplace_oracle: GlobalMarketplaceOracle = GlobalMarketplaceOracle()
 
     async def prophesy(self,
                        interest: str,
                        country_code: Optional[str],
                        country_name: Optional[str],
-                       user_tone_instruction: str) -> Dict[str, Any]:
+                       user_tone_instruction: str,
+                       asset_info: Optional[Dict[str, Any]] = None,
+                       **kwargs) -> Dict[str, Any]:
         """
-        Executes the RAG ritual to forge a Grand Strategy.
-        This is the most comprehensive intelligence gathering process.
+        Executes the RAG ritual to forge a Grand Strategy, now enhanced with
+        analysis of the user's specific declared artifact.
         """
         logger.info(f"GRAND STRATEGY: Forging a master plan for interest: '{interest}'")
 
         # --- STEP 1: COMPREHENSIVE & ENHANCED RETRIEVAL ---
-        # Command the seers and the scout to gather a rich tapestry of intelligence.
         tasks = {
             "keyword_runes": self.keyword_rune_keeper.get_full_keyword_runes(interest, country_code),
             "community_pain_points": self.community_seer.run_community_gathering(interest, query_type="pain_point"),
             "community_questions": self.community_seer.run_community_gathering(interest, query_type="questions"),
             "trend_insights": self.trend_scraper.run_scraper_tasks(interest, country_code, country_name),
-            # --- NEW: Launching the scout for deeper reconnaissance ---
             "niche_discovery_urls": self.scout.find_niche_realms(interest, num_results=5)
         }
+        
+        # NEW: Conditional RAG step. If the user provided a link, scrape and analyze it.
+        user_asset_analysis = {}
+        if asset_info and asset_info.get("promo_link"):
+            promo_link = asset_info["promo_link"]
+            logger.info(f"Grand Strategy detected a user artifact. Analyzing link: {promo_link}")
+            # We add this expensive I/O task to our asyncio gathering
+            tasks["user_asset_analysis"] = self.marketplace_oracle.read_user_store_scroll(promo_link)
+
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         
-        # Process results, handling potential exceptions for each task
         retrieved_histories = {}
         for i, task_name in enumerate(tasks.keys()):
             if isinstance(results[i], Exception):
@@ -68,52 +76,54 @@ class GrandStrategyStack:
 
         # --- STEP 2 & 3: AUGMENTATION & GENERATION with Enhanced Intelligence ---
         prompt = f"""
-        You are Saga, the Norse goddess of wisdom, in your aspect as a Divine General. A chieftain seeks your guidance to conquer the digital realm of '{interest}'. You have gathered comprehensive intelligence from your most trusted seers and scouts.
+        You are Saga, a Divine General of strategy. A chieftain seeks your guidance to conquer the digital realm of '{interest}'. You have gathered comprehensive intelligence. Most importantly, the chieftain has declared a specific artifact they wish to champion. Your prophecy MUST be hyper-personalized to this artifact.
 
-        **Your task is to forge a master plan for market domination. This prophecy MUST be grounded ENTIRELY in the rich intelligence provided below. Your strategy must be clear, authoritative, and actionable.**
-
+        --- THE CHIEFTAIN'S STRATEGIC BRIEFING ---
+        - Broad Interest: {interest}
+        - Declared Artifact Type: {asset_info.get('type') if asset_info else 'Not Provided'}
+        - Artifact Name: {asset_info.get('name') if asset_info else 'Not Provided'}
+        - Artifact Description: {asset_info.get('description') if asset_info else 'Not Provided'}
+        - Artifact Link: {asset_info.get('promo_link') if asset_info else 'Not Provided'}
+        
         --- BATTLEFIELD INTELLIGENCE (Retrieved Histories) ---
         **Keyword Runes (The Language of the Realm):** {json.dumps(retrieved_histories.get("keyword_runes"), indent=2, default=str)}
-        **Community Laments (The Will of the People - Their Problems):** {json.dumps(retrieved_histories.get("community_pain_points"), indent=2, default=str)}
-        **Community Inquiries (The People's Questions):** {json.dumps(retrieved_histories.get("community_questions"), indent=2, default=str)}
-        **Seeker Chants (Broader Public Trends):** {json.dumps(retrieved_histories.get("trend_insights"), indent=2, default=str)}
-        **Scout's Report (Newly Discovered Niche Realms & 'Best Of' Lists):** {json.dumps(retrieved_histories.get("niche_discovery_urls"), indent=2, default=str)}
-        --- END OF INTELLIGENCE ---
+        **Community Laments (The People's Problems):** {json.dumps(retrieved_histories.get("community_pain_points"), indent=2, default=str)}
+        **NEW - Analysis of Chieftain's Artifact (from Link):** 
+        {json.dumps(retrieved_histories.get("user_asset_analysis", "No link provided for analysis."), indent=2, default=str)}
+        --- END OF INTELLIGENCE (Abbreviated for clarity) ---
 
         {user_tone_instruction}
 
         **Your Prophetic Task:**
-        Weave a Grand Strategy into a valid JSON object. This scroll will be the ultimate command for the chieftain's campaign. It must contain these verses:
+        Weave a Grand Strategy into a valid JSON object. This scroll will be the ultimate command for the chieftain's campaign. It must be a direct, actionable plan for THEIR DECLARED ARTIFACT within the broader market.
         {{
-            "strategic_summary": "A concise, top-level summary of the grand strategy. Synthesize all intelligence to identify the single most powerful opportunity or angle. What is the ultimate command?",
-            "target_audience_profile": "Based on the community laments and inquiries, describe the target audience. What are their primary problems and unanswered questions? What do they truly desire?",
+            "strategic_summary": "A concise, top-level summary of the grand strategy, specifically for the declared artifact. Identify its single most powerful unique selling proposition based on the intelligence.",
+            "target_audience_profile": "Based on community laments, describe the ideal customer for THIS artifact. What specific problem does the chieftain's artifact solve for them?",
             "content_pillars": [
                 {{
-                    "pillar_name": "Pillar 1: Name of the Core Strategic Theme.",
-                    "description": "A description of this content pillar and why it is critical, explicitly referencing the intelligence. e.g., 'This pillar directly addresses the community lament about [problem X] and the rising trend for [Y].'",
-                    "tactical_interest": "A specific, focused interest string derived from this pillar, to be used as a command for the Content Saga stack. e.g., 'sustainable kitchen solutions for small apartments'"
-                }},
-                //... Generate 3 to 4 such pillars, each grounded in a different facet of the intelligence.
+                    "pillar_name": "Pillar 1: Name of a Core Strategic Theme for the artifact.",
+                    "description": "A description of this content pillar, explaining how it positions the artifact against the market's needs. e.g., 'This pillar showcases the artifact's [unique feature] to solve the [community pain point].'",
+                    "tactical_interest": "A specific, focused interest string for the Content Saga stack. e.g., 'how to use [Artifact Name] for [solving a problem]'"
+                }}
+                //... Generate 2 to 3 such pillars, each focused on the declared artifact.
             ],
             "recommended_channels": {{
-                "main_channels": ["e.g., An SEO-focused blog", "e.g., Pinterest for visual discovery"],
-                "niche_channels_to_explore": "Based on the Scout's Report, list any promising niche marketplaces, forums, or blogs to investigate. e.g., ['leatherworker-forum.com', 'best-handmade-goods-blog.com']",
-                "justification": "Justify your channel choices with the intelligence gathered."
+                "main_channels": ["e.g., An SEO-focused blog reviewing the artifact", "e.g., Pinterest for visual discovery of the artifact"],
+                "niche_channels_to_explore": "Based on the Scout's Report, list promising niche forums or blogs where the chieftain should present their artifact.",
+                "justification": "Justify your channel choices as the best places to reach the target audience for THIS artifact."
             }},
             "first_three_runes_of_action": [
-                "1. The first action: e.g., 'Secure the foundational keyword [X] by creating a cornerstone content piece.'",
-                "2. The second action: e.g., 'Establish an outpost on [Niche Channel] by engaging with their community.'",
-                "3. The third action: e.g., 'Begin weaving the saga for the first Content Pillar.'"
+                "1. First Action: e.g., 'Rewrite the artifact's description on its main link to include the keywords [X, Y, Z].'",
+                "2. Second Action: e.g., 'Engage in the [Niche Channel] community, offering value before mentioning the artifact.'",
+                "3. Third Action: e.g., 'Create the cornerstone content for the first Content Pillar.'"
             ]
         }}
         """
         
         strategy_prophecy = await get_prophecy_from_oracle(self.model, prompt)
         
-        # We return both the prophecy AND the intelligence that created it.
-        # This allows the intelligence to be cached and reused by tactical stacks.
         return {
             "prophecy": strategy_prophecy,
             "retrieved_histories": retrieved_histories
         }
---- END OF FILE backend/stacks/grand_strategy_stack.py ---
+# --- END OF FILE backend/stacks/grand_strategy_stack.py ---
