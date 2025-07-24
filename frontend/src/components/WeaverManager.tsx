@@ -10,11 +10,11 @@ import HallOfSparks from './HallOfSparks';
 import WeaversCrossroads from './WeaversCrossroads';
 import ToneChamber from './ToneChamber';
 import RealmChamber from './RealmChamber';
-import LoomScribesChamber from './LoomScribesChamber'; // Summoning the new, correctly named component.
+import LoomScribesChamber from './LoomScribesChamber';
+import EchoChamber from './EchoChamber'; // Summoning the real Echo Chamber.
 
-// We will create these new components in the upcoming steps.
-// For now, they are placeholders.
-const EchoChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for EchoChamber</div>;
+// We will create this final component in the next step.
+// For now, it is a placeholder.
 const FinalContentScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for FinalContentScroll</div>;
 
 
@@ -43,7 +43,6 @@ export default function WeaverManager() {
       case 'awaiting_realm':
         return <RealmChamber />;
       case 'awaiting_length':
-        // Now rendering the correct component instead of the placeholder.
         return <LoomScribesChamber />;
       case 'weaving_social_post':
         return <RitualScreen />;
@@ -52,6 +51,7 @@ export default function WeaverManager() {
       
       // Comment Path
       case 'awaiting_echo':
+        // Now rendering the real component instead of the placeholder.
         return <EchoChamber />;
       case 'weaving_comment':
         return <RitualScreen />;
