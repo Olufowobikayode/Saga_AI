@@ -112,13 +112,12 @@ export const usePodStore = create<PODState>((set, get) => ({
   },
 
   resetAnvil: () => {
+    // This allows the user to go back and choose a different concept from the same hunt.
     set({
-      status: 'awaiting_niche',
+      status: 'concepts_revealed',
       error: null,
-      concepts: [],
       chosenConcept: null,
       designPackage: null,
-      // We keep the podSessionId to allow choosing another concept from the same hunt.
     });
   },
 }));
