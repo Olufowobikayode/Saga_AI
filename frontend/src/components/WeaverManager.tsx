@@ -11,12 +11,8 @@ import WeaversCrossroads from './WeaversCrossroads';
 import ToneChamber from './ToneChamber';
 import RealmChamber from './RealmChamber';
 import LoomScribesChamber from './LoomScribesChamber';
-import EchoChamber from './EchoChamber'; // Summoning the real Echo Chamber.
-
-// We will create this final component in the next step.
-// For now, it is a placeholder.
-const FinalContentScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for FinalContentScroll</div>;
-
+import EchoChamber from './EchoChamber';
+import FinalContentScroll from './FinalContentScroll'; // Summoning the real Final Scroll.
 
 /**
  * WeaverManager: The master controller for the entire Content Saga workflow.
@@ -47,21 +43,23 @@ export default function WeaverManager() {
       case 'weaving_social_post':
         return <RitualScreen />;
       case 'social_post_woven':
+        // Now rendering the real component instead of the placeholder.
         return <FinalContentScroll />;
       
       // Comment Path
       case 'awaiting_echo':
-        // Now rendering the real component instead of the placeholder.
         return <EchoChamber />;
       case 'weaving_comment':
         return <RitualScreen />;
       case 'comment_woven':
+        // Now rendering the real component instead of the placeholder.
         return <FinalContentScroll />;
 
       // Blog Post Path
       case 'weaving_blog':
         return <RitualScreen />;
       case 'blog_woven':
+        // Now rendering the real component instead of the placeholder.
         return <FinalContentScroll />;
 
       // Default/Idle State
