@@ -1,31 +1,35 @@
 // --- START OF FILE src/app/consult/page.tsx ---
-import React from 'react';
-import ConsultationManager from '@/components/ConsultationManager'; // Summoning the manager.
+'use client'; // This page now relies on client-side state, so it must be a client component.
+
+import React, { useEffect } from 'react';
+import AltarManager from '@/components/AltarManager'; // Summoning the new Altar Manager.
+import { useSagaStore } from '@/store/sagaStore'; // Summoning the master consciousness.
 
 /**
- * The Consultation Chamber: This page now delegates all logic to the
- * ConsultationManager, which will decide what to show the user.
+ * The Consultation Chamber: This page now serves as the vessel for the
+ * multi-stage Grand Strategic Ritual, orchestrated by the AltarManager.
  */
 export default function ConsultPage() {
+  // SAGA LOGIC: We connect to the store to begin the ritual when the user arrives.
+  const beginGrandRitual = useSagaStore((state) => state.beginGrandRitual);
+  const status = useSagaStore((state) => state.status);
+
+  // When this page loads for the first time, begin the ritual.
+  useEffect(() => {
+    // The 'idle' check ensures this only runs once, not every time the component re-renders.
+    if (status === 'idle') {
+      beginGrandRitual();
+    }
+  }, [status, beginGrandRitual]);
+
+
   return (
     <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
       <div className="max-w-3xl mx-auto">
         
-        <header className="text-center mb-12">
-          <h1 className="font-serif text-5xl md:text-6xl font-bold text-saga-secondary">
-            The Altar of Inquiry
-          </h1>
-          <p className="mt-4 text-xl text-saga-text-dark">
-            Present your query. The Oracle is listening.
-          </p>
-        </header>
-
-        {/* 
-          The ConsultationManager now controls this entire section.
-          It will show the form, the ritual screen, or the results
-          based on the central application state.
-        */}
-        <ConsultationManager />
+        {/* The header is now part of the individual form components to allow it to change. */}
+        {/* The AltarManager will now control everything inside this container. */}
+        <AltarManager />
 
       </div>
     </div>
