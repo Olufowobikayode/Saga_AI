@@ -7,11 +7,11 @@ import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import SparkForm from './SparkForm';
 import HallOfSparks from './HallOfSparks';
-import WeaversCrossroads from './WeaversCrossroads'; // Summoning the real Crossroads.
+import WeaversCrossroads from './WeaversCrossroads';
+import ToneChamber from './ToneChamber'; // Summoning the real Tone Chamber.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const ToneChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ToneChamber</div>;
 const RealmChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for RealmChamber</div>;
 const ScribesChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ScribesChamber</div>;
 const EchoChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for EchoChamber</div>;
@@ -35,11 +35,11 @@ export default function WeaverManager() {
       case 'sparks_revealed':
         return <HallOfSparks />;
       case 'crossroads_revealed':
-        // Now rendering the real component instead of the placeholder.
         return <WeaversCrossroads />;
 
       // Social Post Path
       case 'awaiting_tone':
+        // Now rendering the real component instead of the placeholder.
         return <ToneChamber />;
       case 'awaiting_realm':
         return <RealmChamber />;
