@@ -5,10 +5,10 @@ import React from 'react';
 import { useContentStore } from '@/store/contentStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
+import SparkForm from './SparkForm'; // Summoning the real Spark Form.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const SparkForm = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for SparkForm</div>;
 const HallOfSparks = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for HallOfSparks</div>;
 const WeaversCrossroads = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for WeaversCrossroads</div>;
 const ToneChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ToneChamber</div>;
@@ -23,14 +23,13 @@ const FinalContentScroll = () => <div className="p-8 bg-saga-surface rounded-lg"
  * It reads the status from the contentStore and renders the appropriate UI.
  */
 export default function WeaverManager() {
-  // SAGA LOGIC: Connect to the Mind of the Weaver.
   const status = useContentStore((state) => state.status);
 
-  // This function will decide which component to show based on the complex state.
   const renderCurrentStage = () => {
     switch (status) {
       // Spark Generation Path
       case 'awaiting_spark_topic':
+        // Now rendering the real form instead of the placeholder.
         return <SparkForm />;
       case 'weaving_sparks':
         return <RitualScreen />;
