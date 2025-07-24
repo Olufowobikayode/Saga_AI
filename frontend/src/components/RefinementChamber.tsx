@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { useSagaStore } from '@/store/sagaStore';
 import { useVentureStore } from '@/store/ventureStore';
 import SagaButton from './SagaButton';
+// NEW: Importing the centralized data
+import { businessModels, primaryStrengths, investmentLevels } from '@/lib/ventureOptions';
 
 // A reusable, themed dropdown for this form.
 const SelectRune = ({ id, label, value, onChange, options }: any) => (
@@ -34,7 +36,6 @@ export default function RefinementChamber() {
   const { beginQuest, status, error } = useVentureStore();
   const isLoading = status === 'questing_for_visions';
 
-  // State for the new refinement fields
   const [businessModel, setBusinessModel] = useState('Any');
   const [primaryStrength, setPrimaryStrength] = useState('Any');
   const [investmentLevel, setInvestmentLevel] = useState('Any');
@@ -74,21 +75,21 @@ export default function RefinementChamber() {
             label="Preferred Business Model"
             value={businessModel}
             onChange={(e) => setBusinessModel(e.target.value)}
-            options={['Any', 'Physical Product', 'Digital Service', 'Content & Media', 'Community-Based', 'Low-Cost Dropshipping']}
+            options={businessModels}
           />
           <SelectRune
             id="primaryStrength"
             label="Your Primary Strength"
             value={primaryStrength}
             onChange={(e) => setPrimaryStrength(e.target.value)}
-            options={['Any', 'I am a Maker/Designer', 'I am a Marketer/Seller', 'I am a Writer/Creator', 'I am a Community Builder']}
+            options={primaryStrengths}
           />
           <SelectRune
             id="investmentLevel"
             label="Initial Investment Level"
             value={investmentLevel}
             onChange={(e) => setInvestmentLevel(e.target.value)}
-            options={['Any', 'Low (<$500)', 'Medium ($500 - $5,000)', 'High (>$5,000)']}
+            options={investmentLevels}
           />
 
           <div className="pt-4 text-center">
