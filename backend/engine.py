@@ -157,9 +157,9 @@ class SagaEngine:
         full_angle_data = {**session_data, **chosen_angle, **kwargs}
         return await self.marketing_saga_stack.prophesy_final_asset(full_angle_data)
 
-    async def prophesy_pod_opportunities(self, niche_interest: str) -> Dict[str, Any]:
-        logger.info(f"POD OPPORTUNITY ENGINE: Divining concepts for niche '{niche_interest}'...")
-        opportunities_prophecy = await self.pod_saga_stack.prophesy_pod_opportunities(niche_interest)
+    async def prophesy_pod_opportunities(self, niche_interest: str, style: str) -> Dict[str, Any]:
+        logger.info(f"POD OPPORTUNITY ENGINE: Divining '{style}' concepts for niche '{niche_interest}'...")
+        opportunities_prophecy = await self.pod_saga_stack.prophesy_pod_opportunities(niche_interest, style)
         pod_session_id = str(uuid.uuid4())
         self.strategy_session_cache[pod_session_id] = opportunities_prophecy
         return {"pod_session_id": pod_session_id, "design_concepts": opportunities_prophecy.get("design_concepts", [])}
