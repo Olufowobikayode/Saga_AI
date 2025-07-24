@@ -108,6 +108,7 @@ class MarketingAssetRequest(BaseModel):
 
 class PODOpportunitiesRequest(BaseModel):
     niche_interest: str
+    style: str
 
 class PODPackageRequest(BaseModel):
     pod_session_id: str
@@ -153,7 +154,7 @@ class TitleRequest(BaseModel):
     topic: str
 
 # --- FASTAPI APP AND ROUTER ---
-app = FastAPI(title="Saga AI", version="12.1.0", description="The Oracle of Strategy, with a hyper-personalized Seer's Spire.")
+app = FastAPI(title="Saga AI", version="12.2.0", description="The Oracle of Strategy, with a hyper-personalized Artisan's Anvil.")
 api_router = APIRouter(prefix="/api/v10")
 engine: SagaEngine = None
 scout: MarketplaceScout = None
