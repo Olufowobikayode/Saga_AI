@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 import uuid
 from datetime import datetime
+import re
 
 from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from dotenv import load_dotenv
@@ -15,7 +16,6 @@ from bson import ObjectId
 
 from backend.engine import SagaEngine
 from backend.marketplace_finder import MarketplaceScout
-# SAGA GRIMOIRE: Import our new database modules
 from backend.database import connect_to_mongo, close_mongo_connection, get_database
 import motor.motor_asyncio
 
@@ -30,41 +30,48 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
 # --- PYDANTIC MODELS ---
-
 class SagaResponse(BaseModel):
     prophecy_type: str
     data: Any
 
-# --- Models for Commerce Prophecies ---
 class CommerceAuditRequest(BaseModel):
-    prophecy_type: Literal["Commerce Audit"]; audit_type: Literal["Account Audit", "Store Audit", "Account Prediction"]; statement_text: Optional[str] = None; store_url: Optional[str] = None
+    prophecy_type: Literal["Commerce Audit"] = Field("Commerce Audit")
+    audit_type: Literal["Account Audit", "Store Audit", "Account Prediction"]
+    statement_text: Optional[str] = None
+    store_url: Optional[str] = None
+
 class ArbitragePathsRequest(BaseModel):
-    prophecy_type: Literal["Arbitrage Paths"]; mode: Literal["User_Buys_User_Sells", "Saga_Buys_User_Sells", "User_Buys_Saga_Sells", "Saga_Buys_Saga_Sells"]; product_name: Optional[str] = None; buy_from_url: Optional[str] = None; sell_on_url: Optional[str] = None; category: Optional[str] = None; subcategory: Optional[str] = None
+    prophecy_type: Literal["Arbitrage Paths"] = Field("Arbitrage Paths")
+    mode: Literal["User_Buys_User_Sells", "Saga_Buys_User_Sells", "User_Buys_Saga_Sells", "Saga_Buys_Saga_Sells"]
+    product_name: Optional[str] = None
+    buy_from_url: Optional[str] = None
+    sell_on_url: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+
 class SocialSellingSagaRequest(BaseModel):
-    prophecy_type: Literal["Social Selling Saga"]; product_name: str; social_selling_price: float; desired_profit_per_product: float; social_platform: str = "Instagram"; ads_daily_budget: float = 10.0; product_category: Optional[str] = None; product_subcategory: Optional[str] = None
+    prophecy_type: Literal["Social Selling Saga"] = Field("Social Selling Saga")
+    product_name: str; social_selling_price: float; desired_profit_per_product: float
+    social_platform: str = "Instagram"; ads_daily_budget: float = 10.0
+    product_category: Optional[str] = None; product_subcategory: Optional[str] = None
+
 class ProductRouteRequest(BaseModel):
-    prophecy_type: Literal["Product Route"]; location_type: Literal["Global", "My Location"]
+    prophecy_type: Literal["Product Route"] = Field("Product Route")
+    location_type: Literal["Global", "My Location"]
 
-# --- Models for Other Stacks ---
-# NEW: A sub-model for the new, rich asset information
 class AssetInfo(BaseModel):
-    type: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    promo_link: Optional[str] = None
+    type: Optional[str] = None; name: Optional[str] = None; description: Optional[str] = None; promo_link: Optional[str] = None
 
-# UPGRADED: The GrandStrategyRequest model now accepts the full briefing document.
 class GrandStrategyRequest(BaseModel):
-    interest: str
-    sub_niche: Optional[str] = None
-    user_content_text: Optional[str] = None
-    user_content_url: Optional[str] = None
-    target_country_name: Optional[str] = None
+    interest: str; sub_niche: Optional[str] = None; user_content_text: Optional[str] = None
+    user_content_url: Optional[str] = None; target_country_name: Optional[str] = None
     asset_info: Optional[AssetInfo] = None
 
-class NewVentureRequest(GrandStrategyRequest): pass # Inherits the new structure
+class NewVentureRequest(GrandStrategyRequest): pass
 class MarketingAnglesRequest(BaseModel):
-    product_name: str; product_description: str; target_audience: str; asset_type: Literal["Ad Copy", "Landing Page", "Email Copy", "Funnel Page", "Affiliate Copy"]
+    product_name: str; product_description: str; target_audience: str
+    asset_type: Literal["Ad Copy", "Landing Page", "Email Copy", "Funnel Page", "Affiliate Copy"]
+
 class MarketingAssetRequest(BaseModel):
     marketing_session_id: str; angle_id: str
 class PODOpportunitiesRequest(BaseModel):
@@ -72,23 +79,27 @@ class PODOpportunitiesRequest(BaseModel):
 class PODPackageRequest(BaseModel):
     pod_session_id: str; concept_id: str
 
-# --- SAGA GRIMOIRE: Pydantic models for our blog posts. ---
 class GrimoirePageBase(BaseModel):
     title: str; slug: str; author: str = "Saga"; content: str; summary: str; tags: List[str] = []
     @validator('slug', pre=True, always=True)
     def generate_slug(cls, v, values):
         if not v:
             title = values.get('title', '')
-            v = title.lower().replace(' ', '-').replace(':', '').replace('?', '')
+            s = title.lower().strip(); s = re.sub(r'[\s\W-]+', '-', s); v = s.strip('-')
         return v
 class GrimoirePageCreate(GrimoirePageBase): pass
+class GrimoirePageUpdate(BaseModel):
+    title: Optional[str] = None; slug: Optional[str] = None; content: Optional[str] = None
+    summary: Optional[str] = None; tags: Optional[List[str]] = None
 class GrimoirePageDB(GrimoirePageBase):
     id: str = Field(..., alias="_id"); created_at: datetime = Field(default_factory=datetime.utcnow)
-    class Config:
-        json_encoders = {ObjectId: str}; allow_population_by_field_name = True
+    class Config: json_encoders = {ObjectId: str}; allow_population_by_field_name = True
+
+class TopicRequest(BaseModel): topic: str
+class TitleRequest(BaseModel): title: str; topic: str
 
 # --- FASTAPI APP AND ROUTER ---
-app = FastAPI(title="Saga AI", version="11.0.0", description="The all-seeing Oracle of Strategy, now with an inscribed Grimoire of Wisdom.")
+app = FastAPI(title="Saga AI", version="12.0.0", description="The Oracle of Strategy, with a fully empowered Grimoire and Scriptorium.")
 api_router = APIRouter(prefix="/api/v10")
 engine: SagaEngine = None
 scout: MarketplaceScout = None
@@ -96,12 +107,9 @@ settings = Settings()
 
 # --- Security Dependency ---
 async def verify_admin_key(x_admin_api_key: str = Header(...)):
-    if x_admin_api_key != settings.admin_api_key:
-        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Admin API Key")
-    return True
+    if x_admin_api_key != settings.admin_api_key: raise HTTPException(status_code=401, detail="Unauthorized")
 
 # --- API ENDPOINTS ---
-
 @api_router.get("/health", tags=["1. System"])
 async def health_check(): return {"message": "Saga is conscious and the Bifrost to this API is open."}
 
@@ -162,8 +170,18 @@ async def get_pod_package(request: PODPackageRequest):
         return SagaResponse(prophecy_type="pod_design_package", data=data)
     except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
 
-# --- SAGA GRIMOIRE Endpoints ---
-@api_router.post("/grimoire/inscribe", status_code=201, tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
+# --- SAGA GRIMOIRE ADMIN ENDPOINTS ---
+@api_router.post("/grimoire/generate-titles", tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
+async def generate_grimoire_titles(request: TopicRequest):
+    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
+    return await engine.content_saga_stack.prophesy_title_slug_concepts(request.topic)
+
+@api_router.post("/grimoire/generate-content", tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
+async def generate_grimoire_content(request: TitleRequest):
+    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
+    return await engine.content_saga_stack.prophesy_full_scroll_content(request.title, request.topic)
+
+@api_router.post("/grimoire/inscribe", status_code=201, response_model=GrimoirePageDB, tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
 async def create_grimoire_page(page: GrimoirePageCreate, db: motor.motor_asyncio.AsyncIOMotorDatabase = Depends(get_database)):
     page_dict = page.model_dump(); page_dict["created_at"] = datetime.utcnow()
     if await db.grimoire_pages.find_one({"slug": page_dict["slug"]}):
@@ -172,6 +190,24 @@ async def create_grimoire_page(page: GrimoirePageCreate, db: motor.motor_asyncio
     created_page = await db.grimoire_pages.find_one({"_id": result.inserted_id})
     return GrimoirePageDB.model_validate(created_page)
 
+@api_router.put("/grimoire/scrolls/{id}", response_model=GrimoirePageDB, tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
+async def update_grimoire_page(id: str, page_update: GrimoirePageUpdate, db: motor.motor_asyncio.AsyncIOMotorDatabase = Depends(get_database)):
+    update_data = page_update.model_dump(exclude_unset=True)
+    if not update_data: raise HTTPException(status_code=400, detail="No update data provided.")
+    if "slug" in update_data and await db.grimoire_pages.find_one({"slug": update_data["slug"], "_id": {"$ne": ObjectId(id)}}):
+        raise HTTPException(status_code=400, detail="Another scroll with this slug already exists.")
+    await db.grimoire_pages.update_one({"_id": ObjectId(id)}, {"$set": update_data})
+    updated_page = await db.grimoire_pages.find_one({"_id": ObjectId(id)})
+    if updated_page: return GrimoirePageDB.model_validate(updated_page)
+    raise HTTPException(status_code=404, detail=f"The scroll with id '{id}' could not be updated.")
+
+@api_router.delete("/grimoire/scrolls/{id}", status_code=204, tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
+async def delete_grimoire_page(id: str, db: motor.motor_asyncio.AsyncIOMotorDatabase = Depends(get_database)):
+    delete_result = await db.grimoire_pages.delete_one({"_id": ObjectId(id)})
+    if delete_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"The scroll with id '{id}' was not found.")
+
+# --- SAGA GRIMOIRE PUBLIC ENDPOINTS ---
 @api_router.get("/grimoire/scrolls", response_model=List[GrimoirePageDB], tags=["7. Saga Grimoire (Public)"])
 async def get_all_grimoire_pages(db: motor.motor_asyncio.AsyncIOMotorDatabase = Depends(get_database)):
     pages_cursor = db.grimoire_pages.find().sort("created_at", -1)
