@@ -6,12 +6,8 @@ import { useVentureStore } from '@/store/ventureStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import ConfirmationChamber from './ConfirmationChamber';
-import HallOfVisions from './HallOfVisions'; // Summoning the real Hall of Visions.
-
-// We will create this final component in the next step.
-// For now, it is a placeholder.
-const BlueprintScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for BlueprintScroll</div>;
-
+import HallOfVisions from './HallOfVisions';
+import BlueprintScroll from './BlueprintScroll'; // Summoning the real Blueprint Scroll.
 
 /**
  * SeerManager: The master controller for the entire New Ventures workflow.
@@ -28,13 +24,13 @@ export default function SeerManager() {
       case 'questing_for_visions':
         return <RitualScreen />;
       case 'visions_revealed':
-        // Now rendering the real component instead of the placeholder.
         return <HallOfVisions />;
 
       // Phase 2: The Blueprint
       case 'forging_blueprint':
         return <RitualScreen />;
       case 'blueprint_revealed':
+        // Now rendering the real component instead of the placeholder.
         return <BlueprintScroll />;
 
       // Default/Idle State
