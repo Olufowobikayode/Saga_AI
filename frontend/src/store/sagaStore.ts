@@ -1,78 +1,148 @@
 // --- START OF FILE src/store/sagaStore.ts ---
 import { create } from 'zustand';
 
-// SAGA LOGIC: Defining the different states our application can be in.
-// 'idle': Waiting for the user to submit the form.
-// 'divining': The Ritual Screen is active, waiting for the backend and ad timer.
-// 'prophesied': The Grand Strategy has been received and we are showing the tactical stack cards.
-type SagaStatus = 'idle' | 'divining' | 'prophesied';
+// SAGA PERSONA: Defining the stages of the new Grand Strategic Ritual.
+type GrandRitualStatus =
+  | 'idle'                // The ritual has not yet begun.
+  | 'awaiting_query'      // The Altar is ready for the user's core query and tone.
+  | 'performing_rite_1'   // The first ritual (post-query) is in progress.
+  | 'awaiting_artifact'   // Awaiting the user's artifact declaration.
+  | 'performing_rite_2'   // The second ritual (post-artifact) is in progress.
+  | 'awaiting_realm'      // Awaiting the user's realm selection.
+  | 'performing_grand_rite' // The final, grand ritual is in progress.
+  | 'prophesied';         // The Grand Strategy is complete, Hall of Prophecies is shown.
 
-// SAGA LOGIC: Defining the structure of the data we will receive from the backend.
-// We will build this out more as we connect to the API.
-interface GrandStrategyData {
-  strategy_session_id: string;
-  prophecy: any; // We'll define a more specific type for this later.
+// SAGA PERSONA: The full structure of the Strategic Briefing Document.
+interface StrategicBrief {
+  interest: string;
+  subNiche?: string;
+  toneText?: string;
+  toneUrl?: string;
+  assetType?: string;
+  assetName?: string;
+  assetDescription?: string;
+  promoLinkType?: string;
+  promoLinkUrl?: string;
+  targetCountry?: string;
 }
 
-// SAGA LOGIC: Defining the complete state of our store.
+// SAGA PERSONA: Defining the full Master Consciousness.
 interface SagaState {
-  status: SagaStatus;
+  status: GrandRitualStatus;
   error: string | null;
-  strategyData: GrandStrategyData | null;
-  
-  // This is the main function that will trigger the entire process.
-  beginDivination: (formData: any) => Promise<void>;
-  
-  // A function to reset the state and start a new consultation.
+  brief: StrategicBrief; // The complete briefing document, built step-by-step.
+  strategyData: any | null; // Will hold the final Grand Strategy prophecy.
+
+  // The Rites of the multi-stage ritual
+  beginGrandRitual: () => void;
+  submitQuery: (interest: string, subNiche?: string, toneText?: string, toneUrl?: string) => Promise<void>;
+  submitArtifact: (assetType?: string, assetName?: string, assetDescription?: string, promoLinkType?: string, promoLinkUrl?: string) => Promise<void>;
+  submitRealmAndDivine: (targetCountry: string) => Promise<void>;
   resetSaga: () => void;
 }
 
-// SAGA LOGIC: Creating the store with Zustand.
+const API_BASE_URL = 'http://localhost:8000/api/v10';
+const performRitual = (duration: number = 30000) => new Promise(resolve => setTimeout(resolve, duration));
+
+// Initial empty state for the briefing document
+const initialBrief: StrategicBrief = { interest: '' };
+
 export const useSagaStore = create<SagaState>((set, get) => ({
   status: 'idle',
   error: null,
+  brief: initialBrief,
   strategyData: null,
 
-  beginDivination: async (formData) => {
-    // 1. Set the status to 'divining' to show the RitualScreen.
-    set({ status: 'divining', error: null });
+  // --- THE GRAND RITUAL RITES ---
 
-    // 2. Create two promises: one for the API call and one for the 30-second ad timer.
-    const apiCallPromise = fetch('http://localhost:8000/api/v10/prophesy/grand-strategy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    }).then(res => {
-      if (!res.ok) {
-        throw new Error('The Oracle did not respond. The connection may be disrupted.');
-      }
-      return res.json();
-    });
+  beginGrandRitual: () => {
+    // Starts the entire journey.
+    set({ status: 'awaiting_query', brief: initialBrief, error: null, strategyData: null });
+  },
 
-    const adTimerPromise = new Promise(resolve => setTimeout(resolve, 30000)); // 30-second timer.
+  submitQuery: async (interest, subNiche, toneText, toneUrl) => {
+    set({ status: 'performing_rite_1', error: null });
+    
+    // SAGA LOGIC: In a real app, this might call a lightweight backend endpoint.
+    // For now, the ritual is purely for user experience.
+    console.log("RITUAL 1: Analyzing core query...");
+    await performRitual(); // Perform the 30-second ad ritual.
+    
+    set(state => ({
+      status: 'awaiting_artifact',
+      brief: { ...state.brief, interest, subNiche, toneText, toneUrl }
+    }));
+  },
 
+  submitArtifact: async (assetType, assetName, assetDescription, promoLinkType, promoLinkUrl) => {
+    set({ status: 'performing_rite_2', error: null });
+    
+    // SAGA LOGIC: This ritual could call a backend endpoint to scrape/analyze the provided link.
+    console.log("RITUAL 2: Analyzing declared artifact...");
+    await performRitual(); // Perform the 30-second ad ritual.
+
+    set(state => ({
+      status: 'awaiting_realm',
+      brief: { ...state.brief, assetType, assetName, assetDescription, promoLinkType, promoLinkUrl }
+    }));
+  },
+
+  submitRealmAndDivine: async (targetCountry) => {
+    set({ status: 'performing_grand_rite', error: null });
+
+    // SAGA LOGIC: This is the final, major API call.
+    // We combine the final piece of data with the rest of the briefing document.
+    const finalBrief = { ...get().brief, targetCountry };
+    
     try {
-      // 3. Wait for BOTH the API call and the ad timer to complete.
-      const [apiResponse] = await Promise.all([apiCallPromise, adTimerPromise]);
+      // The backend's GrandStrategy endpoint needs to be able to accept this rich data.
+      const apiCallPromise = fetch(`${API_BASE_URL}/prophesy/grand-strategy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // We need to map our brief to the backend's expected model.
+        body: JSON.stringify({
+          interest: finalBrief.interest,
+          sub_niche: finalBrief.subNiche,
+          user_content_text: finalBrief.toneText,
+          user_content_url: finalBrief.toneUrl,
+          target_country_name: finalBrief.targetCountry,
+          // We will need to update the backend to accept these new fields.
+          asset_info: {
+            type: finalBrief.assetType,
+            name: finalBrief.assetName,
+            description: finalBrief.assetDescription,
+            promo_link: finalBrief.promoLinkUrl,
+          }
+        }),
+      }).then(async res => {
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.detail || 'The Oracle did not respond to the Grand Ritual.');
+        }
+        return res.json();
+      });
 
-      // 4. If successful, update the state with the received data and set status to 'prophesied'.
-      set({ 
-        status: 'prophesied', 
-        strategyData: apiResponse.data 
+      // Perform the final, grand ad ritual.
+      const [apiResponse] = await Promise.all([apiCallPromise, performRitual()]);
+
+      set({
+        status: 'prophesied',
+        strategyData: apiResponse.data,
+        brief: finalBrief, // Save the completed brief
       });
 
     } catch (err: any) {
-      // 5. If anything fails, set an error message and revert status to 'idle'.
-      console.error("The divination ritual failed:", err);
-      set({ status: 'idle', error: err.message || 'An unknown disturbance occurred.' });
+      console.error("The Grand Ritual failed:", err);
+      // Revert to the final step on failure so the user can retry.
+      set({ status: 'awaiting_realm', error: err.message || 'A cosmic disturbance disrupted the Grand Ritual.' });
     }
   },
 
   resetSaga: () => {
-    // Resets the entire store to its initial state for a new consultation.
     set({
       status: 'idle',
       error: null,
+      brief: initialBrief,
       strategyData: null,
     });
   },
