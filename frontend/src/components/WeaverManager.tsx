@@ -6,11 +6,11 @@ import { useContentStore } from '@/store/contentStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import SparkForm from './SparkForm';
-import HallOfSparks from './HallOfSparks'; // Summoning the real Hall of Sparks.
+import HallOfSparks from './HallOfSparks';
+import WeaversCrossroads from './WeaversCrossroads'; // Summoning the real Crossroads.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const WeaversCrossroads = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for WeaversCrossroads</div>;
 const ToneChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ToneChamber</div>;
 const RealmChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for RealmChamber</div>;
 const ScribesChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ScribesChamber</div>;
@@ -33,9 +33,9 @@ export default function WeaverManager() {
       case 'weaving_sparks':
         return <RitualScreen />;
       case 'sparks_revealed':
-        // Now rendering the real component instead of the placeholder.
         return <HallOfSparks />;
       case 'crossroads_revealed':
+        // Now rendering the real component instead of the placeholder.
         return <WeaversCrossroads />;
 
       // Social Post Path
