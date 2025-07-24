@@ -5,11 +5,11 @@ import React from 'react';
 import { usePodStore } from '@/store/podStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import StyleChamber from './StyleChamber'; // Summoning the real Style Chamber.
+import StyleChamber from './StyleChamber';
+import HallOfConcepts from './HallOfConcepts'; // Summoning the real Hall of Concepts.
 
-// We will create these new components in the upcoming steps.
-// For now, they are placeholders.
-const HallOfConcepts = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for HallOfConcepts</div>;
+// We will create this final component in the next step.
+// For now, it is a placeholder.
 const DesignPackageScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for DesignPackageScroll</div>;
 
 
@@ -24,11 +24,11 @@ export default function ArtisanManager() {
     switch (status) {
       // Phase 1: The Opportunity Hunt
       case 'awaiting_style':
-        // Now rendering the real component instead of the placeholder.
         return <StyleChamber />;
       case 'hunting_opportunities':
         return <RitualScreen />;
       case 'concepts_revealed':
+        // Now rendering the real component instead of the placeholder.
         return <HallOfConcepts />;
 
       // Phase 2: The Design Package
