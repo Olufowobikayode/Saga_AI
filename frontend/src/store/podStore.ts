@@ -1,10 +1,11 @@
 // --- START OF FILE src/store/podStore.ts ---
 import { create } from 'zustand';
+import { useSagaStore } from './sagaStore'; // To read the initial briefing.
 
 // SAGA PERSONA: Defining the stages of the Artisan's prophecy.
 type AnvilStatus =
   | 'idle'                    // The Anvil is quiet.
-  | 'awaiting_niche'          // Awaiting the user's niche interest.
+  | 'awaiting_style'          // NEW: Awaiting the user's choice of artistic style.
   | 'hunting_opportunities'   // The ritual to find design concepts.
   | 'concepts_revealed'       // The design concepts are ready for the user to choose one.
   | 'forging_package'         // The final ritual to generate the design & listing package.
@@ -20,14 +21,15 @@ interface PODState {
   
   // Memory of the Artisan
   podSessionId: string | null;
-  nicheInterest: string | null;
+  nicheInterest: string | null; // Will be inherited from the main store.
+  chosenStyle: string | null;
   concepts: DesignConcept[];
   chosenConcept: DesignConcept | null;
   designPackage: DesignPackage | null;
 
   // The Rites of the Anvil
   beginForging: () => void;
-  huntOpportunities: (nicheInterest: string) => Promise<void>;
+  huntOpportunities: (style: string) => Promise<void>; // Now takes 'style' as the input.
   chooseConcept: (conceptId: string) => Promise<void>;
   regeneratePackage: () => Promise<void>;
   resetAnvil: () => void;
@@ -38,27 +40,32 @@ const performRitual = () => new Promise(resolve => setTimeout(resolve, 30000));
 
 export const usePodStore = create<PODState>((set, get) => ({
   // --- Initial State ---
-  status: 'idle',
-  error: null,
-  podSessionId: null,
-  nicheInterest: null,
-  concepts: [],
-  chosenConcept: null,
-  designPackage: null,
+  status: 'idle', error: null, podSessionId: null, nicheInterest: null,
+  chosenStyle: null, concepts: [], chosenConcept: null, designPackage: null,
 
   // --- The Rites ---
   beginForging: () => {
-    set({ status: 'awaiting_niche' });
+    // Intelligently inherit the niche from the master store.
+    const interest = useSagaStore.getState().brief.interest;
+    set({ status: 'awaiting_style', nicheInterest: interest });
   },
 
-  huntOpportunities: async (nicheInterest) => {
-    set({ status: 'hunting_opportunities', nicheInterest, error: null });
+  huntOpportunities: async (style) => {
+    const nicheInterest = get().nicheInterest;
+    if (!nicheInterest) {
+      set({ status: 'idle', error: "The core niche interest was lost. Please restart the consultation." });
+      return;
+    }
+    set({ status: 'hunting_opportunities', chosenStyle: style, error: null });
     
     try {
       const apiCallPromise = fetch(`${API_BASE_URL}/prophesy/pod/opportunities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche_interest: nicheInterest }),
+        body: JSON.stringify({ 
+          niche_interest: nicheInterest,
+          style: style // Sending the new, crucial style parameter.
+        }),
       }).then(async res => {
         if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
         return res.json();
@@ -72,7 +79,7 @@ export const usePodStore = create<PODState>((set, get) => ({
         podSessionId: apiResponse.data.pod_session_id,
       });
     } catch (err: any) {
-      set({ status: 'awaiting_niche', error: err.message || "The Artisan could not find any opportunities." });
+      set({ status: 'awaiting_style', error: err.message || "The Artisan could not find any opportunities." });
     }
   },
 
@@ -112,7 +119,6 @@ export const usePodStore = create<PODState>((set, get) => ({
   },
 
   resetAnvil: () => {
-    // This allows the user to go back and choose a different concept from the same hunt.
     set({
       status: 'concepts_revealed',
       error: null,
