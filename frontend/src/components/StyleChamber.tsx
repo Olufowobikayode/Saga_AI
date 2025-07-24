@@ -4,52 +4,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { usePodStore } from '@/store/podStore';
-
-// SAGA UI: Defining the data for our artistic style selection cards.
-const styleOptions = [
-  {
-    id: 'Vintage',
-    title: "Vintage / Retro",
-    description: "Classic, distressed, and nostalgic designs with a timeless appeal.",
-    icon: "📜"
-  },
-  {
-    id: 'Minimalist',
-    title: "Minimalist / Line Art",
-    description: "Clean, simple, and elegant designs using minimal lines and shapes.",
-    icon: "✒️"
-  },
-  {
-    id: 'Photorealistic',
-    title: "Photorealistic",
-    description: "Hyper-detailed and lifelike designs that mimic high-quality photographs.",
-    icon: "📸"
-  },
-  {
-    id: 'Abstract',
-    title: "Abstract / Geometric",
-    description: "Artistic designs using shapes, forms, colors, and textures.",
-    icon: "🎨"
-  },
-  {
-    id: 'Cartoon / Anime',
-    title: "Cartoon / Anime",
-    description: "Playful, animated, and stylized designs inspired by popular media.",
-    icon: "😊"
-  },
-  {
-    id: 'Cyberpunk',
-    title: "Cyberpunk / Sci-Fi",
-    description: "Futuristic, high-tech designs with neon colors and dystopian themes.",
-    icon: "🤖"
-  }
-];
+// NEW: Importing the centralized data
+import { podStyles } from '@/lib/podOptions';
 
 /**
  * StyleChamber: Allows the user to select the artistic style for their POD niche.
  */
 export default function StyleChamber() {
-  // SAGA LOGIC: Get the necessary state and function from the store.
   const { nicheInterest, huntOpportunities } = usePodStore();
 
   return (
@@ -72,7 +33,8 @@ export default function StyleChamber() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {styleOptions.map((option, index) => (
+        {/* Now mapping over the imported podStyles data */}
+        {podStyles.map((option, index) => (
           <motion.div
             key={option.id}
             initial={{ opacity: 0, y: 20 }}
