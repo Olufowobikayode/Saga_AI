@@ -5,11 +5,11 @@ import React from 'react';
 import { useSagaStore } from '@/store/sagaStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import QueryForm from './QueryForm'; // Summoning the real Query Form.
+import QueryForm from './QueryForm';
+import ArtifactForm from './ArtifactForm'; // Summoning the real Artifact Form.
 
-// We will create these new form components in the upcoming steps.
-// For now, they are placeholders.
-const ArtifactForm = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for Artifact Form</div>;
+// We will create this new form component in the upcoming step.
+// For now, it is a placeholder.
 const RealmForm = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for Realm Form</div>;
 
 // The Hall of Prophecies will be shown at the end.
@@ -27,13 +27,13 @@ export default function AltarManager() {
     switch (status) {
       // Stage 1: The Query
       case 'awaiting_query':
-        // Now rendering the real form instead of the placeholder.
         return <QueryForm />;
       case 'performing_rite_1':
         return <RitualScreen />;
 
       // Stage 2: The Artifact
       case 'awaiting_artifact':
+        // Now rendering the real form instead of the placeholder.
         return <ArtifactForm />;
       case 'performing_rite_2':
         return <RitualScreen />;
