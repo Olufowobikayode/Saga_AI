@@ -5,10 +5,10 @@ import React from 'react';
 import { useVentureStore } from '@/store/ventureStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
+import ConfirmationChamber from './ConfirmationChamber'; // Summoning the real component.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const ConfirmationChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ConfirmationChamber</div>;
 const HallOfVisions = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for HallOfVisions</div>;
 const BlueprintScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for BlueprintScroll</div>;
 
@@ -18,14 +18,13 @@ const BlueprintScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Pl
  * It reads the status from the ventureStore and renders the appropriate UI.
  */
 export default function SeerManager() {
-  // SAGA LOGIC: Connect to the Mind of the Seer.
   const status = useVentureStore((state) => state.status);
 
-  // This function will decide which component to show based on the prophecy's stage.
   const renderCurrentStage = () => {
     switch (status) {
       // Phase 1: The Vision Quest
       case 'awaiting_confirmation':
+        // Now rendering the real component instead of the placeholder.
         return <ConfirmationChamber />;
       case 'questing_for_visions':
         return <RitualScreen />;
@@ -40,8 +39,9 @@ export default function SeerManager() {
 
       // Default/Idle State
       default:
-        // We can show a simple loading state while the store initializes.
-        return <div className="text-center p-8">Preparing the Seer's Spire...</div>;
+        // When the page first loads and the store is 'idle', we show the confirmation chamber.
+        // It has its own internal ritual logic.
+        return <ConfirmationChamber />;
     }
   };
 
