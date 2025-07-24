@@ -5,11 +5,11 @@ import React from 'react';
 import { useContentStore } from '@/store/contentStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import SparkForm from './SparkForm'; // Summoning the real Spark Form.
+import SparkForm from './SparkForm';
+import HallOfSparks from './HallOfSparks'; // Summoning the real Hall of Sparks.
 
 // We will create these new components in the upcoming steps.
 // For now, they are placeholders.
-const HallOfSparks = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for HallOfSparks</div>;
 const WeaversCrossroads = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for WeaversCrossroads</div>;
 const ToneChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for ToneChamber</div>;
 const RealmChamber = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for RealmChamber</div>;
@@ -29,11 +29,11 @@ export default function WeaverManager() {
     switch (status) {
       // Spark Generation Path
       case 'awaiting_spark_topic':
-        // Now rendering the real form instead of the placeholder.
         return <SparkForm />;
       case 'weaving_sparks':
         return <RitualScreen />;
       case 'sparks_revealed':
+        // Now rendering the real component instead of the placeholder.
         return <HallOfSparks />;
       case 'crossroads_revealed':
         return <WeaversCrossroads />;
