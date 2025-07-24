@@ -68,12 +68,20 @@ class GrandStrategyRequest(BaseModel):
     asset_info: Optional[AssetInfo] = None
 
 class NewVentureRequest(GrandStrategyRequest): pass
+
+class NewVentureBlueprintRequest(BaseModel):
+    venture_session_id: str
+    vision_id: str
+
 class MarketingAnglesRequest(BaseModel):
     product_name: str; product_description: str; target_audience: str
     asset_type: Literal["Ad Copy", "Landing Page", "Email Copy", "Funnel Page", "Affiliate Copy"]
 
 class MarketingAssetRequest(BaseModel):
     marketing_session_id: str; angle_id: str
+    platform: Optional[str] = None
+    length: Optional[str] = None
+
 class PODOpportunitiesRequest(BaseModel):
     niche_interest: str
 class PODPackageRequest(BaseModel):
@@ -131,6 +139,16 @@ async def get_new_venture_visions(request: NewVentureRequest):
     data = await engine.prophesy_new_venture_visions(**request.model_dump(exclude_unset=True))
     return SagaResponse(prophecy_type="new_venture_visions", data=data)
 
+@api_router.post("/prophesy/new-venture-blueprint", response_model=SagaResponse, tags=["2. Foundational Prophecies"])
+async def get_new_venture_blueprint(request: NewVentureBlueprintRequest):
+    """Phase 2: Generate a final business blueprint from a chosen vision_id."""
+    if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
+    try:
+        data = await engine.prophesy_venture_blueprint(**request.model_dump())
+        return SagaResponse(prophecy_type="new_venture_blueprint", data=data)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
+
 @api_router.post("/prophesy/commerce", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
 async def get_commerce_prophecy(request: CommerceAuditRequest | ArbitragePathsRequest | SocialSellingSagaRequest | ProductRouteRequest):
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
@@ -152,7 +170,7 @@ async def get_marketing_angles(request: MarketingAnglesRequest):
 async def get_marketing_asset(request: MarketingAssetRequest):
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
     try:
-        data = await engine.prophesy_marketing_asset(**request.model_dump())
+        data = await engine.prophesy_marketing_asset(**request.model_dump(exclude_unset=True))
         return SagaResponse(prophecy_type="marketing_asset", data=data)
     except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
 
