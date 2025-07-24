@@ -6,8 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { GrimoirePage } from '@/services/grimoireApi';
 import InputRune from '@/components/InputRune';
 import SagaButton from '@/components/SagaButton';
-import ScriptoriumForm from '@/components/ScriptoriumForm'; // We will soon upgrade this
-import ManageScrolls from '@/components/ManageScrolls';     // Summoning our new dashboard
+import ScriptoriumForm from '@/components/ScriptoriumForm';
+import ManageScrolls from '@/components/ManageScrolls';
 
 // SAGA LOGIC: Defining the possible views within the Scriptorium.
 type ScriptoriumView = 'login' | 'manage' | 'edit';
@@ -19,39 +19,33 @@ export default function GrimoireAdminPage() {
   const [view, setView] = useState<ScriptoriumView>('login');
   const [adminKey, setAdminKey] = useState('');
   const [error, setError] = useState('');
-
-  // NEW: State to hold the scroll that is currently being edited.
   const [editingScroll, setEditingScroll] = useState<GrimoirePage | null>(null);
 
-  // This function handles the login attempt.
   const handleLogin = () => {
     if (adminKey) {
       localStorage.setItem('saga-admin-key', adminKey);
-      setView('manage'); // Go to the manage view on successful login
+      setView('manage');
       setError('');
     } else {
       setError('An Admin Key must be provided to enter.');
     }
   };
   
-  // Check for an existing session on page load.
   useEffect(() => {
     const storedKey = localStorage.getItem('saga-admin-key');
     if (storedKey) {
-      // If already logged in, go directly to the manage view.
       setView('manage');
     }
   }, []);
 
   // --- SAGA LOGIC: Functions to switch between views ---
-  
   const handleEdit = (scroll: GrimoirePage) => {
     setEditingScroll(scroll);
     setView('edit');
   };
 
   const handleAddNew = () => {
-    setEditingScroll(null); // Ensure we are not editing an existing scroll
+    setEditingScroll(null);
     setView('edit');
   };
   
@@ -59,20 +53,29 @@ export default function GrimoireAdminPage() {
     setView('manage');
   };
   
-  // This function renders the correct component based on the current view.
   const renderView = () => {
     switch(view) {
       case 'manage':
         return (
-          <motion.div key="manage">
+          <motion.div
+            key="manage"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <ManageScrolls onEdit={handleEdit} onAddNew={handleAddNew} />
           </motion.div>
         );
       case 'edit':
-        // We will pass the scroll to the form in the next step
         return (
-          <motion.div key="edit">
-            <ScriptoriumForm /> 
+          <motion.div
+            key="edit"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* We now pass the scroll to edit and the close function to the form */}
+            <ScriptoriumForm scroll={editingScroll} onClose={handleReturnToManager} /> 
           </motion.div>
         );
       case 'login':
