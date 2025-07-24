@@ -6,12 +6,8 @@ import { usePodStore } from '@/store/podStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import StyleChamber from './StyleChamber';
-import HallOfConcepts from './HallOfConcepts'; // Summoning the real Hall of Concepts.
-
-// We will create this final component in the next step.
-// For now, it is a placeholder.
-const DesignPackageScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for DesignPackageScroll</div>;
-
+import HallOfConcepts from './HallOfConcepts';
+import DesignPackageScroll from './DesignPackageScroll'; // Summoning the real Design Package Scroll.
 
 /**
  * ArtisanManager: The master controller for the entire Print-on-Demand workflow.
@@ -28,13 +24,13 @@ export default function ArtisanManager() {
       case 'hunting_opportunities':
         return <RitualScreen />;
       case 'concepts_revealed':
-        // Now rendering the real component instead of the placeholder.
         return <HallOfConcepts />;
 
       // Phase 2: The Design Package
       case 'forging_package':
         return <RitualScreen />;
       case 'package_revealed':
+        // Now rendering the real component instead of the placeholder.
         return <DesignPackageScroll />;
 
       // Default/Idle State
