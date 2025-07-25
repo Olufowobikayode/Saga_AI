@@ -6,11 +6,8 @@ import { useVentureStore } from '@/store/ventureStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import RefinementChamber from './RefinementChamber';
-import HallOfVisions from './HallOfVisions'; // Summoning the real Hall of Visions.
-
-// Veil for the final component we will forge.
-const BlueprintScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final blueprint is unfurled...</div>;
-
+import HallOfVisions from './HallOfVisions';
+import BlueprintScroll from './BlueprintScroll'; // Summoning the real Blueprint Scroll.
 
 /**
  * VentureManager: The master controller for the entire New Ventures workflow.
@@ -35,13 +32,13 @@ export default function VentureManager() {
         return <RitualScreen />;
 
       case 'visions_revealed':
-        // Now unveiling the real component instead of the veil.
         return <HallOfVisions />;
 
       case 'forging_blueprint':
         return <RitualScreen />;
 
       case 'blueprint_revealed':
+        // Now unveiling the real component instead of the veil.
         return <BlueprintScroll />;
 
       case 'performing_entry_rite':
