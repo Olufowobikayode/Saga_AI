@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { useSagaStore } from './sagaStore';
 
-// Shared Polling Helper
+// --- Polling Helper ---
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
   const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
   const interval = setInterval(async () => {
@@ -35,20 +35,19 @@ interface ContentSagaState {
   error: string | null;
   isRitualRunning: boolean;
   
-  // Memory & Context
   tacticalInterest: string;
   sparksResult: { sparks: ContentSpark[] } & any | null;
   chosenSpark: ContentSpark | null;
-  
-  // Final Result
+  lastContentType: 'Social Post' | 'Comment' | 'Blog Post' | null;
+  lastDetails: any | null;
   finalContent: FinalContent | null;
 
-  // Rites of the Loom
+  // Rites now accept the session ID
   beginWeaving: () => void;
-  generateSparks: (topic: string) => Promise<void>;
+  generateSparks: (topic: string, sessionId: string) => Promise<void>;
   chooseSpark: (sparkId: string) => void;
-  forgeContent: (type: 'Social Post' | 'Comment' | 'Blog Post', details: any) => Promise<void>;
-  regenerate: () => Promise<void>;
+  forgeContent: (type: 'Social Post' | 'Comment' | 'Blog Post', details: any, sessionId: string) => Promise<void>;
+  regenerate: (sessionId: string) => Promise<void>;
   resetLoom: () => void;
   returnToSparks: () => void;
 }
@@ -57,22 +56,25 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const useContentStore = create<ContentSagaState>((set, get) => ({
   status: 'idle', error: null, isRitualRunning: false,
-  tacticalInterest: '', sparksResult: null, chosenSpark: null, finalContent: null,
+  tacticalInterest: '', sparksResult: null, chosenSpark: null, 
+  lastContentType: null, lastDetails: null, finalContent: null,
   
   beginWeaving: () => {
     const strategyData = useSagaStore.getState().strategyData;
-    const tacticalInterest = strategyData?.prophecy?.content_pillars?.[0]?.tactical_interest || 'a compelling topic';
+    const tacticalInterest = strategyData?.prophecy?.the_three_great_sagas[1]?.prime_directive || 'a compelling topic';
     set({ status: 'awaiting_spark_topic', tacticalInterest, error: null });
   },
 
-  generateSparks: async (topic) => {
-    const strategyData = useSagaStore.getState().strategyData;
+  generateSparks: async (topic, sessionId) => {
+    if (!sessionId) return set({ error: "Session ID missing."});
+    const { strategyData } = useSagaStore.getState();
     set({ status: 'forging', isRitualRunning: true, error: null, tacticalInterest: topic });
     
     try {
       const res = await fetch(`${API_BASE_URL}/prophesy/content-saga`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          session_id: sessionId,
           content_type: 'sparks',
           tactical_interest: topic,
           retrieved_histories: strategyData?.retrieved_histories
@@ -97,16 +99,18 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
     }
   },
 
-  forgeContent: async (type, details) => {
+  forgeContent: async (type, details, sessionId) => {
+    if (!sessionId) return set({ error: "Session ID missing."});
     const { chosenSpark } = get();
     if (!chosenSpark) return set({ error: "No content spark was chosen." });
 
-    set({ status: 'forging', isRitualRunning: true, error: null });
+    set({ status: 'forging', isRitualRunning: true, error: null, lastContentType: type, lastDetails: details });
     
     try {
         const res = await fetch(`${API_BASE_URL}/prophesy/content-saga`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                session_id: sessionId,
                 content_type: type.toLowerCase().replace(' ', '_'),
                 spark: chosenSpark,
                 ...details
@@ -124,16 +128,15 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
     }
   },
   
-  regenerate: async () => {
-    // This logic would need to be enhanced to store the last request details
-    console.log("Regeneration rite must be inscribed with more memory.");
+  regenerate: async (sessionId) => {
+    const { lastContentType, lastDetails } = get();
+    if (lastContentType && lastDetails) {
+      await get().forgeContent(lastContentType, lastDetails, sessionId);
+    }
   },
 
   resetLoom: () => {
-    set({
-      status: 'idle', error: null, isRitualRunning: false,
-      tacticalInterest: '', sparksResult: null, chosenSpark: null, finalContent: null,
-    });
+    set({ status: 'idle', error: null, isRitualRunning: false, tacticalInterest: '', sparksResult: null, chosenSpark: null, finalContent: null, lastContentType: null, lastDetails: null });
   },
 
   returnToSparks: () => {
