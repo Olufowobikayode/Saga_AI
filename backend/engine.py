@@ -114,20 +114,19 @@ class SagaEngine:
         self.strategy_session_cache[venture_session_id] = venture_data
         return {"venture_session_id": venture_session_id, "visions": venture_data.get("initial_visions")}
 
-    async def prophesy_venture_blueprint(self, venture_session_id: str, vision_id: str) -> Dict[str, Any]:
-        logger.info(f"VENTURE BLUEPRINT ENGINE: Authorized by session {venture_session_id} for vision {vision_id}")
+    async def prophesy_venture_blueprint(self, venture_session_id: str, chosen_vision: Dict[str, Any]) -> Dict[str, Any]:
+        logger.info(f"VENTURE BLUEPRINT ENGINE: Authorized by session {venture_session_id} for vision '{chosen_vision.get('title')}'")
         session_data = self._get_session_or_raise(venture_session_id)
-        try:
-            chosen_vision = next(v for v in session_data.get("initial_visions", []) if v["prophecy_id"] == vision_id)
-        except StopIteration:
-            raise ValueError("The selected vision_id was not found in the prophecy.")
         
-        # THE FIX IS HERE: We now correctly pass all cached data to the next phase.
+        retrieved_histories = session_data.get("retrieved_histories_for_blueprint", {})
+        user_tone_instruction = session_data.get("user_tone_instruction", "")
+        country_name = session_data.get("country_name", "Global")
+
         return await self.new_ventures_stack.prophesy_detailed_blueprint(
             chosen_vision=chosen_vision,
-            retrieved_histories=session_data.get("retrieved_histories_for_blueprint", {}),
-            user_tone_instruction=session_data.get("user_tone_instruction", ""),
-            country_name=session_data.get("country_name", "Global")
+            retrieved_histories=retrieved_histories,
+            user_tone_instruction=user_tone_instruction,
+            country_name=country_name
         )
 
     # --- TACTICAL PROPHECIES ---
