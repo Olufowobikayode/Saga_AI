@@ -5,9 +5,9 @@ import React from 'react';
 import { useCommerceStore } from '@/store/commerceStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
+import CommerceCrossroads from './CommerceCrossroads'; // Summoning the real Crossroads.
 
 // Veils for the components we will soon forge.
-const CommerceCrossroads = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting choice of prophecy...</div>;
 const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
 const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final prophecy is revealed...</div>;
 
@@ -17,13 +17,12 @@ const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded
  * It reads the status from the commerceStore and renders the appropriate UI.
  */
 export default function LedgerManager() {
-  // SAGA LOGIC: Connect to the Mind of the Merchant.
   const status = useCommerceStore((state) => state.status);
 
-  // This function decides which sacred chamber to unveil.
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
+        // Now unveiling the real component instead of the veil.
         return <CommerceCrossroads />;
       
       case 'awaiting_input':
@@ -32,8 +31,6 @@ export default function LedgerManager() {
       case 'prophecy_revealed':
         return <CommerceProphecyScroll />;
 
-      // The RitualScreen is now shown for ALL forging states, including the entry rite
-      // and the choice rite, as you commanded.
       case 'performing_entry_rite':
       case 'forging_prophecy':
         return <RitualScreen />;
