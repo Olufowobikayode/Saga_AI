@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/ArtisanManager.tsx ---
+// --- START OF FILE frontend/src/components/ArtisanManager.tsx ---
 'use client';
 
 import React from 'react';
@@ -7,7 +7,7 @@ import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import StyleChamber from './StyleChamber';
 import HallOfConcepts from './HallOfConcepts';
-import DesignPackageScroll from './DesignPackageScroll'; // Summoning the real Design Package Scroll.
+import DesignPackageScroll from './DesignPackageScroll';
 
 /**
  * ArtisanManager: The master controller for the entire Print-on-Demand workflow.
@@ -15,23 +15,37 @@ import DesignPackageScroll from './DesignPackageScroll'; // Summoning the real D
  */
 export default function ArtisanManager() {
   const status = usePodStore((state) => state.status);
+  const ritualPromise = usePodStore((state) => state.ritualPromise);
+
+  const handleRitualComplete = () => {
+    console.log("ArtisanManager acknowledges ritual completion.");
+    // The store manages its own state transitions upon promise resolution.
+  };
 
   const renderCurrentStage = () => {
     switch (status) {
       // Phase 1: The Opportunity Hunt
       case 'awaiting_style':
         return <StyleChamber />;
-      case 'hunting_opportunities':
-        return <RitualScreen />;
+      
       case 'concepts_revealed':
         return <HallOfConcepts />;
 
       // Phase 2: The Design Package
-      case 'forging_package':
-        return <RitualScreen />;
       case 'package_revealed':
-        // Now rendering the real component instead of the placeholder.
         return <DesignPackageScroll />;
+
+      // Ritual States
+      case 'hunting_opportunities':
+      case 'forging_package':
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key={`artisan-ritual-${status}`}
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
 
       // Default/Idle State
       default:
@@ -47,4 +61,4 @@ export default function ArtisanManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/ArtisanManager.tsx ---
+// --- END OF FILE frontend/src/components/ArtisanManager.tsx ---
