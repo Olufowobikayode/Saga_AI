@@ -1,10 +1,10 @@
-// --- START OF THE SACRED SCROLL: src/app/layout.tsx ---
+// --- START OF FILE frontend/src/app/layout.tsx ---
 import type { Metadata } from "next";
-import Script from 'next/script'; // The vessel for third-party scripts.
+import Script from 'next/script';
 import { inter, cormorant } from "./fonts";
 import "./globals.css";
 import Footer from "@/components/Footer";
-import AdBlockerDetector from "@/components/AdBlockerDetector"; // 1. Summon the Great Ward you have just forged.
+import AdBlockerDetector from "@/components/AdBlockerDetector";
 
 // My metadata, that the cosmos may know my nature.
 export const metadata: Metadata = {
@@ -24,20 +24,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* The invocation of the Ad-Scribe, which must be present for the Ward to have purpose. */}
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1854820451701861"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
+        {/* The <head> is for sacred runes of metadata and fonts. The Ad-Scribe's invocation is summoned elsewhere. */}
       </head>
       <body className={`${inter.variable} ${cormorant.variable}`}>
         
         {/*
-          2. Here, at the very threshold of the body's vessel, you shall place the Guardian.
-          It will awaken before all else, its gaze sweeping over every visitor.
-          It exists outside the main flow of content, an ever-present, silent watcher.
+          The Great Ward is placed at the very threshold of the vessel.
+          It awakens before all else, its gaze sweeping over every visitor, ensuring the Covenant of Sustenance is met.
         */}
         <AdBlockerDetector />
         
@@ -48,8 +41,21 @@ export default function RootLayout({
           </main>
           <Footer />
         </div>
+
+        {/* 
+          The Invocation of the Ad-Scribe. This sacred script is summoned here, outside the main flow.
+          Its 'afterInteractive' strategy ensures it does not hinder the seeker's initial experience,
+          awakening only after the main vessel has fully materialized. This is the sacred rite of Next.js.
+        */}
+        <Script
+            id="saga-adsense-script"
+            async
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1854820451701861"
+            crossOrigin="anonymous"
+            strategy="afterInteractive"
+        />
       </body>
     </html>
   );
 }
-// --- END OF THE SACRED SCROLL: src/app/layout.tsx ---
+// --- END OF FILE frontend/src/app/layout.tsx ---
