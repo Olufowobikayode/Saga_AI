@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/WeaverManager.tsx ---
+// --- START OF FILE frontend/src/components/WeaverManager.tsx ---
 'use client';
 
 import React from 'react';
@@ -12,7 +12,7 @@ import ToneChamber from './ToneChamber';
 import RealmChamber from './RealmChamber';
 import LoomScribesChamber from './LoomScribesChamber';
 import EchoChamber from './EchoChamber';
-import FinalContentScroll from './FinalContentScroll'; // Summoning the real Final Scroll.
+import FinalContentScroll from './FinalContentScroll';
 
 /**
  * WeaverManager: The master controller for the entire Content Saga workflow.
@@ -20,14 +20,18 @@ import FinalContentScroll from './FinalContentScroll'; // Summoning the real Fin
  */
 export default function WeaverManager() {
   const status = useContentStore((state) => state.status);
+  const ritualPromise = useContentStore((state) => state.ritualPromise);
+
+  const handleRitualComplete = () => {
+    console.log("WeaverManager acknowledges ritual completion.");
+    // The store manages its own state transitions upon promise resolution.
+  };
 
   const renderCurrentStage = () => {
     switch (status) {
       // Spark Generation Path
       case 'awaiting_spark_topic':
         return <SparkForm />;
-      case 'weaving_sparks':
-        return <RitualScreen />;
       case 'sparks_revealed':
         return <HallOfSparks />;
       case 'crossroads_revealed':
@@ -40,27 +44,32 @@ export default function WeaverManager() {
         return <RealmChamber />;
       case 'awaiting_length':
         return <LoomScribesChamber />;
-      case 'weaving_social_post':
-        return <RitualScreen />;
       case 'social_post_woven':
-        // Now rendering the real component instead of the placeholder.
         return <FinalContentScroll />;
       
       // Comment Path
       case 'awaiting_echo':
         return <EchoChamber />;
-      case 'weaving_comment':
-        return <RitualScreen />;
       case 'comment_woven':
-        // Now rendering the real component instead of the placeholder.
         return <FinalContentScroll />;
 
       // Blog Post Path
-      case 'weaving_blog':
-        return <RitualScreen />;
       case 'blog_woven':
-        // Now rendering the real component instead of the placeholder.
         return <FinalContentScroll />;
+
+      // Ritual states
+      case 'weaving_sparks':
+      case 'weaving_social_post':
+      case 'weaving_comment':
+      case 'weaving_blog':
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key={`weaver-ritual-${status}`}
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
 
       // Default/Idle State
       default:
@@ -76,4 +85,4 @@ export default function WeaverManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/WeaverManager.tsx ---
+// --- END OF FILE frontend/src/components/WeaverManager.tsx ---
