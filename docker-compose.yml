@@ -1,0 +1,79 @@
+# --- START OF FILE docker-compose.yml ---
+
+version: '3.8'
+
+services:
+  # The Redis message broker for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: saga_redis
+    ports:
+      # Expose Redis port to the host for debugging if needed, but services will use the internal network
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - saga-network
+
+  # The FastAPI Backend (Web Service)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: saga_backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    networks:
+      - saga-network
+    # The default CMD from the Dockerfile is used here, which starts gunicorn
+
+  # The Celery Background Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: saga_worker
+    env_file:
+      - ./backend/.env
+    # This command overrides the default CMD in the Dockerfile, just like on Render
+    command: celery -A backend.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - saga-network
+
+  # The Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+      # Pass the API URL to the frontend build process so it knows how to reach the backend container
+      args:
+        NEXT_PUBLIC_SAGA_API_URL: "http://backend:8000/api/v10"
+    container_name: saga_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - saga-network
+    environment:
+      # This ensures the running container also knows the API URL
+      - NEXT_PUBLIC_SAGA_API_URL=http://backend:8000/api/v10
+
+# Define the network for services to communicate
+networks:
+  saga-network:
+    driver: bridge
+
+# Define a volume to persist Redis data across container restarts
+volumes:
+  redis_data:
+    driver: local
+
+# --- END OF FILE docker-compose.yml ---
