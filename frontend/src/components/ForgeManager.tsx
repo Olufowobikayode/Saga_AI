@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/ForgeManager.tsx ---
+// --- START OF FILE frontend/src/components/ForgeManager.tsx ---
 'use client';
 
 import React, { useEffect } from 'react';
@@ -9,7 +9,7 @@ import AnvilForm from './AnvilForm';
 import HallOfAngles from './HallOfAngles';
 import ScribesChamber from './ScribesChamber';
 import PlatformChamber from './PlatformChamber';
-import TextPlatformChamber from './TextPlatformChamber'; // Summoning the new text platform chamber.
+import TextPlatformChamber from './TextPlatformChamber';
 import FinalScroll from './FinalScroll';
 import PromptUnveiled from './PromptUnveiled';
 import ScrollUnfurled from './ScrollUnfurled';
@@ -24,7 +24,8 @@ export default function ForgeManager() {
     invokeForge, 
     unveiledPrompt,
     unfurledContent,
-    returnToScroll 
+    returnToScroll,
+    ritualPromise // Summoning the promise from the store
   } = useMarketingStore();
 
   useEffect(() => {
@@ -32,6 +33,11 @@ export default function ForgeManager() {
       invokeForge();
     }
   }, [status, invokeForge]);
+
+  const handleRitualComplete = () => {
+    // The store handles state transitions upon promise resolution, so this can be a no-op.
+    console.log("ForgeManager acknowledges ritual completion.");
+  };
 
   const renderCurrentStage = () => {
     switch (status) {
@@ -47,7 +53,6 @@ export default function ForgeManager() {
       case 'awaiting_scribe':
         return <ScribesChamber />;
 
-      // NEW LOGIC: When the status is 'awaiting_platform_text', show the TextPlatformChamber.
       case 'awaiting_platform_text':
         return <TextPlatformChamber />;
 
@@ -85,7 +90,14 @@ export default function ForgeManager() {
       case 'forging_asset':
       case 'unfurling_scroll':
       case 'forging_prompt':
-        return <RitualScreen />;
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key={`forge-ritual-${status}`}
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
       
       default:
         return <div className="text-center p-8">Preparing the Forge...</div>;
@@ -100,4 +112,4 @@ export default function ForgeManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/ForgeManager.tsx ---
+// --- END OF FILE frontend/src/components/ForgeManager.tsx ---
