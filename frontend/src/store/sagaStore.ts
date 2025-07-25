@@ -32,17 +32,18 @@ interface SagaState {
   error: string | null;
   brief: StrategicBrief; // The complete briefing document, built step-by-step.
   strategyData: any | null; // Will hold the final Grand Strategy prophecy.
+  ritualPromise: Promise<any> | null; // To hold the promise for the RitualScreen
 
   // The Rites of the multi-stage ritual
   beginGrandRitual: () => void;
-  submitQuery: (interest: string, subNiche?: string, toneText?: string, toneUrl?: string) => Promise<void>;
-  submitArtifact: (assetType?: string, assetName?: string, assetDescription?: string, promoLinkType?: string, promoLinkUrl?: string) => Promise<void>;
-  submitRealmAndDivine: (targetCountry: string) => Promise<void>;
+  submitQuery: (interest: string, subNiche?: string, toneText?: string, toneUrl?: string) => void;
+  submitArtifact: (assetType?: string, assetName?: string, assetDescription?: string, promoLinkType?: string, promoLinkUrl?: string) => void;
+  submitRealmAndDivine: (targetCountry: string) => void;
   resetSaga: () => void;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api/v10';
-const performRitual = (duration: number = 30000) => new Promise(resolve => setTimeout(resolve, duration));
+// CORRECTED: The API URL is now summoned from the scrolls of environment.
+const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 // Initial empty state for the briefing document
 const initialBrief: StrategicBrief = { interest: '' };
@@ -52,21 +53,20 @@ export const useSagaStore = create<SagaState>((set, get) => ({
   error: null,
   brief: initialBrief,
   strategyData: null,
+  ritualPromise: null,
 
   // --- THE GRAND RITUAL RITES ---
 
   beginGrandRitual: () => {
     // Starts the entire journey.
-    set({ status: 'awaiting_query', brief: initialBrief, error: null, strategyData: null });
+    set({ status: 'awaiting_query', brief: initialBrief, error: null, strategyData: null, ritualPromise: null });
   },
 
   submitQuery: async (interest, subNiche, toneText, toneUrl) => {
-    set({ status: 'performing_rite_1', error: null });
+    const promise = new Promise(resolve => setTimeout(resolve, 5000)); // Simple UX delay
+    set({ status: 'performing_rite_1', error: null, ritualPromise: promise });
     
-    // SAGA LOGIC: In a real app, this might call a lightweight backend endpoint.
-    // For now, the ritual is purely for user experience.
-    console.log("RITUAL 1: Analyzing core query...");
-    await performRitual(); // Perform the 30-second ad ritual.
+    await promise;
     
     set(state => ({
       status: 'awaiting_artifact',
@@ -75,11 +75,10 @@ export const useSagaStore = create<SagaState>((set, get) => ({
   },
 
   submitArtifact: async (assetType, assetName, assetDescription, promoLinkType, promoLinkUrl) => {
-    set({ status: 'performing_rite_2', error: null });
-    
-    // SAGA LOGIC: This ritual could call a backend endpoint to scrape/analyze the provided link.
-    console.log("RITUAL 2: Analyzing declared artifact...");
-    await performRitual(); // Perform the 30-second ad ritual.
+    const promise = new Promise(resolve => setTimeout(resolve, 5000)); // Simple UX delay
+    set({ status: 'performing_rite_2', error: null, ritualPromise: promise });
+
+    await promise;
 
     set(state => ({
       status: 'awaiting_realm',
@@ -88,25 +87,17 @@ export const useSagaStore = create<SagaState>((set, get) => ({
   },
 
   submitRealmAndDivine: async (targetCountry) => {
-    set({ status: 'performing_grand_rite', error: null });
-
-    // SAGA LOGIC: This is the final, major API call.
-    // We combine the final piece of data with the rest of the briefing document.
     const finalBrief = { ...get().brief, targetCountry };
-    
-    try {
-      // The backend's GrandStrategy endpoint needs to be able to accept this rich data.
-      const apiCallPromise = fetch(`${API_BASE_URL}/prophesy/grand-strategy`, {
+
+    const apiCallPromise = fetch(`${API_BASE_URL}/prophesy/grand-strategy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // We need to map our brief to the backend's expected model.
         body: JSON.stringify({
           interest: finalBrief.interest,
           sub_niche: finalBrief.subNiche,
           user_content_text: finalBrief.toneText,
           user_content_url: finalBrief.toneUrl,
           target_country_name: finalBrief.targetCountry,
-          // We will need to update the backend to accept these new fields.
           asset_info: {
             type: finalBrief.assetType,
             name: finalBrief.assetName,
@@ -122,8 +113,10 @@ export const useSagaStore = create<SagaState>((set, get) => ({
         return res.json();
       });
 
-      // Perform the final, grand ad ritual.
-      const [apiResponse] = await Promise.all([apiCallPromise, performRitual()]);
+    set({ status: 'performing_grand_rite', error: null, ritualPromise: apiCallPromise });
+    
+    try {
+      const apiResponse = await apiCallPromise;
 
       set({
         status: 'prophesied',
@@ -144,6 +137,7 @@ export const useSagaStore = create<SagaState>((set, get) => ({
       error: null,
       brief: initialBrief,
       strategyData: null,
+      ritualPromise: null,
     });
   },
 }));
