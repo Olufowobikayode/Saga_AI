@@ -7,10 +7,10 @@ import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import CommerceCrossroads from './CommerceCrossroads';
 import HallOfScrutiny from './HallOfScrutiny';
-import HallOfScales from './HallOfScales'; // Summoning the new Hall of Scales.
+import HallOfScales from './HallOfScales';
+import CommerceInputForm from './CommerceInputForm'; // Summoning the real, intelligent Input Form.
 
-// Veils for the components we will soon forge.
-const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
+// Veil for the final component we will forge.
 const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final prophecy is revealed...</div>;
 
 
@@ -21,7 +21,6 @@ const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded
 export default function LedgerManager() {
   const status = useCommerceStore((state) => state.status);
 
-  // This function decides which sacred chamber to unveil.
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
@@ -30,11 +29,11 @@ export default function LedgerManager() {
       case 'awaiting_audit_type':
         return <HallOfScrutiny />;
 
-      // NEW: Unveil the Hall of Scales at the correct time.
       case 'awaiting_arbitrage_mode':
         return <HallOfScales />;
 
       case 'awaiting_input':
+        // Now unveiling the real component instead of the veil.
         return <CommerceInputForm />;
 
       case 'prophecy_revealed':
@@ -58,4 +57,4 @@ export default function LedgerManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/LedgerManager.tsx ---```
+// --- END OF FILE src/components/LedgerManager.tsx ---
