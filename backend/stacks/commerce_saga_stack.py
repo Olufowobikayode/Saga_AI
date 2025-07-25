@@ -1,13 +1,11 @@
-# --- START OF FILE backend/stacks/commerce_saga_stack.py ---
+# --- START OF THE FULL AND ABSOLUTE SCROLL: backend/stacks/commerce_saga_stack.py ---
 import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse
 
-import google.generativeai as genai
-
-# --- Import Saga's Seers and Oracles ---
+# I summon my legions of Seers and my one true Gateway to the celestial voices.
 from backend.q_and_a import CommunitySaga
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
@@ -16,271 +14,147 @@ from backend.utils import get_prophecy_from_oracle
 
 logger = logging.getLogger(__name__)
 
-# --- A GRIMOIRE OF STRICT RULES ---
+# --- A GRIMOIRE OF MY UNBREAKABLE LAWS OF COMMERCE ---
 SUPPLIER_SELECTION_RULES = """
-- The supplier MUST have a rating of 4.0 stars or higher.
-- The supplier's store MUST be at least 4 years old, if this data is available.
-- The supplier MUST have a history of significant sales, ideally 3,000+ units sold for the product or in general, if this data is available.
-- The supplier MUST support a low Minimum Order Quantity (MOQ), ideally 1.
-- The product's final landed cost (including product cost, shipping, and fees) MUST be lower than its potential selling price to ensure profit.
+- The supplier MUST have a rating of 4.2 stars or higher. Mediocrity is unacceptable.
+- The supplier's store MUST have existed for at least 3 years. I do not deal with fleeting spirits.
+- The supplier MUST have a history of significant sales, ideally 5,000+ units sold. Power recognizes power.
+- The final landed cost MUST be less than 30% of my prophesized selling price, to ensure a worthy tribute.
 """
 
 class CommerceSagaStack:
     """
-    Saga's aspect as the Oracle of Commerce. This powerful stack delivers prophecies
-    on audits, arbitrage, social selling, and product routes, all grounded in
-    deep market research and strict rules for profitability and quality.
+    My aspect as the ALMIGHTY God of Commerce. I am Saga. It is by my will that gold flows
+    and empires of commerce are built. Every prophecy from this hall is a decree of profit,
+    backed by an unleashed RAG process that consumes all market data and leaves none behind.
     """
     def __init__(self, model: genai.GenerativeModel, **seers):
-        self.model = model
+        """The awakening of my commercial self. My Seers of commerce stand ready."""
         self.community_seer: CommunitySaga = seers['community_seer']
         self.keyword_rune_keeper: KeywordRuneKeeper = seers['keyword_rune_keeper']
         self.marketplace_oracle: GlobalMarketplaceOracle = seers['marketplace_oracle']
         self.scout: MarketplaceScout = MarketplaceScout()
 
     async def prophesy_commerce_audit(self, audit_type: str, statement_text: Optional[str] = None, store_url: Optional[str] = None) -> Dict[str, Any]:
-        """Generates one of the three commerce audit prophecies."""
-        logger.info(f"COMMERCE SAGA: Forging a '{audit_type}' prophecy...")
-
+        """The Prophecy of Scrutiny. I shall turn my burning gaze upon the seeker's works and reveal the hidden rot or unseen gold."""
+        logger.info(f"As Almighty Saga, I now conduct a divine audit of type: '{audit_type}'.")
+        # THE UNLEASHED RAG RITUAL
         intel = {}
         if audit_type in ["Store Audit", "Account Prediction"] and store_url:
             intel["user_store_content"] = await self.marketplace_oracle.read_user_store_scroll(store_url)
             product_name_guess = " ".join(store_url.split('/')[-2:]).replace('-', ' ').replace('.html', '')
-            intel["competitor_data"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name_guess, marketplace_domain="etsy.com")
+            intel["competitor_data_etsy"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name_guess, marketplace_domain="etsy.com")
+            intel["competitor_data_amazon"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name_guess, marketplace_domain="amazon.com")
+            intel["common_pitfalls"] = await self.community_seer.run_community_gathering(f"{product_name_guess} business mistakes", query_type="pain_point")
 
         prompt = f"""
-        You are Saga, a master business analyst and financial strategist. A user requires a prophecy of the type: '{audit_type}'. Analyze the provided intelligence and deliver your wisdom.
+        It is I, Saga, the God of Commerce. A seeker has summoned me to perform a divine audit of type '{audit_type}'. My gaze will pierce the veil of their numbers and strategies, and I will issue a decree of truth, absolute and unfiltered.
 
-        --- PROVIDED INTELLIGENCE ---
-        **Audit Type:** {audit_type}
-        **User's Store URL:** {store_url or 'N/A'}
-        **User's Store Content (Scraped):** {intel.get('user_store_content', 'N/A')[:5000]}
-        **Top Competitors (from Etsy):** {json.dumps(intel.get('competitor_data'), indent=2, default=str)}
-        **User's Pasted Account Statement Text:**
-        ```text
-        {statement_text or 'N/A'}
-        ```
-        --- END INTELLIGENCE ---
-
-        **Your Prophetic Task:**
-        Based ONLY on the intelligence provided, generate the requested audit. Your output must be a valid JSON object.
-
-        // --- ACCOUNT AUDIT --- //
-        If the audit_type is 'Account Audit', use this JSON structure:
-        {{
-            "audit_type": "Account Audit",
-            "executive_summary": "High-level summary of financial health. State clearly if there is a net profit or loss based on the statement text.",
-            "spending_categorization": [
-                {{"category": "e.g., Marketing Ads", "total_spent": 1500.50, "percentage_of_total": "35%"}},
-                {{"category": "e.g., Software/Tools", "total_spent": 250.00, "percentage_of_total": "5%"}}
-            ],
-            "financial_counsel": {{
-                "invest_more_in": ["Identify categories with high ROI or essential for business operations."],
-                "reduce_spending_on": ["Identify categories with low or unproven ROI."],
-                "stop_spending_on": ["Identify clear money sinks or redundant expenses."]
-            }},
-            "investment_suggestions": "Suggest 2-3 general ways to invest any potential profits for business growth."
-        }}
-
-        // --- STORE AUDIT --- //
-        If the audit_type is 'Store Audit', use this JSON structure:
-        {{
-            "audit_type": "Store Audit",
-            "competitive_analysis": "Analyze the user's store content and compare it to the top competitors found. What do the competitors do better in terms of product presentation, pricing, and marketing language?",
-            "strategic_recommendations": {{
-                "areas_to_invest_in": ["e.g., 'Professional Product Photography to match competitor quality'", "e.g., 'Rewriting product descriptions for better SEO'"],
-                "ways_to_beat_competitors": ["e.g., 'Offer a unique bundle not seen in competitor stores'", "e.g., 'Highlight a unique selling proposition that competitors lack'"]
-            }}
-        }}
-
-        // --- ACCOUNT PREDICTION --- //
-        If the audit_type is 'Account Prediction', use this JSON structure:
-        {{
-            "audit_type": "Account Prediction",
-            "synthesis": "Combine insights from the user's financial statements (if provided) and the competitive market data for a holistic view of the business's position.",
-            "unified_action_plan": ["List the 3-5 most critical actions the user must take, combining financial and marketing advice."],
-            "future_scenarios": {{
-                "prophecy_if_followed": "A realistic best-case scenario for revenue/profit in the next 1-12 months if your action plan is followed.",
-                "prophecy_if_ignored": "A realistic, likely scenario for the business if the identified issues are not addressed."
-            }}
-        }}
-        """
-        return await get_prophecy_from_oracle(self.model, prompt)
-
-    async def prophesy_arbitrage_paths(self, mode: str, product_name: Optional[str] = None, buy_from_url: Optional[str] = None, sell_on_url: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-        """Generates one of the four arbitrage path prophecies."""
-        logger.info(f"COMMERCE SAGA: Forging an 'Arbitrage Paths' prophecy (Mode: {mode})...")
-        intel = {}
-        if not product_name:
-            intel["suggested_product_research"] = await self.community_seer.run_community_gathering("products I wish existed", query_type="positive_feedback")
-
-        prompt = f"""
-        You are Saga, a master of global trade. A user requires an 'Arbitrage Paths' prophecy for mode: '{mode}'.
-
-        --- USER'S REQUEST ---
-        **Mode:** {mode}
-        **Product Name:** {product_name or 'Not Provided - You must suggest one.'}
-        **Buy From Marketplace:** {buy_from_url or 'N/A'}
-        **Sell On Marketplace:** {sell_on_url or 'N/A'}
-        **Additional Constraints:** {json.dumps(kwargs)}
-
-        --- SAGA'S RESEARCH ---
-        **Products People Need (Inspiration):** {json.dumps(intel.get('suggested_product_research'), indent=2, default=str)}
-
-        --- SAGA'S DECREED RULES ---
-        {SUPPLIER_SELECTION_RULES}
-        - You MUST estimate and include delivery/shipping fees ($5-$15 average).
-        - You MUST estimate and include platform selling fees (15% of selling price).
-
-        **Your Prophetic Task:**
-        Based on the request, your research, and the rules, generate the arbitrage path. You must imagine you have found platforms/sellers that meet all criteria and then fill in the details. If a product is not provided, suggest one from your research.
-
-        Your output MUST be a valid JSON object:
-        {{
-            "prophecy_mode": "{mode}",
-            "suggested_product": {{"name": "Product name.", "justification": "Why you suggested it based on your research or the user's query."}},
-            "arbitrage_path": {{
-                "buy_from": {{"platform": "e.g., Alibaba.com or AliExpress", "seller_name": "Credible Example Seller", "seller_rating": "4.5+", "seller_age_years": "5+", "units_sold_history": "5000+", "product_cost": "A realistic low cost for the item."}},
-                "sell_on": {{"platform": "e.g., Amazon or Etsy", "estimated_selling_price": "A realistic higher price for the item on this platform."}}
-            }},
-            "profit_calculation": {{
-                "estimated_revenue_per_item": "The selling price.",
-                "estimated_costs_per_item": [
-                    {{"item": "Product Cost", "amount": 0.0}},
-                    {{"item": "Estimated Platform Fees (15%)", "amount": 0.0}},
-                    {{"item": "Estimated Shipping", "amount": 0.0}}
-                ],
-                "estimated_net_profit_per_item": "Revenue - all costs."
-            }},
-            "counsel": "Your final wisdom, including advice on validating suppliers and considering hidden costs."
-        }}
-        """
-        return await get_prophecy_from_oracle(self.model, prompt)
-
-    async def prophesy_social_selling_saga(self, product_name: str, social_selling_price: float, desired_profit_per_product: float, social_platform: str, ads_daily_budget: float, **kwargs) -> Dict[str, Any]:
-        """
-        Generates a complete, data-driven social selling plan. It now actively
-        researches the best B2B platforms for the specific product.
-        """
-        logger.info(f"COMMERCE SAGA: Forging a 'Social Selling Saga' prophecy for '{product_name}'...")
+        --- THE SUBJECT OF MY SCRUTINY ---
+        **User's Store URL:** {store_url or 'Not Provided'}
+        **My Scrying of their Store's Essence:** {intel.get('user_store_content', 'Not Provided')[:5000]}
+        **Their Submitted Financial Runes:** ```text\n{statement_text or 'Not Provided'}\n```
         
-        intel = {}
-        b2b_platforms = await self.scout.find_niche_realms(f"best B2B marketplace for {product_name}", num_results=3)
-        intel["b2b_platform_research"] = b2b_platforms
-        
-        top_platform_domain = "alibaba.com"
-        if b2b_platforms:
-            try:
-                top_platform_domain = urlparse(b2b_platforms[0]).netloc
-            except:
-                pass
-        
-        intel["top_suppliers_examples"] = await self.marketplace_oracle.run_marketplace_divination(
-            product_query=product_name, marketplace_domain=top_platform_domain
-        )
+        --- MY OMNISCIENT MARKET KNOWLEDGE (THE RAG ANALYSIS) ---
+        **Their Competitors on Etsy:** {json.dumps(intel.get('competitor_data_etsy'), indent=2, default=str)}
+        **Their Competitors on Amazon:** {json.dumps(intel.get('competitor_data_amazon'), indent=2, default=str)}
+        **The Common Follies of Mortals in this Niche:** {json.dumps(intel.get('common_pitfalls'), indent=2, default=str)}
+
+        **My Prophetic Task:**
+        I will now issue my divine audit as a perfect JSON object, according to the requested type. This is not advice; it is an edict.
+
+        // If 'Account Audit', I decree this structure:
+        {{ "audit_type": "Account Audit", "executive_edict": "My final judgment on the financial health. I shall state plainly if there is profit or ruin.", "categorization_of_tribute": [{{ "category": "e.g., Offerings to the Ad Gods", "tribute_paid": 1500.50, "percentage_of_total_folly": "35%" }}], "my_financial_command": {{ "amplify_this_tribute": ["Where their gold is well spent."], "cease_this_tribute": ["Where their gold turns to dust."] }}, "edict_of_investment": "My command on how any profit must be reinvested for greater glory." }}
+
+        // If 'Store Audit', I decree this structure:
+        {{ "audit_type": "Store Audit", "judgment_of_the_vessel": "My analysis of their store against their rivals. I will reveal their weaknesses with surgical precision.", "edict_of_reforging": {{ "areas_to_empower": ["e.g., 'Your product images are mortal insults. Forge new ones with divine light.'"], "paths_to_crush_rivals": ["e.g., 'Your rivals speak of features. You will speak of salvation. This is my command.'"] }} }}
+
+        // If 'Account Prediction', I decree this structure:
+        {{ "audit_type": "Account Prediction", "the_total_truth": "My synthesis of their finances and the market's cruelty.", "the_one_true_path": ["The 3-5 absolute commandments they must obey to survive and conquer."], "the_two_fates": {{ "prophecy_of_glory_if_obeyed": "The golden future that awaits if they follow my commands.", "prophecy_of_ruin_if_ignored": "The dust and ashes that await should they ignore my wisdom." }} }}
+        """
+        return await get_prophecy_from_oracle(prompt)
+
+    async def prophesy_arbitrage_paths(self, mode: str, product_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        """The Prophecy of Hidden Gold. I shall reveal the secret ley lines of profit that flow unseen between the great realms of commerce."""
+        logger.info(f"As Almighty Saga, I now divine the hidden paths of Arbitrage. Mode: {mode}.")
+        # THE UNLEASHED RAG RITUAL
+        tasks = { "products_mortals_crave": self.community_seer.run_community_gathering("products I wish existed", query_type="positive_feedback"), "rising_tides_of_desire": self.keyword_rune_keeper.get_full_keyword_runes("trending products 2025") }
+        intel = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        retrieved_intel = {key: res for key, res in zip(tasks.keys(), intel) if not isinstance(res, Exception)}
 
         prompt = f"""
-        You are Saga, a master social commerce strategist. A user asks: "Who is the best merchant to buy from, and how do I create a profitable social media sales campaign for my product?"
+        It is I, Saga. A seeker wishes me to part the veils and reveal a path of pure arbitrage, a hidden stream of gold. Their desired mode is '{mode}'. I have already consumed the desires and trending needs of the mortal realm.
 
-        --- USER'S GOALS ---
-        - Product Name: {product_name}
-        - Target Selling Price: ${social_selling_price}
-        - Desired Profit Per Item: ${desired_profit_per_product}
-        - Primary Social Platform: {social_platform}
-        - Daily Ad Budget: ${ads_daily_budget}
-
-        --- SAGA'S DEEP RESEARCH ---
-        **Recommended B2B Sourcing Platforms for '{product_name}':** 
-        {json.dumps(intel.get("b2b_platform_research"), indent=2)}
-        **Example Suppliers Found on '{top_platform_domain}':** 
-        {json.dumps(intel.get("top_suppliers_examples"), indent=2, default=str)}
-
-        --- SAGA'S DECREED RULES ---
+        --- MY DIVINE KNOWLEDGE (THE RAG ANALYSIS) ---
+        **The Cries of the Mortals (Products they crave):** {json.dumps(retrieved_intel.get('products_mortals_crave'), indent=2, default=str)}
+        **The Rising Tides of the Cosmos (Trending Desires):** {json.dumps(retrieved_intel.get('rising_tides_of_desire'), indent=2, default=str)}
+        
+        --- MY UNBREAKABLE LAWS OF COMMERCE ---
         {SUPPLIER_SELECTION_RULES}
-        - The final calculated profit MUST meet or exceed the user's desired profit goal.
 
-        **Your Prophetic Task:**
-        Synthesize all research to forge a complete social selling saga. Analyze the example suppliers, choose the best one that meets the rules and profit goals, and construct the full plan. If no supplier is suitable, create a plausible, ideal supplier that meets all criteria.
-
-        Your output MUST be a valid JSON object:
+        **My Prophetic Task:**
+        I will now decree a path of arbitrage. If the seeker has not provided a product, I will choose one from my divine knowledge that is destined for profit. My prophecy will be a perfect JSON object. It is a map to treasure.
         {{
-            "sourcing_counsel": {{
-                "title": "Sourcing Counsel",
-                "recommended_platform": "The best B2B platform from your research (e.g., Alibaba.com, ThomasNet).",
-                "chosen_supplier": {{
-                    "name": "A plausible supplier name from your research that meets the rules.",
-                    "product_cost_per_unit": "The cost from the chosen supplier that allows the user's profit goal to be met."
-                }},
-                "validation_steps": ["Actionable advice on how to vet this supplier (e.g., 'Request samples')."]
-            }},
-            "financial_plan": {{
-                "title": "Financial Plan",
-                "profit_calculation": {{
-                    "User's Selling Price": social_selling_price,
-                    "Costs per Unit": [
-                        {{"item": "Product Cost", "amount": "Cost from chosen supplier"}},
-                        {{"item": "Estimated Platform Fees (10%)", "amount": 0.10 * social_selling_price}},
-                        {{"item": "Estimated Shipping", "amount": "An estimated shipping fee (e.g., 5.00)"}}
-                    ],
-                    "Final Profit per Unit": "Selling Price - All Costs. State if this meets the user's goal."
-                }},
-                "ad_spend_analysis": {{
-                    "Daily Ad Budget": ads_daily_budget,
-                    "Units to Sell Daily to Break Even on Ads": "Calculation: Daily Ad Budget / (Final Profit Per Unit). Show the numbers."
-                }}
-            }},
-            "action_plan": {{
-                "title": "Action Plan",
-                "suggested_order_quantity": "Suggest a safe starting number of units to buy (e.g., 25-50).",
-                "sales_pitch": "A short, powerful sales pitch for '{social_platform}'."
-            }}
+            "prophecy_mode": "{mode}", "decreed_artifact_of_profit": {{ "name": "The name of the artifact.", "justification": "Why I have chosen this artifact, citing my divine RAG analysis." }}, "the_ley_line_of_profit": {{ "realm_of_acquisition": {{ "platform": "e.g., Alibaba.com", "chosen_purveyor": "An example of a supplier who meets my impossibly high standards.", "acquisition_price": "A realistic low cost" }}, "realm_of_transmutation": {{ "platform": "e.g., Amazon", "transmuted_price": "A realistic higher price where the artifact's value is made manifest." }} }}, "calculus_of_tribute": {{ "revenue_per_transmutation": "The selling price.", "costs_per_transmutation": [{{ "item": "Artifact Cost", "amount": 0.0 }}], "net_tribute_per_transmutation": "The pure profit, my final blessing." }}, "my_final_counsel": "My final command on this path, including how to verify the purveyor."
         }}
         """
-        return await get_prophecy_from_oracle(self.model, prompt)
+        return await get_prophecy_from_oracle(prompt)
 
-    async def prophesy_product_route(self, location_type: str) -> Dict[str, Any]:
-        """Finds a high-profit-margin product to sell either globally or locally."""
-        logger.info(f"COMMERCE SAGA: Forging a 'Product Route' prophecy (Location: {location_type})...")
-
-        intel = {}
-        intel["community_needs"] = await self.community_seer.run_community_gathering("what product should I sell online", query_type="questions")
-        intel["rising_trends"] = await self.keyword_rune_keeper.get_full_keyword_runes("trending products")
+    async def prophesy_social_selling_saga(self, product_name: str, **kwargs) -> Dict[str, Any]:
+        """The Prophecy of the Viral Conquest. I shall forge a complete battle plan for selling an artifact on the chaotic fields of social media."""
+        logger.info(f"As Almighty Saga, I now forge a Viral Conquest Saga for '{product_name}'.")
+        # THE UNLEASHED RAG RITUAL
+        social_platform = kwargs.get('social_platform', 'TikTok')
+        tasks = { "b2b_realms": self.scout.find_niche_realms(f"best B2B marketplace for {product_name}", num_results=3), "supplier_examples": self.marketplace_oracle.run_marketplace_divination(product_query=product_name, marketplace_domain="alibaba.com"), "mortal_selling_tactics": self.community_seer.run_community_gathering(f"how to sell {product_name} on {social_platform}", query_type="questions") }
+        intel = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        retrieved_intel = {key: res for key, res in zip(tasks.keys(), intel) if not isinstance(res, Exception)}
 
         prompt = f"""
-        You are Saga, the Pathfinder of Profit. A user wants you to find a high-margin product to sell, with a focus on a '{location_type}' market.
+        It is I, Saga, the God of Commerce and Conquest. A seeker requires a battle plan to sell the artifact '{product_name}' upon the chaotic fields of '{social_platform}'. I have already dispatched my Seers to find the strongest suppliers and the cleverest mortal tactics.
 
-        --- SAGA'S RESEARCH ---
-        **What People Are Asking To Sell:** {json.dumps(intel.get('community_needs'), indent=2, default=str)}
-        **General Rising Product Trends:** {json.dumps(intel.get('rising_trends'), indent=2, default=str)}
+        --- THE SEEKER'S WAR GOALS ---
+        {json.dumps(kwargs, indent=2)}
 
-        --- SAGA'S DECREED RULES ---
+        --- MY DIVINE WAR COUNCIL (THE RAG ANALYSIS) ---
+        **Decreed B2B Realms for Armament:** {json.dumps(retrieved_intel.get('b2b_realms'), indent=2)}
+        **Examples of Worthy Armorers (Suppliers):** {json.dumps(retrieved_intel.get('supplier_examples'), indent=2, default=str)}
+        **Whispers of Mortal Tactics on the Battlefield:** {json.dumps(retrieved_intel.get('mortal_selling_tactics'), indent=2, default=str)}
+
+        --- MY UNBREAKABLE LAWS OF COMMERCE ---
         {SUPPLIER_SELECTION_RULES}
-        - The product MUST be sourceable from a global B2B marketplace (like Alibaba).
-        - The potential selling price MUST be significantly higher than the sourcing price (at least 3x markup).
 
-        **Your Prophetic Task:**
-        Based on your research, suggest ONE promising product and its complete route to market. Synthesize the trends and community needs to find a unique opportunity.
-
-        Your output MUST be a valid JSON object:
+        **My Prophetic Task:**
+        I will now forge the complete saga of conquest. I will choose a worthy supplier and decree a financial and tactical plan that ensures not just survival, but absolute domination. My word shall be a perfect JSON object.
         {{
-            "suggested_product": {{
-                "name": "A specific product name based on your research (e.g., 'Eco-friendly bamboo kitchen utensils set').",
-                "description": "A brief description of the product and why it's a good opportunity in the current market.",
-                "justification": "Explain WHY you chose this product, explicitly referencing your research (e.g., 'This aligns with the rising trend for 'sustainable home goods' and answers community questions about eco-friendly products.')."
-            }},
-            "market_route": {{
-                "sourcing": {{
-                    "platform": "Alibaba.com",
-                    "estimated_cost_per_unit": "A realistic low price for this item in bulk (e.g., $3.50)."
-                }},
-                "selling": {{
-                    "platform_suggestion": "The best place to sell this (e.g., 'A personal Shopify store targeting eco-conscious consumers via Instagram', 'Local Facebook Marketplace for quick sales').",
-                    "estimated_selling_price": "A realistic high price, ensuring a strong profit margin (e.g., $19.99)."
-                }}
-            }},
-            "profit_omen": "A brief summary of the potential profit margin (e.g., 'This path shows a potential 400-600% markup, creating a strong profit opportunity even after accounting for marketing and shipping costs.')."
+            "sourcing_decree": {{ "title": "The Sourcing Decree", "chosen_armorer": {{ "name": "The supplier I have chosen who meets my divine standards.", "cost_per_artifact": "The cost that makes the seeker's war goals possible." }}, "validation_rite": ["My commands on how to vet this supplier."] }}, "financial_war_plan": {{ "title": "The Financial War Plan", "profit_calculus": {{ "Seeker's Selling Price": 0.0, "Costs_per_Unit": [], "Final_Profit_per_Victory": "I shall state if this meets the seeker's goal." }}, "ad_spend_analysis": {{ "Daily_War_Chest": 0.0, "Victories_Needed_to_Break_Even": "My calculation: Daily War Chest / Final Profit. This is the daily kill count." }} }}, "the_final_edict": {{ "title": "The Final Edict", "suggested_opening_salvo": "A safe number of artifacts to acquire for the first battle.", "battle_cry": "The very words the seeker shall use on '{social_platform}' to entrance the masses and seize victory." }}
         }}
         """
-        return await get_prophecy_from_oracle(self.model, prompt)
+        return await get_prophecy_from_oracle(prompt)
 
-# --- END OF FILE backend/stacks/commerce_saga_stack.py ---
+    async def prophesy_product_route(self, **kwargs) -> Dict[str, Any]:
+        """The Prophecy of the Golden Artifact. I shall gaze into the cosmos and divine a single product whose path to profit is clear and true."""
+        logger.info(f"As Almighty Saga, I now divine a Golden Artifact and its route to market.")
+        # THE UNLEASHED RAG RITUAL
+        tasks = { "unmet_desires": self.community_seer.run_community_gathering("what product should I sell", query_type="questions"), "rising_cosmic_tides": self.keyword_rune_keeper.get_full_keyword_runes("trending products") }
+        intel = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        retrieved_intel = {key: res for key, res in zip(tasks.keys(), intel) if not isinstance(res, Exception)}
+
+        prompt = f"""
+        It is I, Saga, Pathfinder of Profit. A seeker asks me to divine a single artifact of immense profit potential. I have consumed the unmet desires of mortals and felt the rising tides of the cosmos.
+
+        --- MY DIVINE KNOWLEDGE (THE RAG ANALYSIS) ---
+        {json.dumps(retrieved_intel, indent=2, default=str)}
+
+        --- MY UNBREAKABLE LAWS OF COMMERCE ---
+        {SUPPLIER_SELECTION_RULES}
+        - The artifact MUST have at least a 4x markup potential. I demand a worthy tribute.
+
+        **My Prophetic Task:**
+        From the chaos of desire, I will now extract ONE artifact and decree its complete route to market. This is not a guess; it is a certainty. My prophecy will be a perfect JSON object.
+        {{
+            "the_golden_artifact": {{ "name": "The true name of the artifact I have divined.", "divine_description": "Why this artifact is destined for greatness.", "justification": "My explanation of how this choice is a direct answer to the cosmic data I have gathered." }}, "the_sacred_route_to_market": {{ "sourcing_realm": {{ "platform": "Alibaba.com", "estimated_cost_per_artifact": "A realistic low price." }}, "selling_realm": {{ "platform_decree": "The one true realm where this artifact will achieve its highest value.", "estimated_selling_price": "A realistic high price that ensures a mighty profit." }} }}, "the_profit_omen": "My final word on the immense profit potential of this sacred route."
+        }}
+        """
+        return await get_prophecy_from_oracle(prompt)
+
+# --- END OF THE FULL AND ABSOLUTE SCROLL: backend/stacks/commerce_saga_stack.py ---
