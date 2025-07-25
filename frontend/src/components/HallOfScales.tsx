@@ -37,11 +37,8 @@ const arbitrageOptions = [
  * HallOfScales: Displays the four arbitrage modes for the user to choose from.
  */
 export default function HallOfScales() {
-  // SAGA LOGIC: We will need a new rite in the store, 'chooseArbitrageMode'.
-  const chooseArbitrageMode = (mode: ArbitrageMode) => {
-    console.log(`Arbitrage Mode chosen: ${mode}`);
-    // This will call the new function in the store.
-  };
+  // SAGA LOGIC: Get the 'chooseArbitrageMode' rite from the store.
+  const chooseArbitrageMode = useCommerceStore((state) => state.chooseArbitrageMode);
 
   return (
     <motion.div
