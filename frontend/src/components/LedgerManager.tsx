@@ -8,11 +8,8 @@ import RitualScreen from './RitualScreen';
 import CommerceCrossroads from './CommerceCrossroads';
 import HallOfScrutiny from './HallOfScrutiny';
 import HallOfScales from './HallOfScales';
-import CommerceInputForm from './CommerceInputForm'; // Summoning the real, intelligent Input Form.
-
-// Veil for the final component we will forge.
-const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final prophecy is revealed...</div>;
-
+import CommerceInputForm from './CommerceInputForm';
+import CommerceProphecyScroll from './CommerceProphecyScroll'; // Summoning the real Final Scroll.
 
 /**
  * LedgerManager: The master controller for the entire Commerce Saga workflow.
@@ -21,6 +18,7 @@ const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded
 export default function LedgerManager() {
   const status = useCommerceStore((state) => state.status);
 
+  // This function decides which sacred chamber to unveil.
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
@@ -33,10 +31,10 @@ export default function LedgerManager() {
         return <HallOfScales />;
 
       case 'awaiting_input':
-        // Now unveiling the real component instead of the veil.
         return <CommerceInputForm />;
 
       case 'prophecy_revealed':
+        // Now unveiling the real component instead of the veil.
         return <CommerceProphecyScroll />;
 
       case 'performing_entry_rite':
