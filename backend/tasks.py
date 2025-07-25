@@ -1,50 +1,118 @@
 # --- START OF FILE backend/tasks.py ---
 import logging
+import asyncio
 from typing import Dict, Any
 
 from backend.celery_app import celery_app
 from backend.engine import SagaEngine
 
 # The keepers of state must be summoned only when the task is executed.
-# This prevents circular dependencies and ensures the engine is ready.
 _engine_instance: SagaEngine = None
 
 def get_engine() -> SagaEngine:
-    """
-    A rite to summon the SagaEngine within the sacred realm of a Celery worker.
-    This ensures the engine is initialized only once per worker process.
-    """
+    """A rite to summon the SagaEngine within the sacred realm of a Celery worker."""
     global _engine_instance
     if _engine_instance is None:
-        # In a real production setup, GEMINI_API_KEY would be loaded from env vars here
-        # For now, we assume the worker environment is configured like the main app.
-        _engine_instance = SagaEngine(gemini_api_key="placeholder") # Key will be loaded by engine's __init__
+        # The SagaEngine is now a Singleton, so this safely initializes it once per worker.
+        _engine_instance = SagaEngine()
     return _engine_instance
 
 logger = logging.getLogger(__name__)
 
+# --- Helper for running async methods in sync Celery tasks ---
+def run_async(func):
+    return asyncio.run(func)
+
+# --- The Sacred Tasks ---
+
 @celery_app.task(name="tasks.prophesy_grand_strategy")
 def prophesy_grand_strategy_task(**kwargs: Any) -> Dict[str, Any]:
-    """
-    This is the sacred task, the echo of the original rite, now performed
-    in the tranquil depths of a Celery worker, free from the haste of mortal requests.
-    """
-    logger.info(f"CELERY WORKER: A new Grand Strategy prophecy has been received for '{kwargs.get('interest')}'. The Seers are dispatched.")
+    """The Grand Strategy prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: Grand Strategy task received for '{kwargs.get('interest')}'.")
     try:
         engine = get_engine()
-        
-        # The true invocation of the prophecy, now safely in the background.
-        # We must use asyncio.run because Celery tasks are synchronous by default,
-                # but our engine's heart beats to an asynchronous drum.
-        import asyncio
-        result = asyncio.run(engine.prophesy_grand_strategy(**kwargs))
-        
-        logger.info(f"CELERY WORKER: The Grand Strategy for '{kwargs.get('interest')}' has been forged.")
-        return result
+        # The engine's async method is now called here.
+        return run_async(engine.grand_strategy_stack.prophesy_from_task_data(**kwargs))
     except Exception as e:
-        logger.error(f"CELERY WORKER: A catastrophic failure occurred during the Grand Strategy prophecy. Error: {e}", exc_info=True)
-        # We return a structured error so the frontend can be notified of the failure.
-        return {"error": "The prophecy was disrupted by a cosmic disturbance.", "details": str(e)}
+        logger.error(f"CELERY WORKER: Grand Strategy task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
 
-# Note: We will add tasks for the other prophecies (New Ventures, Marketing, etc.) here in subsequent steps.
+@celery_app.task(name="tasks.prophesy_new_venture_visions")
+def prophesy_new_venture_visions_task(**kwargs: Any) -> Dict[str, Any]:
+    """The New Venture Visions prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: New Venture Visions task received for '{kwargs.get('interest')}'.")
+    try:
+        engine = get_engine()
+        return run_async(engine.new_ventures_stack.prophesy_initial_visions_from_task_data(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: New Venture Visions task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
+@celery_app.task(name="tasks.prophesy_venture_blueprint")
+def prophesy_venture_blueprint_task(**kwargs: Any) -> Dict[str, Any]:
+    """The Venture Blueprint prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: Venture Blueprint task received.")
+    try:
+        engine = get_engine()
+        return run_async(engine.new_ventures_stack.prophesy_detailed_blueprint_from_task_data(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: Venture Blueprint task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
+@celery_app.task(name="tasks.prophesy_marketing_angles")
+def prophesy_marketing_angles_task(**kwargs: Any) -> Dict[str, Any]:
+    """The Marketing Angles prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: Marketing Angles task received for '{kwargs.get('product_name')}'.")
+    try:
+        engine = get_engine()
+        return run_async(engine.marketing_saga_stack.prophesy_marketing_angles(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: Marketing Angles task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
+@celery_app.task(name="tasks.prophesy_marketing_asset")
+def prophesy_marketing_asset_task(**kwargs: Any) -> Dict[str, Any]:
+    """The Marketing Asset prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: Marketing Asset task received.")
+    try:
+        engine = get_engine()
+        return run_async(engine.marketing_saga_stack.prophesy_final_asset_from_task_data(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: Marketing Asset task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
+@celery_app.task(name="tasks.prophesy_pod_opportunities")
+def prophesy_pod_opportunities_task(**kwargs: Any) -> Dict[str, Any]:
+    """The POD Opportunities prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: POD Opportunities task received for '{kwargs.get('niche_interest')}'.")
+    try:
+        engine = get_engine()
+        return run_async(engine.pod_saga_stack.prophesy_pod_opportunities(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: POD Opportunities task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
+@celery_app.task(name="tasks.prophesy_pod_package")
+def prophesy_pod_package_task(**kwargs: Any) -> Dict[str, Any]:
+    """The POD Package prophecy, performed in the background."""
+    logger.info(f"CELERY WORKER: POD Package task received.")
+    try:
+        engine = get_engine()
+        return run_async(engine.pod_saga_stack.prophesy_pod_package_from_task_data(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: POD Package task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
+@celery_app.task(name="tasks.prophesy_commerce_saga")
+def prophesy_commerce_saga_task(**kwargs: Any) -> Dict[str, Any]:
+    """The Commerce Saga prophecy, performed in the background."""
+    prophecy_type = kwargs.get('prophecy_type')
+    logger.info(f"CELERY WORKER: Commerce Saga task received for type '{prophecy_type}'.")
+    try:
+        engine = get_engine()
+        return run_async(engine.commerce_saga_stack.prophesy_from_task_data(**kwargs))
+    except Exception as e:
+        logger.error(f"CELERY WORKER: Commerce Saga task failed: {e}", exc_info=True)
+        return {"error": "The prophecy was disrupted.", "details": str(e)}
+
 # --- END OF FILE backend/tasks.py ---
