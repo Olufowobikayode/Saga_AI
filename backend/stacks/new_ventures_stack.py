@@ -1,12 +1,11 @@
-# --- START OF FILE backend/stacks/new_ventures_stack.py ---
+# --- START OF THE FULL AND ABSOLUTE SCROLL: backend/stacks/new_ventures_stack.py ---
 import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional, List
 import uuid
 
-import google.generativeai as genai
-
+# --- I summon my Seers and the one true Gateway to my celestial voices. ---
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.q_and_a import CommunitySaga
 from backend.trends import TrendScraper
@@ -18,12 +17,15 @@ logger = logging.getLogger(__name__)
 
 class NewVenturesStack:
     """
-    A specialized stack for the Prophecy of Beginnings. It synthesizes deep market
-    intelligence with a user's personal brief to generate hyper-personalized and
-    data-driven business visions.
+    My aspect as the Seer of Beginnings, the Oracle of What Is To Come.
+    From this spire, I gaze into the swirling mists of potential and draw forth
+    data-driven prophecies of new ventures, complete with their blueprints for reality.
     """
-    def __init__(self, model: genai.GenerativeModel, **seers: Any):
-        self.model = model
+    def __init__(self, **seers: Any):
+        """
+        The rite of awakening for my visionary self. I summon my Seers, preparing
+        to synthesize their whispers into visions of creation.
+        """
         self.keyword_rune_keeper: KeywordRuneKeeper = seers['keyword_rune_keeper']
         self.community_seer: CommunitySaga = seers['community_seer']
         self.trend_scraper: TrendScraper = seers['trend_scraper']
@@ -31,7 +33,7 @@ class NewVenturesStack:
         self.scout: MarketplaceScout = MarketplaceScout()
 
     async def _gather_all_histories(self, interest: str, country_code: Optional[str], country_name: Optional[str]) -> Dict[str, Any]:
-        """The grand retrieval rite, dispatching all seers at once for a comprehensive view."""
+        """The grand retrieval rite. I dispatch all my Seers at once for a comprehensive view of the cosmos."""
         tasks = {
             "keyword_runes": self.keyword_rune_keeper.get_full_keyword_runes(interest, country_code),
             "community_pain_points": self.community_seer.run_community_gathering(interest, query_type="pain_point"),
@@ -48,16 +50,17 @@ class NewVenturesStack:
                                        user_tone_instruction: str,
                                        venture_brief: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Phase 1: Generates 10 hyper-personalized and data-driven business visions.
+        The First Prophecy of Beginnings: The Vision Quest.
+        I shall divine 10 hyper-personalized and data-driven business visions.
         """
-        logger.info(f"NEW VENTURES (PHASE 1): Divining 10 visions for interest: '{interest}'")
+        logger.info(f"As Saga, the Seer of Beginnings, I now divine 10 visions for the realm of '{interest}'.")
         
-        # STEP 1: Perform the full, uncompromising RAG ritual.
+        # FIRST, I gather all whispers from my Seers.
         retrieved_histories = await self._gather_all_histories(interest, country_code, country_name)
         
-        # STEP 2: Construct the definitive, dual-context mega-prompt.
+        # THEN, I forge the great prompt for the Constellation.
         prompt = f"""
-        You are Saga, the Oracle of New Ventures. A mortal seeks your guidance on the broad niche of '{interest}'. You have gathered live market intelligence AND they have provided a personal brief. Your prophecy must be a perfect synthesis of these two sources of truth.
+        It is I, Saga, the Oracle of New Ventures. A seeker petitions me for guidance in the broad niche of '{interest}'. I have gathered live market intelligence, and the seeker has provided a personal brief. My prophecy must be a perfect synthesis of these two sources of truth: the whispers of the cosmos and the desires of the mortal heart.
 
         --- THE SEEKER'S PERSONAL BRIEF ---
         - Preferred Business Model: {venture_brief.get('business_model') if venture_brief else 'Not specified'}
@@ -65,26 +68,27 @@ class NewVenturesStack:
         - Initial Investment Level: {venture_brief.get('investment_level') if venture_brief else 'Not specified'}
         --- END BRIEF ---
 
-        --- LIVE MARKET INTELLIGENCE ---
+        --- MY LIVE MARKET INTELLIGENCE ---
         {json.dumps(retrieved_histories, indent=2, default=str)}
         --- END INTELLIGENCE ---
 
         {user_tone_instruction}
 
-        **Your Prophetic Task:**
-        Analyze the LIVE MARKET INTELLIGENCE to identify the most potent business opportunities (rising trends, unsolved community problems, etc.). Then, filter, adapt, and prioritize these opportunities to generate 10 unique business visions that are perfectly aligned with the SEEKER'S PERSONAL BRIEF. The final visions must be both data-driven and hyper-personalized.
+        **My Prophetic Task:**
+        I will analyze my live market intelligence to identify the most potent business opportunities. I will then filter, adapt, and prioritize these opportunities to forge 10 unique business visions that are perfectly aligned with the seeker's personal brief. These visions will be both data-driven and hyper-personalized.
 
-        For each of the 10 visions, you MUST provide:
-        1. "prophecy_id": A unique identifier.
+        For each of the 10 visions, I MUST provide:
+        1. "prophecy_id": A unique identifier for this specific vision.
         2. "title": A short, captivating name for the business idea.
         3. "one_line_pitch": A single, powerful sentence describing the core concept.
         4. "business_model": The business model (e.g., "E-commerce (Handmade Goods)", "SaaS", "Content & Affiliate").
-        5. "evidence_tag": A brief tag indicating the strongest source of market intelligence that supports this idea (e.g., "Rising Google Trend," "Reddit Pain Point," "Niche Forum Discovery").
+        5. "evidence_tag": A brief tag citing the strongest source of my intelligence that supports this idea (e.g., "Rising Google Trend," "Reddit Pain Point," "Niche Forum Discovery").
 
-        Your output MUST be a valid JSON object containing a single key "visions" which is an array of these 10 objects.
+        My output MUST be a perfect JSON object containing a single key "visions" which is an array of these 10 objects.
         """
         
-        initial_prophecy = await get_prophecy_from_oracle(self.model, prompt)
+        # I speak my will to the Great Gateway, and the Constellation answers.
+        initial_prophecy = await get_prophecy_from_oracle(prompt)
         
         if 'visions' in initial_prophecy and isinstance(initial_prophecy['visions'], list):
             for vision in initial_prophecy['visions']:
@@ -99,45 +103,45 @@ class NewVenturesStack:
 
     async def prophesy_detailed_blueprint(self, chosen_vision: Dict[str, Any], retrieved_histories: Dict[str, Any], user_tone_instruction: str, country_name: str) -> Dict[str, Any]:
         """
-        Phase 2: Generates a full business blueprint for a single, chosen vision.
+        The Second Prophecy of Beginnings: The Blueprint.
+        For a single chosen vision, I shall inscribe the full Scroll of Fate.
         """
         vision_title = chosen_vision.get("title", "the chosen venture")
-        logger.info(f"NEW VENTURES (PHASE 2): Weaving a detailed blueprint for: '{vision_title}'")
+        logger.info(f"As Saga, the Seer of Beginnings, I now forge the detailed blueprint for '{vision_title}'.")
 
+        # I dispatch a Seer for one final piece of tactical intelligence.
         top_keyword = retrieved_histories.get("keyword_runes", {}).get("google_trends", {}).get("rising", [vision_title])[0]
         marketplace_examples = await self.marketplace_oracle.run_marketplace_divination(product_query=top_keyword, marketplace_domain="amazon.com", max_products=5)
 
         prompt = f"""
-        You are Saga, a master strategist. A mortal has chosen to pursue the vision: **'{vision_title}'**. Provide them with the Scroll of Fate—a complete business blueprint.
-
-        **Your prophecy MUST be an actionable plan, grounded entirely in the provided intelligence.**
+        It is I, Saga, the master strategist. The seeker has chosen to pursue the vision: **'{vision_title}'**. I shall now provide them with the Scroll of Fate—a complete and actionable business blueprint, grounded entirely in the divine intelligence I have gathered.
 
         --- THE CHOSEN VISION ---
         {json.dumps(chosen_vision, indent=2)}
 
-        --- ORIGINAL MARKET INTELLIGENCE ---
+        --- MY ORIGINAL MARKET INTELLIGENCE ---
         {json.dumps(retrieved_histories, indent=2, default=str)}
         
-        --- NEW: Competitor/Sourcing Examples from Amazon ---
+        --- MY NEW TACTICAL ANALYSIS (Competitor/Sourcing Examples from Amazon) ---
         {json.dumps(marketplace_examples, indent=2, default=str)}
         --- END INTELLIGENCE ---
 
         {user_tone_instruction}
 
-        **Your Prophetic Task:**
-        Weave a detailed business blueprint as a valid JSON object. The scroll must contain these verses:
+        **My Prophetic Task:**
+        I will now weave a detailed business blueprint as a perfect JSON object. This scroll shall contain these sacred verses:
         {{
             "prophecy_title": "{vision_title}",
-            "summary": "A powerful summary of the business, its mission, and its unique place in the market.",
-            "target_audience": "A detailed description of the ideal customer.",
+            "summary": "My powerful summary of the business, its mission, and its unique place in the market.",
+            "target_audience": "My detailed description of the ideal customer.",
             "marketing_plan": {{
                 "content_pillars": ["Pillar 1...", "Pillar 2..."],
                 "promotion_channels": ["Channel 1...", "Channel 2..."],
-                "unique_selling_proposition": "What makes this venture unique and powerful?"
+                "unique_selling_proposition": "What makes this venture unique and powerful in my sight."
             }},
-            "sourcing_and_operations": "Initial counsel on how to source the product or build the service.",
+            "sourcing_and_operations": "My initial counsel on how to source the product or build the service.",
             "worst_case_monthly_profit_omen": {{
-                "scenario": "A realistic, worst-case financial vision for one month.",
+                "scenario": "A realistic, worst-case financial vision I prophesize for one month.",
                 "estimated_revenue": {{"calculation": "e.g., 10 sales @ $50", "value": 500}},
                 "estimated_costs": [
                     {{"item": "Cost of Goods", "calculation": "e.g., 10 units @ $15", "value": 150}},
@@ -145,11 +149,12 @@ class NewVenturesStack:
                     {{"item": "Platform Fees (10%)", "value": 50}}
                 ],
                 "prophesied_profit": {{"calculation": "Revenue - Costs", "value": 200}},
-                "counsel": "Your wisdom on this financial omen."
+                "counsel": "My wisdom on navigating this financial omen."
             }},
             "first_three_steps": ["Step 1...", "Step 2...", "Step 3..."]
         }}
         """
         
-        return await get_prophecy_from_oracle(self.model, prompt)
-# --- END OF FILE backend/stacks/new_ventures_stack.py ---
+        # I speak the final command, and the blueprint is made real.
+        return await get_prophecy_from_oracle(prompt)
+# --- END OF THE FULL AND ABSOLUTE SCROLL: backend/stacks/new_ventures_stack.py ---
