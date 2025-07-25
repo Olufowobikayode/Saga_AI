@@ -11,9 +11,9 @@ type LedgerStatus =
   | 'idle'
   | 'performing_entry_rite'
   | 'crossroads'
-  | 'performing_choice_rite' // The ritual AFTER choosing a main prophecy type.
-  | 'awaiting_audit_type'    // The Hall of Scrutiny is unveiled.
-  | 'awaiting_arbitrage_mode'// The Hall of Scales is unveiled.
+  | 'performing_choice_rite'
+  | 'awaiting_audit_type'
+  | 'awaiting_arbitrage_mode'
   | 'awaiting_input'
   | 'forging_prophecy'
   | 'prophecy_revealed';
@@ -23,7 +23,6 @@ interface CommerceState {
   error: string | null;
   
   chosenProphecyType: CommerceProphecyType | null;
-  // NEW: Memory for the specific sub-choices.
   chosenAuditType: AuditType | null;
   chosenArbitrageMode: ArbitrageMode | null;
 
@@ -34,7 +33,7 @@ interface CommerceState {
   enterLedger: () => Promise<void>;
   chooseProphecy: (prophecyType: CommerceProphecyType) => Promise<void>;
   chooseAuditType: (auditType: AuditType) => Promise<void>;
-  // We will add chooseArbitrageMode in a later step.
+  chooseArbitrageMode: (mode: ArbitrageMode) => Promise<void>; // NEW RITE
   forgeProphecy: (requestData: any) => Promise<void>;
   regenerateProphecy: () => Promise<void>;
   returnToCrossroads: () => void;
@@ -44,13 +43,8 @@ const API_BASE_URL = 'http://localhost:8000/api/v10';
 const performRitual = () => new Promise(resolve => setTimeout(resolve, 30000));
 
 export const useCommerceStore = create<CommerceState>((set, get) => ({
-  status: 'idle',
-  error: null,
-  chosenProphecyType: null,
-  chosenAuditType: null,
-  chosenArbitrageMode: null,
-  lastRequestData: null,
-  finalProphecy: null,
+  status: 'idle', error: null, chosenProphecyType: null, chosenAuditType: null,
+  chosenArbitrageMode: null, lastRequestData: null, finalProphecy: null,
 
   enterLedger: async () => {
     set({ status: 'performing_entry_rite', error: null });
@@ -74,6 +68,13 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
     set({ status: 'performing_choice_rite', error: null, chosenAuditType: auditType });
     await performRitual();
     set({ status: 'awaiting_input' });
+  },
+
+  // NEW RITE: Called from the Hall of Scales.
+  chooseArbitrageMode: async (mode) => {
+    set({ status: 'performing_choice_rite', error: null, chosenArbitrageMode: mode });
+    await performRitual();
+    set({ status: 'awaiting_input' }); // Now, proceed to the final input form.
   },
 
   forgeProphecy: async (requestData) => {
