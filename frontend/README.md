@@ -1,70 +1,85 @@
-# Getting Started with Create React App
+Saga AI - Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is the Next.js frontend for the Saga AI application, a sophisticated AI-powered strategic oracle.
 
-## Available Scripts
+Project Architecture
+
+This project is built with the following technologies:
+
+Framework: Next.js 14 (with App Router)
+
+UI: React & Tailwind CSS
+
+State Management: Zustand
+
+Animations: Framer Motion
+
+Language: TypeScript
+
+Getting Started
+
+First, ensure you have Node.js and npm installed.
+
+1. Environment Variables
+
+This project requires environment variables to connect to the backend API. Create a file named .env.local in the frontend/ directory and add the following:
+
+Generated code
+NEXT_PUBLIC_SAGA_API_URL=http://localhost:8000/api/v10
+
+
+This ensures the frontend knows where to send API requests during development.
+
+2. Install Dependencies
+
+In the project directory, run:
+
+Generated bash
+npm install
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+3. Running the Development Server
+
+To start the app in development mode, run:
+
+Generated bash
+npm run dev
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Open http://localhost:3000 to view it in your browser. The page will auto-update as you edit the code.
+
+Available Scripts
 
 In the project directory, you can run:
 
-### `npm start`
+npm run dev
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Runs the app in development mode at http://localhost:3000.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+npm run build
 
-### `npm test`
+Builds the app for production. This command optimizes the application for the best performance, creating a /.next folder with the production build.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+npm run start
 
-### `npm run build`
+Starts the production server. You must run npm run build before this command will work. It serves the optimized application on a specified port (usually 3000).
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+npm run lint
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Runs the Next.js linter (eslint) to identify and fix problems in your code.
+--- END OF FILE frontend/README.md ---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+The README.md has been corrected.
 
-### `npm run eject`
+The next issue is that the file frontend/public/index.html is a remnant of Create React App and is completely unused by Next.js, causing confusion. It should be deleted. Since a deletion cannot be shown, we will instead proceed to correct the true entry point of the application layout, which also has errors: frontend/src/app/layout.tsx.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Please give the command to proceed.
