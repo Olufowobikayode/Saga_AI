@@ -1,7 +1,9 @@
+# --- START OF FILE backend/stacks/commerce_saga_stack.py ---
 import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional, List
+from urllib.parse import urlparse
 
 import google.generativeai as genai
 
@@ -9,6 +11,7 @@ import google.generativeai as genai
 from backend.q_and_a import CommunitySaga
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
+from backend.marketplace_finder import MarketplaceScout
 from backend.utils import get_prophecy_from_oracle
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,7 @@ class CommerceSagaStack:
         self.community_seer: CommunitySaga = seers['community_seer']
         self.keyword_rune_keeper: KeywordRuneKeeper = seers['keyword_rune_keeper']
         self.marketplace_oracle: GlobalMarketplaceOracle = seers['marketplace_oracle']
+        self.scout: MarketplaceScout = MarketplaceScout()
 
     async def prophesy_commerce_audit(self, audit_type: str, statement_text: Optional[str] = None, store_url: Optional[str] = None) -> Dict[str, Any]:
         """Generates one of the three commerce audit prophecies."""
@@ -41,11 +45,9 @@ class CommerceSagaStack:
         intel = {}
         if audit_type in ["Store Audit", "Account Prediction"] and store_url:
             intel["user_store_content"] = await self.marketplace_oracle.read_user_store_scroll(store_url)
-            # A simple way to guess the product from a URL
             product_name_guess = " ".join(store_url.split('/')[-2:]).replace('-', ' ').replace('.html', '')
-            # ### FIX: Updated the method call to 'run_marketplace_divination' for consistency.
             intel["competitor_data"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name_guess, marketplace_domain="etsy.com")
-        
+
         prompt = f"""
         You are Saga, a master business analyst and financial strategist. A user requires a prophecy of the type: '{audit_type}'. Analyze the provided intelligence and deliver your wisdom.
 
@@ -155,52 +157,82 @@ class CommerceSagaStack:
         """
         return await get_prophecy_from_oracle(self.model, prompt)
 
-    async def prophesy_social_selling_saga(self, **kwargs) -> Dict[str, Any]:
-        """Generates a complete social selling plan based on user's profit goals."""
-        logger.info(f"COMMERCE SAGA: Forging a 'Social Selling Saga' prophecy...")
+    async def prophesy_social_selling_saga(self, product_name: str, social_selling_price: float, desired_profit_per_product: float, social_platform: str, ads_daily_budget: float, **kwargs) -> Dict[str, Any]:
+        """
+        Generates a complete, data-driven social selling plan. It now actively
+        researches the best B2B platforms for the specific product.
+        """
+        logger.info(f"COMMERCE SAGA: Forging a 'Social Selling Saga' prophecy for '{product_name}'...")
         
-        product_name = kwargs.get('product_name')
         intel = {}
-        if product_name:
-            # ### FIX: Updated the method call to 'run_marketplace_divination' for consistency.
-            intel["top_suppliers"] = await self.marketplace_oracle.run_marketplace_divination(product_query=product_name, marketplace_domain="alibaba.com")
+        b2b_platforms = await self.scout.find_niche_realms(f"best B2B marketplace for {product_name}", num_results=3)
+        intel["b2b_platform_research"] = b2b_platforms
+        
+        top_platform_domain = "alibaba.com"
+        if b2b_platforms:
+            try:
+                top_platform_domain = urlparse(b2b_platforms[0]).netloc
+            except:
+                pass
+        
+        intel["top_suppliers_examples"] = await self.marketplace_oracle.run_marketplace_divination(
+            product_query=product_name, marketplace_domain=top_platform_domain
+        )
 
         prompt = f"""
-        You are Saga, a master social commerce strategist. A user requires a complete plan to sell '{product_name}' on social media, based on specific profit goals.
+        You are Saga, a master social commerce strategist. A user asks: "Who is the best merchant to buy from, and how do I create a profitable social media sales campaign for my product?"
 
         --- USER'S GOALS ---
-        {json.dumps(kwargs, indent=2)}
+        - Product Name: {product_name}
+        - Target Selling Price: ${social_selling_price}
+        - Desired Profit Per Item: ${desired_profit_per_product}
+        - Primary Social Platform: {social_platform}
+        - Daily Ad Budget: ${ads_daily_budget}
 
-        --- SAGA'S RESEARCH ---
-        **Top B2B Suppliers Found on Alibaba:** {json.dumps(intel.get('top_suppliers'), indent=2, default=str)}
+        --- SAGA'S DEEP RESEARCH ---
+        **Recommended B2B Sourcing Platforms for '{product_name}':** 
+        {json.dumps(intel.get("b2b_platform_research"), indent=2)}
+        **Example Suppliers Found on '{top_platform_domain}':** 
+        {json.dumps(intel.get("top_suppliers_examples"), indent=2, default=str)}
 
         --- SAGA'S DECREED RULES ---
         {SUPPLIER_SELECTION_RULES}
-        - The final calculated profit MUST meet or exceed the user's 'desired_profit_per_product'.
+        - The final calculated profit MUST meet or exceed the user's desired profit goal.
 
         **Your Prophetic Task:**
-        Analyze the top suppliers from your research. Choose the best one that meets the rules and allows for the user's profit goal. Then, construct a full sales plan. If no supplier in the data is suitable, create a plausible, ideal supplier that meets the criteria for the plan.
+        Synthesize all research to forge a complete social selling saga. Analyze the example suppliers, choose the best one that meets the rules and profit goals, and construct the full plan. If no supplier is suitable, create a plausible, ideal supplier that meets all criteria.
 
         Your output MUST be a valid JSON object:
         {{
-            "chosen_supplier": {{
-                "platform": "Alibaba.com",
-                "seller_name": "A plausible seller name from your research that meets the rules.",
-                "product_cost_per_unit": "The cost from the chosen supplier that allows the user's profit goal to be met."
+            "sourcing_counsel": {{
+                "title": "Sourcing Counsel",
+                "recommended_platform": "The best B2B platform from your research (e.g., Alibaba.com, ThomasNet).",
+                "chosen_supplier": {{
+                    "name": "A plausible supplier name from your research that meets the rules.",
+                    "product_cost_per_unit": "The cost from the chosen supplier that allows the user's profit goal to be met."
+                }},
+                "validation_steps": ["Actionable advice on how to vet this supplier (e.g., 'Request samples')."]
             }},
             "financial_plan": {{
-                "user_selling_price": {kwargs.get('social_selling_price')},
-                "costs_per_unit": [
-                    {{"item": "Product Cost", "amount": 0.0}},
-                    {{"item": "Estimated Platform Fees (10%)", "amount": 0.10 * kwargs.get('social_selling_price', 0)}},
-                    {{"item": "Estimated Shipping", "amount": 0.0}}
-                ],
-                "final_profit_per_unit": "The final calculated profit: Selling Price - All Costs.",
-                "units_to_sell_to_cover_daily_ads": "Calculation: Daily Ad Budget / (Final Profit Per Unit). Show the numbers."
+                "title": "Financial Plan",
+                "profit_calculation": {{
+                    "User's Selling Price": social_selling_price,
+                    "Costs per Unit": [
+                        {{"item": "Product Cost", "amount": "Cost from chosen supplier"}},
+                        {{"item": "Estimated Platform Fees (10%)", "amount": 0.10 * social_selling_price}},
+                        {{"item": "Estimated Shipping", "amount": "An estimated shipping fee (e.g., 5.00)"}}
+                    ],
+                    "Final Profit per Unit": "Selling Price - All Costs. State if this meets the user's goal."
+                }},
+                "ad_spend_analysis": {{
+                    "Daily Ad Budget": ads_daily_budget,
+                    "Units to Sell Daily to Break Even on Ads": "Calculation: Daily Ad Budget / (Final Profit Per Unit). Show the numbers."
+                }}
             }},
             "action_plan": {{
-                "units_to_buy": "Suggest a safe starting number of units to buy (e.g., 25-50).",
-                "sales_pitch": "A short, powerful sales pitch to use on the chosen social platform."
+                "title": "Action Plan",
+                "suggested_order_quantity": "Suggest a safe starting number of units to buy (e.g., 25-50).",
+                "sales_pitch": "A short, powerful sales pitch for '{social_platform}'."
             }}
         }}
         """
@@ -209,8 +241,7 @@ class CommerceSagaStack:
     async def prophesy_product_route(self, location_type: str) -> Dict[str, Any]:
         """Finds a high-profit-margin product to sell either globally or locally."""
         logger.info(f"COMMERCE SAGA: Forging a 'Product Route' prophecy (Location: {location_type})...")
-        
-        # RAG: Use Saga's full power to find what people need
+
         intel = {}
         intel["community_needs"] = await self.community_seer.run_community_gathering("what product should I sell online", query_type="questions")
         intel["rising_trends"] = await self.keyword_rune_keeper.get_full_keyword_runes("trending products")
@@ -251,3 +282,5 @@ class CommerceSagaStack:
         }}
         """
         return await get_prophecy_from_oracle(self.model, prompt)
+
+# --- END OF FILE backend/stacks/commerce_saga_stack.py ---
