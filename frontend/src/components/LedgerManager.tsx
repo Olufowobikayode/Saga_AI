@@ -1,11 +1,12 @@
 // --- START OF FILE src/components/LedgerManager.tsx ---
-'client';
+'use client';
 
 import React from 'react';
 import { useCommerceStore } from '@/store/commerceStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import CommerceCrossroads from './CommerceCrossroads'; // Summoning the real Crossroads.
+import CommerceCrossroads from './CommerceCrossroads';
+import HallOfScrutiny from './HallOfScrutiny'; // Summoning the new Hall of Scrutiny.
 
 // Veils for the components we will soon forge.
 const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
@@ -23,9 +24,12 @@ export default function LedgerManager() {
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
-        // Now unveiling the real component instead of the veil.
         return <CommerceCrossroads />;
       
+      // NEW: Unveil the Hall of Scrutiny at the correct time.
+      case 'awaiting_audit_type':
+        return <HallOfScrutiny />;
+
       case 'awaiting_input':
         return <CommerceInputForm />;
 
@@ -33,6 +37,7 @@ export default function LedgerManager() {
         return <CommerceProphecyScroll />;
 
       case 'performing_entry_rite':
+      case 'performing_choice_rite': // The ritual after any choice is now handled here.
       case 'forging_prophecy':
         return <RitualScreen />;
       
@@ -49,4 +54,4 @@ export default function LedgerManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/LedgerManager.tsx ---
+// --- END OF FILE src/components/LedgerManager.tsx ---```
