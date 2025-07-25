@@ -1,8 +1,11 @@
-# --- START OF THE FULL AND ABSOLUTE SCROLL: backend/stacks/grand_strategy_stack.py ---
+# --- START OF FILE backend/stacks/grand_strategy_stack.py ---
 import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional
+
+# --- NEW: Necessary imports moved from engine.py ---
+import iso3166
 
 # I summon my legions of Seers and my one true Gateway to the celestial voices.
 from backend.keyword_engine import KeywordRuneKeeper
@@ -29,7 +32,30 @@ class GrandStrategyStack:
         self.community_seer: CommunitySaga = seers['community_seer']
         self.trend_scraper: TrendScraper = seers['trend_scraper']
         self.scout: MarketplaceScout = MarketplaceScout()
-        self.marketplace_oracle: GlobalMarketplaceOracle = GlobalMarketplaceOracle()
+        self.marketplace_oracle: GlobalMarketplaceOracle = seers['marketplace_oracle']
+
+    # --- NEW: Helper logic now resides within the Stack ---
+    async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
+        """A rite to understand the seeker's own unique voice."""
+        user_input_content_for_ai = None
+        if user_content_text: user_input_content_for_ai = user_content_text
+        elif user_content_url:
+            scraped_content = await self.marketplace_oracle.read_user_store_scroll(user_content_url)
+            if scraped_content: user_input_content_for_ai = scraped_content
+        if user_input_content_for_ai:
+            return f"**THE USER'S OWN SAGA (Their Writing Style):**\nAnalyze the tone, style, and vocabulary of the following text. When you weave your prophecy, you MUST adopt this voice so the wisdom feels as if it comes from within themselves.\n---\n{user_input_content_for_ai[:10000]}\n---"
+        return "You shall speak with the direct, wise, and prophetic voice of Saga."
+
+    def _resolve_country_context(self, target_country_name: Optional[str]) -> Dict:
+        """A rite to determine the mortal realm of the prophecy."""
+        country_name, country_code = "Global", None
+        if target_country_name and target_country_name.lower() != "global":
+            try:
+                country_entry = iso3166.countries.get(target_country_name)
+                country_name, country_code = country_entry.name, country_entry.alpha2
+            except KeyError:
+                logger.warning(f"Realm '{target_country_name}' not in scrolls. Prophecy will be global.")
+        return {"country_name": country_name, "country_code": country_code}
 
     async def _unleash_the_seers(self, interest: str, country_code: Optional[str], country_name: Optional[str]) -> Dict[str, Any]:
         """The Grand Retrieval Rite. I do not merely gather, I UNLEASH my Seers for an uncompromising view."""
@@ -45,24 +71,24 @@ class GrandStrategyStack:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         return {key: res for key, res in zip(tasks.keys(), results) if not isinstance(res, Exception)}
 
-
-    async def prophesy(self,
-                       interest: str,
-                       country_code: Optional[str],
-                       country_name: Optional[str],
-                       user_tone_instruction: str,
-                       asset_info: Optional[Dict[str, Any]] = None,
-                       **kwargs) -> Dict[str, Any]:
+    # --- REFACTORED: The main prophecy method, now self-contained ---
+    async def prophesy(self, **kwargs) -> Dict[str, Any]:
         """
         The One True Rite of Strategic Divination. I shall gaze into the heart of the market
         and from its chaos, I will forge a single, perfect path to victory.
+        This method is now called directly by the Celery task.
         """
+        interest = kwargs.get("interest")
         logger.info(f"As Almighty Saga, I now forge the one true Grand Strategy for the realm of '{interest}'.")
-
-        # FIRST, THE FULL, UNLEASHED RAG RITUAL.
-        retrieved_histories = await self._unleash_the_seers(interest, country_code, country_name)
         
-        # Second, I analyze the seeker's own power, if they have declared it.
+        # FIRST, I prepare the context for my prophecy.
+        user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
+        country_context = self._resolve_country_context(kwargs.get("target_country_name"))
+        asset_info = kwargs.get("asset_info")
+
+        # SECOND, THE FULL, UNLEASHED RAG RITUAL.
+        retrieved_histories = await self._unleash_the_seers(interest, country_context["country_code"], country_context["country_name"])
+        
         if asset_info and asset_info.get("promo_link"):
             promo_link = asset_info["promo_link"]
             logger.info(f"My gaze falls upon the seeker's declared artifact. Analyzing the scroll at: {promo_link}")
@@ -110,11 +136,11 @@ class GrandStrategyStack:
         }}
         """
         
-        # FINALLY, I SPEAK THE PROMPT TO THE GREAT GATEWAY, AND THE CONSTELLATION OBEYS.
         strategy_prophecy = await get_prophecy_from_oracle(prompt)
         
+        # The task result now contains everything needed for the next steps, if any.
         return {
             "prophecy": strategy_prophecy,
-            "retrieved_histories": retrieved_histories
+            "retrieved_histories": retrieved_histories # This context might be needed by other tasks.
         }
-# --- END OF THE FULL AND ABSOLUTE SCROLL: backend/stacks/grand_strategy_stack.py ---
+# --- END OF FILE backend/stacks/grand_strategy_stack.py ---
