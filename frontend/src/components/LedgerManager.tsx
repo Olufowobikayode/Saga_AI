@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/LedgerManager.tsx ---
+// --- START OF FILE frontend/src/components/LedgerManager.tsx ---
 'use client';
 
 import React from 'react';
@@ -9,7 +9,7 @@ import CommerceCrossroads from './CommerceCrossroads';
 import HallOfScrutiny from './HallOfScrutiny';
 import HallOfScales from './HallOfScales';
 import CommerceInputForm from './CommerceInputForm';
-import CommerceProphecyScroll from './CommerceProphecyScroll'; // Summoning the real Final Scroll.
+import CommerceProphecyScroll from './CommerceProphecyScroll';
 
 /**
  * LedgerManager: The master controller for the entire Commerce Saga workflow.
@@ -17,6 +17,12 @@ import CommerceProphecyScroll from './CommerceProphecyScroll'; // Summoning the 
  */
 export default function LedgerManager() {
   const status = useCommerceStore((state) => state.status);
+  const ritualPromise = useCommerceStore((state) => state.ritualPromise);
+
+  const handleRitualComplete = () => {
+    console.log("LedgerManager acknowledges ritual completion.");
+    // The store manages its own state transitions upon promise resolution.
+  };
 
   // This function decides which sacred chamber to unveil.
   const renderCurrentStage = () => {
@@ -34,13 +40,19 @@ export default function LedgerManager() {
         return <CommerceInputForm />;
 
       case 'prophecy_revealed':
-        // Now unveiling the real component instead of the veil.
         return <CommerceProphecyScroll />;
 
       case 'performing_entry_rite':
       case 'performing_choice_rite':
       case 'forging_prophecy':
-        return <RitualScreen />;
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key={`ledger-ritual-${status}`}
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
       
       default:
         return <div className="text-center p-8">Opening the Merchant's Ledger...</div>;
@@ -55,4 +67,4 @@ export default function LedgerManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/LedgerManager.tsx ---
+// --- END OF FILE frontend/src/components/LedgerManager.tsx ---
