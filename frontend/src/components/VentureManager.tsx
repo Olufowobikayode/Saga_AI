@@ -5,10 +5,10 @@ import React, { useEffect } from 'react';
 import { useVentureStore } from '@/store/ventureStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import RefinementChamber from './RefinementChamber'; // Summoning the real Refinement Chamber.
+import RefinementChamber from './RefinementChamber';
+import HallOfVisions from './HallOfVisions'; // Summoning the real Hall of Visions.
 
-// Veils for the components we will soon forge.
-const HallOfVisions = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The ten visions are revealed...</div>;
+// Veil for the final component we will forge.
 const BlueprintScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final blueprint is unfurled...</div>;
 
 
@@ -29,13 +29,13 @@ export default function VentureManager() {
   const renderCurrentStage = () => {
     switch (status) {
       case 'awaiting_refinement':
-        // Now unveiling the real component instead of the veil.
         return <RefinementChamber />;
       
       case 'questing_for_visions':
         return <RitualScreen />;
 
       case 'visions_revealed':
+        // Now unveiling the real component instead of the veil.
         return <HallOfVisions />;
 
       case 'forging_blueprint':
@@ -44,7 +44,6 @@ export default function VentureManager() {
       case 'blueprint_revealed':
         return <BlueprintScroll />;
 
-      // The entry rite is now also handled by the RitualScreen
       case 'performing_entry_rite':
         return <RitualScreen />;
 
