@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { useSagaStore } from './sagaStore';
 
-// Shared Polling Helper
+// --- Polling Helper ---
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
   const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
   const interval = setInterval(async () => {
@@ -36,17 +36,15 @@ interface VentureState {
   error: string | null;
   isRitualRunning: boolean;
   
-  // Multi-step context
-  visionsResult: { visions: Vision[] } & any | null; // Stores the full result from the first task
-  
+  visionsResult: { visions: Vision[] } & any | null;
   chosenVision: Vision | null;
   blueprint: Blueprint | null;
 
-  // Rites
+  // Rites now accept the session ID
   enterSpire: () => void;
-  beginQuest: (ventureBrief: VentureBrief) => Promise<void>;
-  chooseVision: (visionId: string) => Promise<void>;
-  regenerateBlueprint: () => Promise<void>;
+  beginQuest: (ventureBrief: VentureBrief, sessionId: string) => Promise<void>;
+  chooseVision: (visionId: string, sessionId: string) => Promise<void>;
+  regenerateBlueprint: (sessionId: string) => Promise<void>;
   returnToVisions: () => void;
 }
 
@@ -58,7 +56,9 @@ export const useVentureStore = create<VentureState>((set, get) => ({
 
   enterSpire: () => set({ status: 'awaiting_refinement' }),
 
-  beginQuest: async (ventureBrief) => {
+  beginQuest: async (ventureBrief, sessionId) => {
+    if (!sessionId) return set({ error: "Session ID missing." });
+    
     const brief = useSagaStore.getState().brief;
     set({ status: 'forging', isRitualRunning: true, error: null });
     
@@ -66,6 +66,7 @@ export const useVentureStore = create<VentureState>((set, get) => ({
       const res = await fetch(`${API_BASE_URL}/prophesy/new-venture-visions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          session_id: sessionId,
           interest: brief.interest, sub_niche: brief.subNiche,
           user_content_text: brief.toneText, user_content_url: brief.toneUrl,
           target_country_name: brief.targetCountry, venture_brief: ventureBrief
@@ -83,22 +84,20 @@ export const useVentureStore = create<VentureState>((set, get) => ({
     }
   },
 
-  chooseVision: async (visionId) => {
+  chooseVision: async (visionId, sessionId) => {
+    if (!sessionId) return set({ error: "Session ID missing." });
+
     const { visionsResult } = get();
     const chosenVision = visionsResult?.visions.find(v => v.prophecy_id === visionId) || null;
-    if (!visionsResult || !chosenVision) {
-      set({ error: "A critical prophecy session error occurred." });
-      return;
-    }
-    set({ chosenVision });
+    if (!visionsResult || !chosenVision) return set({ error: "Session is missing critical context." });
     
-    set({ status: 'forging', isRitualRunning: true, error: null });
+    set({ status: 'forging', isRitualRunning: true, error: null, chosenVision });
 
     try {
-      // The second task receives the full context from the first task's result
       const res = await fetch(`${API_BASE_URL}/prophesy/new-venture-blueprint`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+              session_id: sessionId,
               chosen_vision: chosenVision,
               retrieved_histories: visionsResult.retrieved_histories,
               user_tone_instruction: visionsResult.user_tone_instruction,
@@ -117,10 +116,10 @@ export const useVentureStore = create<VentureState>((set, get) => ({
     }
   },
 
-  regenerateBlueprint: async () => {
+  regenerateBlueprint: async (sessionId) => {
     const { chosenVision } = get();
     if (chosenVision) {
-      await get().chooseVision(chosenVision.prophecy_id);
+      await get().chooseVision(chosenVision.prophecy_id, sessionId);
     }
   },
 
