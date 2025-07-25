@@ -1,0 +1,41 @@
+# --- START OF FILE backend/Dockerfile.backend ---
+
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
+
+# Set environment variables to prevent buffering and write .pyc files
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies that might be needed by some Python packages
+# (e.g., for cryptography or other compiled extensions)
+RUN apt-get update && apt-get install -y build-essential
+
+# Copy the requirements file into the container
+COPY requirements.txt .
+
+# Install the Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the backend application code into the container
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 8000
+
+# --- Default Command ---
+# This command will be run if you don't specify one in Render.
+# It starts the Gunicorn web server for FastAPI.
+# Render's "Web Service" Start Command should be:
+# gunicorn -w 4 -k uvicorn.workers.UvicornWorker backend.server:app --bind 0.0.0.0:8000
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "backend.server:app", "--bind", "0.0.0.0:8000"]
+
+# --- FOR THE CELERY WORKER IN RENDER ---
+# When you create a "Background Worker" service in Render,
+# you will set its Start Command to:
+# celery -A backend.celery_app worker --loglevel=info
+
+# --- END OF FILE backend/Dockerfile.backend ---
