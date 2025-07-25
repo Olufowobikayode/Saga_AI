@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useCommerceStore } from '@/store/commerceStore';
+import { useCommerceStore, AuditType } from '@/store/commerceStore';
 
 // SAGA UI: Defining the data for the three audit type cards.
 const auditOptions = [
@@ -31,13 +31,8 @@ const auditOptions = [
  * HallOfScrutiny: Displays the three audit types for the user to choose from.
  */
 export default function HallOfScrutiny() {
-  // SAGA LOGIC: The 'chooseProphecy' rite is multi-purpose. Here it sets the sub-type.
-  // We will need to upgrade the store to handle this choice. For now, this is the UI.
-  // A better name for this in the store might be 'chooseSubProphecy'.
-  const chooseSubProphecy = (subType: string) => {
-      console.log(`Sub-prophecy chosen: ${subType}`);
-      // This will call a new function in the store to set the audit type and proceed.
-  };
+  // SAGA LOGIC: Get the 'chooseAuditType' rite from the store.
+  const chooseAuditType = useCommerceStore((state) => state.chooseAuditType);
 
   return (
     <motion.div
@@ -65,7 +60,7 @@ export default function HallOfScrutiny() {
             transition={{ duration: 0.5, delay: 0.1 * index }}
           >
             <button
-              onClick={() => chooseSubProphecy(option.id)}
+              onClick={() => chooseAuditType(option.id as AuditType)}
               className="w-full h-full bg-saga-surface p-8 rounded-lg border border-white/10 shadow-lg text-left
                          hover:border-saga-primary hover:scale-105 transition-all duration-300 group"
             >
