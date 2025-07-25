@@ -7,6 +7,7 @@ export type CommerceProphecyType = 'Commerce Audit' | 'Arbitrage Paths' | 'Socia
 // SAGA PERSONA: Defining the stages of the Merchant's prophecy.
 type LedgerStatus =
   | 'idle'              // The Ledger is closed.
+  | 'performing_entry_rite' // The ritual upon entering the hall.
   | 'crossroads'        // Awaiting the user's choice of which prophecy to pursue.
   | 'awaiting_input'    // Awaiting the user's input for their chosen prophecy.
   | 'forging_prophecy'  // The ritual to generate the prophecy is in progress.
@@ -23,8 +24,8 @@ interface CommerceState {
   finalProphecy: any | null;
 
   // The Rites of the Ledger
-  enterLedger: () => void;
-  chooseProphecy: (prophecyType: CommerceProphecyType) => void;
+  enterLedger: () => Promise<void>;
+  chooseProphecy: (prophecyType: CommerceProphecyType) => Promise<void>;
   forgeProphecy: (requestData: any) => Promise<void>;
   regenerateProphecy: () => Promise<void>;
   returnToCrossroads: () => void;
@@ -42,26 +43,33 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
   finalProphecy: null,
 
   // --- The Rites ---
-  enterLedger: () => {
+  enterLedger: async () => {
+    set({ status: 'performing_entry_rite', error: null });
+    await performRitual();
     set({ status: 'crossroads' });
   },
 
-  chooseProphecy: (prophecyType) => {
-    set({ status: 'awaiting_input', chosenProphecyType: prophecyType, error: null });
+  chooseProphecy: async (prophecyType) => {
+    // A ritual must be observed when a path is chosen.
+    set({ status: 'forging_prophecy', error: null }); // Use the main forging status for intermediate rituals
+    await performRitual();
+    set({ status: 'awaiting_input', chosenProphecyType: prophecyType });
   },
 
   forgeProphecy: async (requestData) => {
     const prophecyType = get().chosenProphecyType;
     if (!prophecyType) return;
 
-    set({ status: 'forging_prophecy', error: null, lastRequestData: requestData });
+    // The request data from the form must include the prophecy_type for the backend.
+    const fullRequestData = { ...requestData, prophecy_type: prophecyType };
+
+    set({ status: 'forging_prophecy', error: null, lastRequestData: fullRequestData });
     
     try {
       const apiCallPromise = fetch(`${API_BASE_URL}/prophesy/commerce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // The requestData already includes the 'prophecy_type' field from the form.
-        body: JSON.stringify(requestData),
+        body: JSON.stringify(fullRequestData),
       }).then(async res => {
         if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
         return res.json();
