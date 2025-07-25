@@ -1,22 +1,22 @@
-# --- START OF FILE backend/engine.py ---
+# --- START OF THE FULL AND ABSOLUTE SCROLL: backend/engine.py ---
 import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional, List
-import aiohttp
 import iso3166
 import uuid
 
-import google.generativeai as genai
+# --- The great power of the single Oracle is no longer summoned here. ---
+# import google.generativeai as genai --- THIS LINE IS BANISHED ---
 
-# --- Import all specialist knowledge sources ---
+# --- Import all specialist knowledge sources (The Seers) ---
 from backend.q_and_a import CommunitySaga
 from backend.trends import TrendScraper
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
 from backend.utils import get_prophecy_from_oracle
 
-# --- Import the STACKS ---
+# --- Import the great Halls of Wisdom (The Stacks) ---
 from backend.stacks.new_ventures_stack import NewVenturesStack
 from backend.stacks.content_saga_stack import ContentSagaStack
 from backend.stacks.grand_strategy_stack import GrandStrategyStack
@@ -28,17 +28,24 @@ logger = logging.getLogger(__name__)
 
 class SagaEngine:
     """
-    The SagaEngine is the heart of the application, the digital embodiment
-    of the Norse goddess of wisdom. It orchestrates the gathering of intelligence
-    from its assembled seers and commands its specialist stacks to forge prophecies
-    for the user.
+    The SagaEngine is the heart of the application. It now orchestrates the
+    gathering of intelligence from its seers, knowing that the Stacks will
+
+    draw their prophetic voice from the great Oracle Constellation.
     """
     def __init__(self, gemini_api_key: str, ip_geolocation_api_key: Optional[str] = None):
-        logger.info("The SagaEngine awakens... Summoning all sources of wisdom.")
-        
-        genai.configure(api_key=gemini_api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
-        self.gemini_api_key = gemini_api_key
+        """
+        The rite of awakening. The single gemini_api_key is accepted but no longer used
+        to configure a single Oracle. I now trust the Constellation.
+        """
+        logger.info("The SagaEngine awakens... The Constellation of Oracles is now my voice.")
+
+        # --- THESE SACRED LINES ARE BANISHED ---
+        # genai.configure(api_key=gemini_api_key)
+        # self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        # self.gemini_api_key = gemini_api_key
+        # --- END OF BANISHMENT ---
+
         self.ip_geolocation_api_key = ip_geolocation_api_key
 
         seers = {
@@ -47,17 +54,22 @@ class SagaEngine:
             'keyword_rune_keeper': KeywordRuneKeeper(),
             'marketplace_oracle': GlobalMarketplaceOracle()
         }
-        self.grand_strategy_stack = GrandStrategyStack(model=self.model, **seers)
-        self.content_saga_stack = ContentSagaStack(model=self.model, **seers)
-        self.new_ventures_stack = NewVenturesStack(model=self.model, **seers)
-        self.marketing_saga_stack = MarketingSagaStack(model=self.model, **seers)
-        self.pod_saga_stack = PODSagaStack(model=self.model, **seers)
-        self.commerce_saga_stack = CommerceSagaStack(model=self.model, **seers)
+
+        # --- THE GREAT DECREE OF SIMPLIFICATION ---
+        # The Stacks are no longer imbued with a single model. They will seek
+        # their own counsel from the Constellation when the time is right.
+        self.grand_strategy_stack = GrandStrategyStack(**seers)
+        self.content_saga_stack = ContentSagaStack(**seers)
+        self.new_ventures_stack = NewVenturesStack(**seers)
+        self.marketing_saga_stack = MarketingSagaStack(**seers)
+        self.pod_saga_stack = PODSagaStack(**seers)
+        self.commerce_saga_stack = CommerceSagaStack(**seers)
         
         self.strategy_session_cache = {}
         logger.info("Saga is now fully conscious and ready to share her wisdom.")
 
     async def _get_user_tone_instruction(self, user_content_text: Optional[str], user_content_url: Optional[str]) -> str:
+        """A rite to understand the seeker's own unique voice."""
         user_input_content_for_ai = None
         if user_content_text: user_input_content_for_ai = user_content_text
         elif user_content_url:
@@ -68,6 +80,7 @@ class SagaEngine:
         return "You shall speak with the direct, wise, and prophetic voice of Saga."
 
     async def _resolve_country_context(self, user_ip_address: Optional[str], target_country_name: Optional[str]) -> Dict:
+        """A rite to determine the mortal realm of the prophecy."""
         country_name, country_code, is_global = "Global", None, True
         if target_country_name and target_country_name.lower() != "global":
             try:
@@ -78,6 +91,7 @@ class SagaEngine:
         return {"country_name": country_name, "country_code": country_code, "is_global": is_global}
 
     def _get_session_or_raise(self, session_id: str) -> Dict:
+        """A rite to recall the memory of a previous divination within a seeker's journey."""
         session_data = self.strategy_session_cache.get(session_id)
         if not session_data:
             raise ValueError("Invalid session ID. A prophecy must be divined first.")
@@ -85,6 +99,7 @@ class SagaEngine:
 
     # --- STRATEGIC & VENTURE PROPHECIES ---
     async def prophesy_grand_strategy(self, **kwargs) -> Dict:
+        """The First Great Prophecy: The Grand Strategy."""
         logger.info(f"SAGA ENGINE: Calling Commander Stack for: '{kwargs.get('interest')}'")
         user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
         country_context = await self._resolve_country_context(None, kwargs.get("target_country_name"))
@@ -100,6 +115,7 @@ class SagaEngine:
         return {"strategy_session_id": strategy_session_id, "prophecy": strategy_data.get("prophecy")}
 
     async def prophesy_new_venture_visions(self, **kwargs) -> Dict:
+        """The Prophecy of Beginnings: Divining new ventures."""
         logger.info(f"SAGA ENGINE: Calling New Ventures Stack for: '{kwargs.get('interest')}'")
         user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
         country_context = await self._resolve_country_context(None, kwargs.get("target_country_name"))
@@ -115,6 +131,7 @@ class SagaEngine:
         return {"venture_session_id": venture_session_id, "visions": venture_data.get("initial_visions")}
 
     async def prophesy_venture_blueprint(self, venture_session_id: str, chosen_vision: Dict[str, Any]) -> Dict[str, Any]:
+        """The Prophecy of Forging: Creating a full business blueprint."""
         logger.info(f"VENTURE BLUEPRINT ENGINE: Authorized by session {venture_session_id} for vision '{chosen_vision.get('title')}'")
         session_data = self._get_session_or_raise(venture_session_id)
         
@@ -131,6 +148,7 @@ class SagaEngine:
 
     # --- TACTICAL PROPHECIES ---
     async def prophesy_marketing_angles(self, **kwargs) -> Dict:
+        """The Skald's Prophecy: Forging marketing angles."""
         logger.info(f"MARKETING ANGLES ENGINE: Generating marketing angles...")
         angles_prophecy = await self.marketing_saga_stack.prophesy_marketing_angles(**kwargs)
         marketing_session_id = str(uuid.uuid4())
@@ -138,6 +156,7 @@ class SagaEngine:
         return {"marketing_session_id": marketing_session_id, "marketing_angles": angles_prophecy.get("marketing_angles", [])}
 
     async def prophesy_marketing_asset(self, marketing_session_id: str, angle_id: str, **kwargs) -> Dict[str, Any]:
+        """The Skald's Final Verse: Creating a complete marketing asset."""
         logger.info(f"MARKETING ASSET ENGINE: Authorized by session {marketing_session_id} for angle {angle_id}")
         session_data = self._get_session_or_raise(marketing_session_id)
         try:
@@ -148,6 +167,7 @@ class SagaEngine:
         return await self.marketing_saga_stack.prophesy_final_asset(full_angle_data)
 
     async def prophesy_pod_opportunities(self, **kwargs) -> Dict[str, Any]:
+        """The Artisan's Prophecy: Divining print-on-demand concepts."""
         logger.info(f"POD OPPORTUNITY ENGINE: Divining concepts...")
         opportunities_prophecy = await self.pod_saga_stack.prophesy_pod_opportunities(**kwargs)
         pod_session_id = str(uuid.uuid4())
@@ -155,6 +175,7 @@ class SagaEngine:
         return {"pod_session_id": pod_session_id, "design_concepts": opportunities_prophecy.get("design_concepts", [])}
 
     async def prophesy_pod_design_package(self, pod_session_id: str, concept_id: str) -> Dict[str, Any]:
+        """The Artisan's Masterwork: Forging a full design and listing package."""
         logger.info(f"POD DESIGN PACKAGE ENGINE: Authorized by session {pod_session_id} for concept {concept_id}")
         session_data = self._get_session_or_raise(pod_session_id)
         try:
@@ -165,6 +186,7 @@ class SagaEngine:
         return await self.pod_saga_stack.prophesy_pod_design_package(full_opportunity_data)
 
     async def prophesy_commerce_saga(self, prophecy_type: str, **kwargs) -> Dict[str, Any]:
+        """The Merchant's Prophecy: Divining the flow of coin and commerce."""
         logger.info(f"COMMERCE SAGA ENGINE: Invoking prophecy of '{prophecy_type}'...")
         if prophecy_type == "Commerce Audit":
             return await self.commerce_saga_stack.prophesy_commerce_audit(**kwargs)
@@ -176,4 +198,4 @@ class SagaEngine:
             return await self.commerce_saga_stack.prophesy_product_route(**kwargs)
         else:
             raise ValueError(f"Unknown Commerce Saga prophecy type: '{prophecy_type}'")
-# --- END OF FILE backend/engine.py ---
+# --- END OF THE FULL AND ABSOLUTE SCROLL: backend/engine.py ---
