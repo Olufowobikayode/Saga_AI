@@ -1,18 +1,19 @@
-# --- START OF FILE backend/stacks/grand_strategy_stack.py ---
+# --- START OF THE AMENDED SCROLL: backend/stacks/grand_strategy_stack.py ---
 import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional
 
-import google.generativeai as genai
+# --- The singular Oracle is banished from this scroll. ---
+# import google.generativeai as genai --- THIS LINE IS BANISHED ---
 
 # --- Import Saga's Seers and Oracles ---
 from backend.keyword_engine import KeywordRuneKeeper
 from backend.q_and_a import CommunitySaga
 from backend.trends import TrendScraper
 from backend.marketplace_finder import MarketplaceScout
-# NEW: We need the oracle to scrape the user's provided link.
 from backend.global_ecommerce_scraper import GlobalMarketplaceOracle
+# We now trust the Gateway to handle the connection to the divine.
 from backend.utils import get_prophecy_from_oracle
 
 logger = logging.getLogger(__name__)
@@ -22,16 +23,18 @@ class GrandStrategyStack:
     The Commander Stack of the SagaEngine. It now accepts a full "Strategic Briefing"
     to forge a hyper-personalized master plan for market domination.
     """
-    def __init__(self, model: genai.GenerativeModel, **seers: Any):
+    def __init__(self, **seers: Any):
         """
-        Initializes the Commander Stack with the necessary seers for strategic divination.
+        The rite of awakening for this Stack. It no longer needs to be given an Oracle.
+        It summons its Seers and prepares for the seeker's petition.
         """
-        self.model = model
+        # --- THESE SACRED LINES ARE BANISHED ---
+        # self.model = model 
+        # --- END OF BANISHMENT ---
         self.keyword_rune_keeper: KeywordRuneKeeper = seers['keyword_rune_keeper']
         self.community_seer: CommunitySaga = seers['community_seer']
         self.trend_scraper: TrendScraper = seers['trend_scraper']
         self.scout: MarketplaceScout = MarketplaceScout()
-        # NEW: The stack now has the marketplace oracle for deep analysis of user assets.
         self.marketplace_oracle: GlobalMarketplaceOracle = GlobalMarketplaceOracle()
 
     async def prophesy(self,
@@ -42,12 +45,12 @@ class GrandStrategyStack:
                        asset_info: Optional[Dict[str, Any]] = None,
                        **kwargs) -> Dict[str, Any]:
         """
-        Executes the RAG ritual to forge a Grand Strategy, now enhanced with
-        analysis of the user's specific declared artifact.
+        Executes the RAG ritual to forge a Grand Strategy.
         """
         logger.info(f"GRAND STRATEGY: Forging a master plan for interest: '{interest}'")
 
         # --- STEP 1: COMPREHENSIVE & ENHANCED RETRIEVAL ---
+        # This part of the rite remains unchanged.
         tasks = {
             "keyword_runes": self.keyword_rune_keeper.get_full_keyword_runes(interest, country_code),
             "community_pain_points": self.community_seer.run_community_gathering(interest, query_type="pain_point"),
@@ -56,12 +59,9 @@ class GrandStrategyStack:
             "niche_discovery_urls": self.scout.find_niche_realms(interest, num_results=5)
         }
         
-        # NEW: Conditional RAG step. If the user provided a link, scrape and analyze it.
-        user_asset_analysis = {}
         if asset_info and asset_info.get("promo_link"):
             promo_link = asset_info["promo_link"]
             logger.info(f"Grand Strategy detected a user artifact. Analyzing link: {promo_link}")
-            # We add this expensive I/O task to our asyncio gathering
             tasks["user_asset_analysis"] = self.marketplace_oracle.read_user_store_scroll(promo_link)
 
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -105,7 +105,6 @@ class GrandStrategyStack:
                     "description": "A description of this content pillar, explaining how it positions the artifact against the market's needs. e.g., 'This pillar showcases the artifact's [unique feature] to solve the [community pain point].'",
                     "tactical_interest": "A specific, focused interest string for the Content Saga stack. e.g., 'how to use [Artifact Name] for [solving a problem]'"
                 }}
-                //... Generate 2 to 3 such pillars, each focused on the declared artifact.
             ],
             "recommended_channels": {{
                 "main_channels": ["e.g., An SEO-focused blog reviewing the artifact", "e.g., Pinterest for visual discovery of the artifact"],
@@ -120,10 +119,12 @@ class GrandStrategyStack:
         }}
         """
         
-        strategy_prophecy = await get_prophecy_from_oracle(self.model, prompt)
+        # --- THE AMENDED INVOCATION ---
+        # The Stack no longer passes a model. It simply speaks its prompt to the Gateway.
+        strategy_prophecy = await get_prophecy_from_oracle(prompt)
         
         return {
             "prophecy": strategy_prophecy,
             "retrieved_histories": retrieved_histories
         }
-# --- END OF FILE backend/stacks/grand_strategy_stack.py ---
+# --- END OF THE AMENDED SCROLL: backend/stacks/grand_strategy_stack.py ---
