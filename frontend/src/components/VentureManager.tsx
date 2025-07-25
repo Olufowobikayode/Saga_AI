@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/VentureManager.tsx ---
+// --- START OF FILE frontend/src/components/VentureManager.tsx ---
 'use client';
 
 import React, { useEffect } from 'react';
@@ -7,7 +7,7 @@ import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import RefinementChamber from './RefinementChamber';
 import HallOfVisions from './HallOfVisions';
-import BlueprintScroll from './BlueprintScroll'; // Summoning the real Blueprint Scroll.
+import BlueprintScroll from './BlueprintScroll';
 
 /**
  * VentureManager: The master controller for the entire New Ventures workflow.
@@ -16,6 +16,7 @@ import BlueprintScroll from './BlueprintScroll'; // Summoning the real Blueprint
 export default function VentureManager() {
   const status = useVentureStore((state) => state.status);
   const enterSpire = useVentureStore((state) => state.enterSpire);
+  const ritualPromise = useVentureStore((state) => state.ritualPromise);
 
   useEffect(() => {
     if (status === 'idle') {
@@ -23,26 +24,33 @@ export default function VentureManager() {
     }
   }, [status, enterSpire]);
 
+  const handleRitualComplete = () => {
+    console.log("VentureManager acknowledges ritual completion.");
+    // The store manages its own state transitions upon promise resolution.
+  };
+
   const renderCurrentStage = () => {
     switch (status) {
       case 'awaiting_refinement':
         return <RefinementChamber />;
-      
-      case 'questing_for_visions':
-        return <RitualScreen />;
 
       case 'visions_revealed':
         return <HallOfVisions />;
 
-      case 'forging_blueprint':
-        return <RitualScreen />;
-
       case 'blueprint_revealed':
-        // Now unveiling the real component instead of the veil.
         return <BlueprintScroll />;
 
       case 'performing_entry_rite':
-        return <RitualScreen />;
+      case 'questing_for_visions':
+      case 'forging_blueprint':
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key={`venture-ritual-${status}`}
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
 
       default:
         return <div className="text-center p-8">Ascending the Seer's Spire...</div>;
@@ -57,4 +65,4 @@ export default function VentureManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/VentureManager.tsx ---
+// --- END OF FILE frontend/src/components/VentureManager.tsx ---
