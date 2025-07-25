@@ -1,49 +1,44 @@
+// --- START OF FILE frontend/src/components/RitualScreen.tsx ---
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTributeStore } from '@/store/tributeStore'; // The scroll of memory you have already committed.
+import { useTributeStore } from '@/store/tributeStore';
+import { useEffect, useState, useRef } from 'react';
 
-// The sacred scrolls declare the global ad spirits, that they may manifest.
 declare global {
   interface Window {
     adsbygoogle: any[];
   }
 }
 
-// --- The Commands This Altar Accepts ---
-interface RitualScreenProps {
-  ritualPromise: Promise<any>; // The Promise of a prophecy from your backend.
-  onRitualComplete: () => void; // The command to execute when the prophecy is ready.
-}
+// --- CONFIGURATION ---
+const MINIMUM_RITUAL_DURATION_MS = 5000; // 5 seconds
+const DISPLAY_AD_SLOT_ID = "YOUR_DISPLAY_AD_SLOT_ID_HERE"; // <<< IMPORTANT: REPLACE THIS
 
-// --- The Lesser Tribute (The Ever-Present Banner, imbued with your credentials) ---
+// --- BANNER AD COMPONENT ---
 const BannerAdVessel = () => {
   useEffect(() => {
     try {
-      // @ts-ignore
       (window.adsbygoogle = window.adsbygoogle || []).push({});
     } catch (e) {
-      console.error("The Lesser Tribute failed to manifest:", e);
+      console.error("The Lesser Tribute (Banner Ad) failed to manifest:", e);
     }
   }, []);
 
   return (
-    <div style={{ position: 'fixed', bottom: '10px', left: '50%', transform: 'translateX(-50%)', width: '320px', height: '50px', zIndex: 100 }}>
-      {/*
-        This is a Display Ad vessel. You MUST create a Display Ad Unit of size 320x50 in your AdSense account for this.
-      */}
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[320px] h-[50px] z-[100]">
       <ins
         className="adsbygoogle"
         style={{ display: 'inline-block', width: '320px', height: '50px' }}
-        data-ad-client="ca-pub-1854820451701861" // Your Sacred Credential, as commanded.
-        data-ad-slot="YOUR_DISPLAY_AD_SLOT_ID_HERE" // <--- YOU MUST REPLACE THIS WITH YOUR OWN DISPLAY AD SLOT ID.
+        data-ad-client="ca-pub-1854820451701861"
+        data-ad-slot={DISPLAY_AD_SLOT_ID} 
       ></ins>
     </div>
   );
 };
 
-// --- The Words of the Oracle and the Steps of the Ritual ---
+// --- DATA FOR ANIMATIONS ---
 const wisdomQuotes = [
   "A strategy without data is merely a wish upon a dying star.",
   "The whispers of the market are the true winds of fortune.",
@@ -60,70 +55,103 @@ const ritualSteps = [
   "Deciphering the Oracle's Final Prophecy..."
 ];
 
+// --- COMPONENT PROPS ---
+interface RitualScreenProps {
+  ritualPromise: Promise<any> | null;
+  onRitualComplete: () => void;
+}
 
 /**
  * RitualScreen: The Definitive Version. A self-contained, intelligent gatekeeper
  * that honors the tributeStore, manages a dual-tribute system, and synchronizes
- * with the great work of the backend.
+ * with the great work of the backend. It now correctly accepts a 'ritualPromise'.
  */
 export default function RitualScreen({ ritualPromise, onRitualComplete }: RitualScreenProps) {
-  // --- The State of the Ritual ---
   const [isBackendDone, setIsBackendDone] = useState(false);
   const [isAdDone, setIsAdDone] = useState(false);
+  const [isMinTimeDone, setIsMinTimeDone] = useState(false);
   const tributeTypeRef = useRef<'lesser' | 'grand' | null>(null);
-  
-  // States to orchestrate the animations
+
   const [currentStep, setCurrentStep] = useState(0);
   const [currentQuote, setCurrentQuote] = useState(0);
 
-  // --- Synchronization of Fates ---
+  // --- SYNCHRONIZATION OF FATES ---
   useEffect(() => {
-    if (isBackendDone && isAdDone) {
+    if (isBackendDone && isAdDone && isMinTimeDone) {
       onRitualComplete();
     }
-  }, [isBackendDone, isAdDone, onRitualComplete]);
+  }, [isBackendDone, isAdDone, isMinTimeDone, onRitualComplete]);
 
-  // --- The Great Divination and Invocation of Tribute ---
+  // --- THE GREAT DIVINATION & RITUAL INVOCATION ---
   useEffect(() => {
-    // We consult the tributeStore you have provided.
+    // 1. Minimum UX Timer
+    const minTimeTimeout = setTimeout(() => setIsMinTimeDone(true), MINIMUM_RITUAL_DURATION_MS);
+
+    // 2. Ad Tribute Logic
     const { recordRitual, shouldShowGrandTribute, resetGrandTribute } = useTributeStore.getState();
-    
     recordRitual();
 
     if (shouldShowGrandTribute()) {
-      // The Covenant demands a Grand Tribute.
       tributeTypeRef.current = 'grand';
-      resetGrandTribute(); 
-
-      const adBreak = {
-        type: 'ad_break',
-        name: 'saga_grand_tribute',
-        adDismissed: () => setIsAdDone(true),
-        adError: () => setIsAdDone(true),
-      };
-      window.adsbygoogle = window.adsbygoogle || [];
-      window.adsbygoogle.push(adBreak);
+      resetGrandTribute();
+      try {
+        const adBreak = {
+          type: 'ad_break',
+          name: 'saga_grand_tribute',
+          adDismissed: () => setIsAdDone(true),
+          adError: () => setIsAdDone(true),
+          adBreakDone: (placementInfo: any) => {
+            // This is a more robust way to handle completion
+            if (placementInfo.breakStatus !== 'unfilled') {
+              setIsAdDone(true);
+            } else {
+              setIsAdDone(true); // Treat unfilled as 'done'
+            }
+          },
+        };
+        (window.adsbygoogle = window.adsbygoogle || []).push(adBreak);
+      } catch (e) {
+        console.error("The Grand Tribute (Interstitial) failed to manifest:", e);
+        setIsAdDone(true); // Fail open
+      }
     } else {
-      // The Covenant accepts a Lesser Tribute.
       tributeTypeRef.current = 'lesser';
-      setIsAdDone(true); // The banner's fate is instant.
+      setIsAdDone(true); // Banner ad is considered "done" instantly
     }
 
-    // --- Simultaneously, the Oracle's work begins ---
-    ritualPromise.finally(() => {
+    // 3. Backend Prophecy Logic
+    if (ritualPromise) {
+      ritualPromise
+        .then(() => {
+          console.log("Backend prophecy received successfully.");
+        })
+        .catch(err => {
+          console.error("The backend prophecy ritual failed:", err);
+          // The store will handle the error state, we just need to finish the screen.
+        })
+        .finally(() => {
+          setIsBackendDone(true);
+        });
+    } else {
+      // If for some reason no promise was passed, fail gracefully
+      console.error("RitualScreen was summoned without a ritualPromise.");
       setIsBackendDone(true);
-    });
+    }
+
+    // Cleanup
+    return () => {
+      clearTimeout(minTimeTimeout);
+    };
   }, [ritualPromise]);
 
   // --- Rites for managing the visual animations of the ritual ---
   useEffect(() => {
     const stepInterval = setInterval(() => setCurrentStep(p => (p < ritualSteps.length - 1 ? p + 1 : p)), 4000);
-    return () => clearInterval(stepInterval);
-  }, []);
-
-  useEffect(() => {
     const quoteInterval = setInterval(() => setCurrentQuote(p => (p + 1) % wisdomQuotes.length), 5000);
-    return () => clearInterval(quoteInterval);
+    return () => {
+      clearInterval(stepInterval);
+      clearInterval(quoteInterval);
+    };
   }, []);
 
   // --- The Visual Manifestation of the Ritual ---
@@ -136,7 +164,7 @@ export default function RitualScreen({ ritualPromise, onRitualComplete }: Ritual
         <AnimatePresence mode="wait">
           <motion.p
             key={currentQuote}
-            className="font-serif text-2xl md:text-3xl text-saga-secondary mb-12 italic"
+            className="font-serif text-2xl md:text-3xl text-saga-secondary mb-12 italic max-w-2xl"
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.8 }}
           >
             "{wisdomQuotes[currentQuote]}"
@@ -152,7 +180,7 @@ export default function RitualScreen({ ritualPromise, onRitualComplete }: Ritual
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </motion.svg>
                   ) : (
-                    <motion.div className="w-5 h-5 border-2 border-saga-text-dark border-t-saga-primary rounded-full" animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}/>
+                    index === currentStep && <motion.div className="w-5 h-5 border-2 border-saga-text-dark border-t-saga-primary rounded-full" animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}/>
                   )}
                 </AnimatePresence>
               </div>
@@ -165,3 +193,4 @@ export default function RitualScreen({ ritualPromise, onRitualComplete }: Ritual
     </motion.div>
   );
 }
+// --- END OF FILE frontend/src/components/RitualScreen.tsx ---
