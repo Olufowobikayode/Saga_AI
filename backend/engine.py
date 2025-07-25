@@ -41,18 +41,11 @@ class SagaEngine:
         self.gemini_api_key = gemini_api_key
         self.ip_geolocation_api_key = ip_geolocation_api_key
 
-        # --- Instantiate all knowledge sources (Seers and Oracles) ---
-        self.community_seer = CommunitySaga()
-        self.trend_scraper = TrendScraper()
-        self.keyword_rune_keeper = KeywordRuneKeeper()
-        self.marketplace_oracle = GlobalMarketplaceOracle()
-        
-        # --- Instantiate all specialist stacks ---
         seers = {
-            'community_seer': self.community_seer,
-            'trend_scraper': self.trend_scraper,
-            'keyword_rune_keeper': self.keyword_rune_keeper,
-            'marketplace_oracle': self.marketplace_oracle
+            'community_seer': CommunitySaga(),
+            'trend_scraper': TrendScraper(),
+            'keyword_rune_keeper': KeywordRuneKeeper(),
+            'marketplace_oracle': GlobalMarketplaceOracle()
         }
         self.grand_strategy_stack = GrandStrategyStack(model=self.model, **seers)
         self.content_saga_stack = ContentSagaStack(model=self.model, **seers)
@@ -91,12 +84,10 @@ class SagaEngine:
         return session_data
 
     # --- STRATEGIC & VENTURE PROPHECIES ---
-
     async def prophesy_grand_strategy(self, **kwargs) -> Dict:
         logger.info(f"SAGA ENGINE: Calling Commander Stack for: '{kwargs.get('interest')}'")
         user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
-        country_context = await self._resolve_country_context(kwargs.get("user_ip_address"), kwargs.get("target_country_name"))
-
+        country_context = await self._resolve_country_context(None, kwargs.get("target_country_name"))
         strategy_data = await self.grand_strategy_stack.prophesy(
             interest=kwargs.get("interest"),
             country_code=country_context["country_code"],
@@ -111,8 +102,7 @@ class SagaEngine:
     async def prophesy_new_venture_visions(self, **kwargs) -> Dict:
         logger.info(f"SAGA ENGINE: Calling New Ventures Stack for: '{kwargs.get('interest')}'")
         user_tone_instruction = await self._get_user_tone_instruction(kwargs.get("user_content_text"), kwargs.get("user_content_url"))
-        country_context = await self._resolve_country_context(kwargs.get("user_ip_address"), kwargs.get("target_country_name"))
-
+        country_context = await self._resolve_country_context(None, kwargs.get("target_country_name"))
         venture_data = await self.new_ventures_stack.prophesy_initial_visions(
             interest=kwargs.get("interest"),
             country_code=country_context["country_code"],
@@ -131,6 +121,8 @@ class SagaEngine:
             chosen_vision = next(v for v in session_data.get("initial_visions", []) if v["prophecy_id"] == vision_id)
         except StopIteration:
             raise ValueError("The selected vision_id was not found in the prophecy.")
+        
+        # THE FIX IS HERE: We now correctly pass all cached data to the next phase.
         return await self.new_ventures_stack.prophesy_detailed_blueprint(
             chosen_vision=chosen_vision,
             retrieved_histories=session_data.get("retrieved_histories_for_blueprint", {}),
@@ -139,7 +131,6 @@ class SagaEngine:
         )
 
     # --- TACTICAL PROPHECIES ---
-
     async def prophesy_marketing_angles(self, **kwargs) -> Dict:
         logger.info(f"MARKETING ANGLES ENGINE: Generating marketing angles...")
         angles_prophecy = await self.marketing_saga_stack.prophesy_marketing_angles(**kwargs)
@@ -157,9 +148,9 @@ class SagaEngine:
         full_angle_data = {**session_data, **chosen_angle, **kwargs}
         return await self.marketing_saga_stack.prophesy_final_asset(full_angle_data)
 
-    async def prophesy_pod_opportunities(self, niche_interest: str, style: str) -> Dict[str, Any]:
-        logger.info(f"POD OPPORTUNITY ENGINE: Divining '{style}' concepts for niche '{niche_interest}'...")
-        opportunities_prophecy = await self.pod_saga_stack.prophesy_pod_opportunities(niche_interest, style)
+    async def prophesy_pod_opportunities(self, **kwargs) -> Dict[str, Any]:
+        logger.info(f"POD OPPORTUNITY ENGINE: Divining concepts...")
+        opportunities_prophecy = await self.pod_saga_stack.prophesy_pod_opportunities(**kwargs)
         pod_session_id = str(uuid.uuid4())
         self.strategy_session_cache[pod_session_id] = opportunities_prophecy
         return {"pod_session_id": pod_session_id, "design_concepts": opportunities_prophecy.get("design_concepts", [])}
@@ -186,5 +177,4 @@ class SagaEngine:
             return await self.commerce_saga_stack.prophesy_product_route(**kwargs)
         else:
             raise ValueError(f"Unknown Commerce Saga prophecy type: '{prophecy_type}'")
-
 # --- END OF FILE backend/engine.py ---
