@@ -1,7 +1,7 @@
 // --- START OF FILE src/store/commerceStore.ts ---
 import { create } from 'zustand';
 
-// Shared Polling Helper
+// --- Polling Helper ---
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
   const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
   const interval = setInterval(async () => {
@@ -36,7 +36,6 @@ interface CommerceState {
   error: string | null;
   isRitualRunning: boolean;
   
-  // Memory
   chosenProphecyType: CommerceProphecyType | null;
   chosenAuditType: AuditType | null;
   chosenArbitrageMode: ArbitrageMode | null;
@@ -47,8 +46,8 @@ interface CommerceState {
   enterLedger: () => void;
   chooseProphecy: (prophecyType: CommerceProphecyType) => void;
   chooseSubChoice: (choice: AuditType | ArbitrageMode) => void;
-  forgeProphecy: (requestData: any) => Promise<void>;
-  regenerateProphecy: () => Promise<void>;
+  forgeProphecy: (requestData: any, sessionId: string) => Promise<void>; // ACCEPTS SESSION ID
+  regenerateProphecy: (sessionId: string) => Promise<void>;
   returnToCrossroads: () => void;
 }
 
@@ -71,18 +70,21 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
   },
 
   chooseSubChoice: (choice) => {
-    if (get().chosenProphecyType === 'Commerce Audit') {
+    const { chosenProphecyType } = get();
+    if (chosenProphecyType === 'Commerce Audit') {
       set({ chosenAuditType: choice as AuditType, status: 'awaiting_input' });
-    } else if (get().chosenProphecyType === 'Arbitrage Paths') {
+    } else if (chosenProphecyType === 'Arbitrage Paths') {
       set({ chosenArbitrageMode: choice as ArbitrageMode, status: 'awaiting_input' });
     }
   },
 
-  forgeProphecy: async (requestData) => {
+  forgeProphecy: async (requestData, sessionId) => {
+    if (!sessionId) return set({ error: "Session ID missing." });
+
     const { chosenProphecyType, chosenAuditType, chosenArbitrageMode } = get();
     if (!chosenProphecyType) return;
 
-    const fullRequestData = { ...requestData, prophecy_type: chosenProphecyType, audit_type: chosenAuditType, mode: chosenArbitrageMode };
+    const fullRequestData = { session_id: sessionId, ...requestData, prophecy_type: chosenProphecyType, audit_type: chosenAuditType, mode: chosenArbitrageMode };
     set({ status: 'forging', isRitualRunning: true, error: null, lastRequestData: fullRequestData });
     
     try {
@@ -102,10 +104,12 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
     }
   },
 
-  regenerateProphecy: async () => {
+  regenerateProphecy: async (sessionId) => {
     const { lastRequestData } = get();
     if (lastRequestData) {
-      await get().forgeProphecy(lastRequestData);
+      // We only need the requestData part, not the session_id from the last request
+      const { session_id, ...pureRequestData } = lastRequestData;
+      await get().forgeProphecy(pureRequestData, sessionId);
     }
   },
 
