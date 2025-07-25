@@ -34,6 +34,7 @@ class SagaResponse(BaseModel):
     prophecy_type: str
     data: Any
 
+# --- Commerce Stack Models ---
 class CommerceAuditRequest(BaseModel):
     prophecy_type: Literal["Commerce Audit"] = Field("Commerce Audit")
     audit_type: Literal["Account Audit", "Store Audit", "Account Prediction"]
@@ -63,6 +64,7 @@ class ProductRouteRequest(BaseModel):
     prophecy_type: Literal["Product Route"] = Field("Product Route")
     location_type: Literal["Global", "My Location"]
 
+# --- Grand Strategy & New Venture Models ---
 class AssetInfo(BaseModel):
     type: Optional[str] = None
     name: Optional[str] = None
@@ -92,8 +94,9 @@ class NewVentureRequest(BaseModel):
 
 class NewVentureBlueprintRequest(BaseModel):
     venture_session_id: str
-    vision_id: str
+    chosen_vision: Dict[str, Any]
 
+# --- Marketing & POD Models ---
 class MarketingAnglesRequest(BaseModel):
     product_name: str
     product_description: str
@@ -114,47 +117,27 @@ class PODPackageRequest(BaseModel):
     pod_session_id: str
     concept_id: str
 
+# --- Grimoire Models ---
 class GrimoirePageBase(BaseModel):
-    title: str
-    slug: str
-    author: str = "Saga"
-    content: str
-    summary: str
-    tags: List[str] = []
+    title: str; slug: str; author: str = "Saga"; content: str; summary: str; tags: List[str] = []
     @validator('slug', pre=True, always=True)
     def generate_slug(cls, v, values):
         if not v:
-            title = values.get('title', '')
-            s = title.lower().strip()
-            s = re.sub(r'[\s\W-]+', '-', s)
-            v = s.strip('-')
+            title = values.get('title', ''); s = title.lower().strip(); s = re.sub(r'[\s\W-]+', '-', s); v = s.strip('-')
         return v
-
 class GrimoirePageCreate(GrimoirePageBase): pass
-
 class GrimoirePageUpdate(BaseModel):
-    title: Optional[str] = None
-    slug: Optional[str] = None
-    content: Optional[str] = None
-    summary: Optional[str] = None
-    tags: Optional[List[str]] = None
-
+    title: Optional[str] = None; slug: Optional[str] = None; content: Optional[str] = None
+    summary: Optional[str] = None; tags: Optional[List[str]] = None
 class GrimoirePageDB(GrimoirePageBase):
-    id: str = Field(..., alias="_id")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    class Config:
-        json_encoders = {ObjectId: str}
-        allow_population_by_field_name = True
+    id: str = Field(..., alias="_id"); created_at: datetime = Field(default_factory=datetime.utcnow)
+    class Config: json_encoders = {ObjectId: str}; allow_population_by_field_name = True
 
-class TopicRequest(BaseModel):
-    topic: str
-
-class TitleRequest(BaseModel):
-    title: str
-    topic: str
+class TopicRequest(BaseModel): topic: str
+class TitleRequest(BaseModel): title: str; topic: str
 
 # --- FASTAPI APP AND ROUTER ---
-app = FastAPI(title="Saga AI", version="12.2.0", description="The Oracle of Strategy, with a hyper-personalized Artisan's Anvil.")
+app = FastAPI(title="Saga AI", version="13.0.0", description="The Oracle of Strategy, with a fully empowered Grimoire and Scriptorium.")
 api_router = APIRouter(prefix="/api/v10")
 engine: SagaEngine = None
 scout: MarketplaceScout = None
@@ -162,13 +145,11 @@ settings = Settings()
 
 # --- Security Dependency ---
 async def verify_admin_key(x_admin_api_key: str = Header(...)):
-    if x_admin_api_key != settings.admin_api_key:
-        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Admin API Key")
+    if x_admin_api_key != settings.admin_api_key: raise HTTPException(status_code=401, detail="Unauthorized")
 
 # --- API ENDPOINTS ---
 @api_router.get("/health", tags=["1. System"])
-async def health_check():
-    return {"message": "Saga is conscious and the Bifrost to this API is open."}
+async def health_check(): return {"message": "Saga is conscious and the Bifrost to this API is open."}
 
 @api_router.post("/discover-marketplaces", tags=["1. System"])
 async def discover_marketplaces_endpoint(background_tasks: BackgroundTasks):
@@ -193,23 +174,20 @@ async def get_new_venture_blueprint(request: NewVentureBlueprintRequest):
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
     try:
         data = await engine.prophesy_venture_blueprint(**request.model_dump())
-        return SagaResponse(prophecy_type="new_venture_blueprint", data=data)
+        return SagaResponse(prophecy_type="venture_blueprint", data=data)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
 
 @api_router.post("/prophesy/commerce", response_model=SagaResponse, tags=["3. Commerce Prophecies"])
 async def get_commerce_prophecy(request: CommerceAuditRequest | ArbitragePathsRequest | SocialSellingSagaRequest | ProductRouteRequest):
     if not engine: raise HTTPException(status_code=503, detail="Saga is slumbering.")
-    request_data = request.model_dump()
-    prophecy_type = request_data.pop("prophecy_type")
+    request_data = request.model_dump(); prophecy_type = request_data.pop("prophecy_type")
     try:
         data = await engine.prophesy_commerce_saga(prophecy_type=prophecy_type, **request_data)
         return SagaResponse(prophecy_type=prophecy_type.lower().replace(" ", "_"), data=data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e: raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error during commerce prophecy '{prophecy_type}': {e}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        logger.error(f"Error during commerce prophecy '{prophecy_type}': {e}"); raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 @api_router.post("/prophesy/marketing/angles", response_model=SagaResponse, tags=["4. Marketing Prophecies"])
 async def get_marketing_angles(request: MarketingAnglesRequest):
@@ -223,8 +201,7 @@ async def get_marketing_asset(request: MarketingAssetRequest):
     try:
         data = await engine.prophesy_marketing_asset(**request.model_dump(exclude_unset=True))
         return SagaResponse(prophecy_type="marketing_asset", data=data)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
+    except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
 
 @api_router.post("/prophesy/pod/opportunities", response_model=SagaResponse, tags=["5. Print on Demand Prophecies"])
 async def get_pod_opportunities(request: PODOpportunitiesRequest):
@@ -238,8 +215,7 @@ async def get_pod_package(request: PODPackageRequest):
     try:
         data = await engine.prophesy_pod_design_package(**request.model_dump())
         return SagaResponse(prophecy_type="pod_design_package", data=data)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
+    except ValueError as e: raise HTTPException(status_code=401, detail=f"Unauthorized or invalid ID: {e}")
 
 @api_router.post("/grimoire/generate-titles", tags=["6. Saga Grimoire (Admin)"], dependencies=[Depends(verify_admin_key)])
 async def generate_grimoire_titles(request: TopicRequest):
@@ -296,6 +272,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 @app.on_event("startup")
 async def startup_event():
     global engine, scout
+    settings = Settings()
     if settings.gemini_api_key:
         engine = SagaEngine(gemini_api_key=settings.gemini_api_key, ip_geolocation_api_key=settings.ip_geolocation_api_key)
         scout = MarketplaceScout()
