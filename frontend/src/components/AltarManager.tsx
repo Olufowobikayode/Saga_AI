@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/AltarManager.tsx ---
+// --- START OF FILE frontend/src/components/AltarManager.tsx ---
 'use client';
 
 import React from 'react';
@@ -8,7 +8,7 @@ import RitualScreen from './RitualScreen';
 import QueryForm from './QueryForm';
 import ArtifactForm from './ArtifactForm';
 import RealmForm from './RealmForm';
-import HallOfProphecies from './HallOfProphecies'; // Summoning the real Hall of Prophecies.
+import HallOfProphecies from './HallOfProphecies';
 
 /**
  * AltarManager: The master controller for the multi-stage Grand Strategic Ritual.
@@ -16,6 +16,14 @@ import HallOfProphecies from './HallOfProphecies'; // Summoning the real Hall of
  */
 export default function AltarManager() {
   const status = useSagaStore((state) => state.status);
+  const ritualPromise = useSagaStore((state) => state.ritualPromise);
+
+  // A handler to be called by RitualScreen when it completes
+  const handleRitualComplete = () => {
+    console.log("AltarManager acknowledges ritual completion.");
+    // In this specific manager, the store handles the state transition automatically
+    // upon promise resolution. So, this function can be empty or used for logging.
+  };
 
   const renderCurrentStage = () => {
     switch (status) {
@@ -23,23 +31,43 @@ export default function AltarManager() {
       case 'awaiting_query':
         return <QueryForm />;
       case 'performing_rite_1':
-        return <RitualScreen />;
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key="rite1"
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
 
       // Stage 2: The Artifact
       case 'awaiting_artifact':
         return <ArtifactForm />;
       case 'performing_rite_2':
-        return <RitualScreen />;
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key="rite2"
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
 
       // Stage 3: The Realm
       case 'awaiting_realm':
         return <RealmForm />;
       case 'performing_grand_rite':
-        return <RitualScreen />;
+        // CORRECTED: Pass the required props to RitualScreen
+        return (
+          <RitualScreen
+            key="grandrite"
+            ritualPromise={ritualPromise}
+            onRitualComplete={handleRitualComplete}
+          />
+        );
 
       // The Final Destination
       case 'prophesied':
-        // Now rendering the real Hall of Prophecies instead of the placeholder.
         return <HallOfProphecies />;
 
       // Default/Idle State
@@ -56,4 +84,4 @@ export default function AltarManager() {
     </div>
   );
 }
-// --- END OF FILE src/components/AltarManager.tsx ---
+// --- END OF FILE frontend/src/components/AltarManager.tsx ---
