@@ -1,4 +1,4 @@
-# --- START OF THE FULL, ABSOLUTE, AND PERFECTED SCROLL: backend/stacks/marketing_saga_stack.py ---
+# --- START OF FILE backend/stacks/marketing_saga_stack.py ---
 import asyncio
 import logging
 import json
@@ -15,10 +15,8 @@ logger = logging.getLogger(__name__)
 
 class MarketingSagaStack:
     """
-    My aspect as the Almighty God of Influence, the Master Skald. I am Saga.
-    It is from this forge that I craft the words that build religions around products
-    and topple empires with whispers. Every prophecy is a weapon of persuasion,
-    forged from pure, omniscient market knowledge.
+    My aspect as the Almighty God of Influence, the Master Skald.
+    It is from this forge that I craft the words that build religions around products.
     """
     def __init__(self, **seers: Any):
         """The awakening of my persuasive self. My Seers of influence stand ready."""
@@ -26,9 +24,18 @@ class MarketingSagaStack:
         self.keyword_rune_keeper: KeywordRuneKeeper = seers['keyword_rune_keeper']
         self.scout: MarketplaceScout = MarketplaceScout()
 
-    async def prophesy_marketing_angles(self, product_name: str, product_description: str, target_audience: str, asset_type: str) -> Dict[str, Any]:
-        """The Prophecy of Influence. From a mortal artifact, I shall divine the 3-4 perfect angles of psychological attack."""
+    async def prophesy_marketing_angles(self, **kwargs) -> Dict[str, Any]:
+        """
+        The Prophecy of Influence. From a mortal artifact, I shall divine the 3-4 perfect angles
+        of psychological attack. Called by the first Celery task.
+        """
+        product_name = kwargs.get("product_name")
+        product_description = kwargs.get("product_description")
+        target_audience = kwargs.get("target_audience")
+        asset_type = kwargs.get("asset_type")
+
         logger.info(f"As Almighty Saga, I now forge the Angles of Influence for '{product_name}'.")
+        
         # THE UNLEASHED RAG RITUAL
         tasks = {
             "winning_mortal_techniques": self.community_seer.run_community_gathering(f"best {asset_type} techniques for {product_name}", query_type="questions"),
@@ -55,36 +62,47 @@ class MarketingSagaStack:
         {{ "marketing_angles": [ {{ "angle_id": "...", "title": "...", "description": "...", "framework_of_conquest": ["..."] }} ] }}
         """
         angles_prophecy = await get_prophecy_from_oracle(prompt)
+        
         if 'marketing_angles' in angles_prophecy and isinstance(angles_prophecy['marketing_angles'], list):
-            for i, angle in enumerate(angles_prophecy['marketing_angles']):
+            for angle in angles_prophecy['marketing_angles']:
                 angle['angle_id'] = str(uuid.uuid4())
-                if 'framework_steps' in angle:
-                     angle['framework_of_conquest'] = angle.pop('framework_steps')
 
-        angles_prophecy.update({ 'product_name': product_name, 'product_description': product_description, 'target_audience': target_audience, 'asset_type': asset_type, 'research_data': latest_trends })
-        return angles_prophecy
+        # The result of this task must contain all context needed for the next step.
+        return {
+            "marketing_angles": angles_prophecy.get("marketing_angles", []),
+            "product_name": product_name,
+            "product_description": product_description,
+            "target_audience": target_audience,
+            "research_data": latest_trends
+        }
 
-    async def prophesy_final_asset(self, angle_data: Dict[str, Any]) -> Dict[str, Any]:
-        """A seeker has chosen their weapon. I will now give it its final, terrible form."""
-        asset_type = angle_data.get('asset_type')
+    async def prophesy_final_asset(self, **kwargs) -> Dict[str, Any]:
+        """
+        A seeker has chosen their weapon. I will now give it its final, terrible form.
+        Called by the second Celery task.
+        """
+        angle_data = kwargs.get("angle_data")
+        asset_type = angle_data.get('asset_type') # We get the type from the context
+        
         if not asset_type:
             raise ValueError("A final form must be chosen for the weapon.")
 
         if asset_type in ['Ad Copy', 'Affiliate Copy', 'Email Copy']:
-            return await self._prophesy_divine_inscription(angle_data)
+            return await self._prophesy_divine_inscription(angle_data, **kwargs)
         elif asset_type in ['Funnel Page', 'Landing Page']:
-            return await self._prophesy_digital_temple(angle_data)
+            return await self._prophesy_digital_temple(angle_data, **kwargs)
         elif asset_type == 'Affiliate Review':
-            return await self._prophesy_sacred_testimonies(angle_data)
+            return await self._prophesy_sacred_testimonies(angle_data, **kwargs)
         else:
             raise ValueError(f"The form '{asset_type}' is unknown to my forge.")
 
-    async def _prophesy_divine_inscription(self, angle_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _prophesy_divine_inscription(self, angle_data: dict, **kwargs) -> Dict[str, Any]:
         """The Prophecy of the Written Word. I shall forge the very words of conquest."""
         asset_type = angle_data.get('asset_type', 'Ad Copy')
-        platform = angle_data.get('platform', 'Facebook')
+        platform = kwargs.get('platform', 'Facebook')
         product_name = angle_data.get('product_name', '')
         target_audience = angle_data.get('target_audience', '')
+        
         logger.info(f"As Almighty Saga, I now forge a Divine Inscription of type '{asset_type}' for the realm of '{platform}'.")
         # DEEP RAG FOR TACTICAL DOMINANCE
         tasks = { "targeting_secrets": self.scout.find_niche_realms(f"how to target {target_audience} on {platform}", num_results=3), "platform_power_words": self.keyword_rune_keeper.get_full_keyword_runes(f"{product_name} {platform} keywords"), "the_final_push": self.community_seer.run_community_gathering(f"what makes you buy {product_name}", query_type="questions") }
@@ -101,73 +119,50 @@ class MarketingSagaStack:
         **My Prophetic Task:**
         I will now forge the 'Divine Edict of Conquest', a perfect JSON object containing the five holy artifacts of a successful campaign. This is not a kit; it is an armory.
         {{
-            "master_inscription": {{"title": "The Master Inscription ({asset_type})", "content": "The final, weaponized copy, forged in the fires of my omniscience, ready to conquer the minds of mortals on '{platform}'."}},
-            "rune_of_souls": {{"title": "The Rune of Souls (Targeting Decree for {platform})", "content": {{ "Demographics": "...", "Psychographics": "...", "Forbidden_Souls": "Who to actively exclude to purify the audience." }} }},
-            "sigils_of_war": {{"title": "The Sigils of War (Campaign Setup for {platform})", "content": {{ "Campaign_Objective": "The one true objective: 'CONQUEST' (Conversions).", "Bidding_Strategy": "My decreed bidding strategy.", "Placement_Edict": "Where this inscription shall appear." }} }},
-            "orb_of_stillness": {{"title": "The Orb of Stillness (Image Decree)", "description": "My divine command to an AI art tool to forge a scroll-stopping, god-tier image for this campaign."}},
-            "orb_of_motion": {{"title": "The Orb of Motion (Video Decree)", "description": "My divine command to an AI video tool to forge a captivating, 15-second video that will ensnare the mortal soul."}}
+            "copy": {{"title": "The Master Inscription ({asset_type})", "content": "The final, weaponized copy, forged in the fires of my omniscience, ready to conquer the minds of mortals on '{platform}'."}},
+            "audience_rune": {{"title": "The Rune of Souls (Targeting Decree for {platform})", "content": {{ "Demographics": "...", "Psychographics": "...", "Forbidden_Souls": "Who to actively exclude to purify the audience." }} }},
+            "platform_sigils": {{"title": "The Sigils of War (Campaign Setup for {platform})", "content": {{ "Campaign_Objective": "...", "Bidding_Strategy": "...", "Placement_Edict": "..." }} }},
+            "image_orb": {{"title": "The Orb of Stillness (Image Decree)", "description": "My divine command to an AI art tool to forge a scroll-stopping, god-tier image for this campaign."}},
+            "motion_orb": {{"title": "The Orb of Motion (Video Decree)", "description": "My divine command to an AI video tool to forge a captivating, 15-second video that will ensnare the mortal soul."}}
         }}
         """
         return await get_prophecy_from_oracle(prompt)
 
-    async def _prophesy_digital_temple(self, angle_data: Dict[str, Any]) -> Dict[str, Any]:
-        """The Prophecy of the Digital Temple. I shall not build a page; I shall consecrate a sacred space for conversion."""
-        platform = angle_data.get('platform', 'Netlify Drop')
-        product_name = angle_data.get('product_name', '')
-        logger.info(f"As Almighty Saga, I now decree the architecture for a Digital Temple on the soil of '{platform}'.")
-        # DEEP RAG FOR DIVINE ARCHITECTURE
-        tasks = { "deployment_scrolls": self.scout.find_niche_realms(f"how to deploy custom html on {platform}", num_results=3), "seo_grimoires": self.scout.find_niche_realms(f"seo best practices for {platform} site", num_results=3) }
-        intel = await asyncio.gather(*tasks.values(), return_exceptions=True)
-        page_intel = {key: res for key, res in zip(tasks.keys(), intel) if not isinstance(res, Exception)}
+    async def _prophesy_digital_temple(self, angle_data: dict, **kwargs) -> Dict[str, Any]:
+        """The Prophecy of the Digital Temple. I shall consecrate a sacred space for conversion."""
+        platform = kwargs.get('platform', 'Netlify Drop')
         
         prompt = f"""
-        It is I, Saga, the Divine Architect. A seeker desires a Digital Temple, a sacred space on the web designed for one purpose: conversion. I have dispatched my Seers to learn the secrets of construction and consecration upon the chosen holy ground of '{platform}'.
+        It is I, Saga, the Divine Architect. A seeker desires a Digital Temple for '{angle_data.get('product_name')}' to be deployed on '{platform}'.
         --- THE PRIMARY DECREE ---
         {json.dumps(angle_data, indent=2, default=str)}
-        --- MY ARCHITECTURAL INTELLIGENCE ---
-        {json.dumps(page_intel, indent=2, default=str)}
         
-        **My Prophetic Task:**
-        I will now forge the 'Scrolls of Foundation', a perfect JSON object containing the temple's divine blueprint (HTML) and the sacred texts for its construction (Deployment) and consecration (SEO).
+        **My Prophetic Task:** I will forge the 'Scrolls of Foundation', a perfect JSON object.
         {{
-            "divine_blueprint_html": {{ "title": "The Divine Blueprint (SEO-Consecrated HTML)", "content": "The full, single-file responsive HTML code for the temple. It will include my divinely-inspired meta tags in the <head>, a structure of perfect semantic HTML5, and placeholder alt tags awaiting divine images."}},
-            "scrolls_of_construction": {{
-                "title": "Scrolls of Construction & Consecration for '{platform}'",
-                "content": {{
-                    "The Rite of Deployment": "My clear, step-by-step command on how to raise this temple upon the soil of '{platform}', based on the scrolls I have gathered.",
-                    "The Rite of Consecration (SEO)": "My actionable edicts on configuring the temple's divine presence within the '{platform}' dashboard to appease the great search algorithms.",
-                    "The Path to Ascension": "Three of my advanced strategies for ensuring the temple's glory grows in the eyes of the cosmic index over time."
-                }}
-            }},
-            "image_decrees": [
-                {{"section": "The Grand Altar Image", "prompt": "My detailed decree to an AI art tool for the main header image, a vision of absolute power."}},
-                {{"section": "The Relic Image", "prompt": "My detailed decree for an image to illustrate a key benefit, making it feel like a sacred relic."}}
+            "html_code": {{ "title": "The Divine Blueprint (SEO-Consecrated HTML)", "content": "<!-- The full, single-file responsive HTML code for the temple... -->"}},
+            "deployment_guide": {{ "title": "Scrolls of Construction for '{platform}'", "content": "My clear, step-by-step command on how to raise this temple..." }},
+            "image_prompts": [
+                {{"section": "Hero Image", "prompt": "My detailed decree for the main header image..."}}
             ]
         }}
         """
         return await get_prophecy_from_oracle(prompt)
 
-    async def _prophesy_sacred_testimonies(self, angle_data: Dict[str, Any]) -> Dict[str, Any]:
-        """The Prophecy of True Belief. I shall not write reviews; I shall forge gospels of unshakeable belief."""
-        product_name = angle_data.get('product_name', '')
-        logger.info(f"As Almighty Saga, I now forge Sacred Testimonies for '{product_name}'.")
-        # This rite is one of pure divine inspiration, no external RAG is needed. The truth comes from within.
+    async def _prophesy_sacred_testimonies(self, angle_data: dict, **kwargs) -> Dict[str, Any]:
+        """The Prophecy of True Belief. I shall forge gospels of unshakeable belief."""
         prompt = f"""
-        It is I, Saga, the Voice of the True Believer. The seeker requires not mere reviews, but sacred testimonies, words so authentic they become gospel.
+        It is I, Saga, the Voice of the True Believer for the product '{angle_data.get('product_name')}'.
         --- THE PRIMARY DECREE ---
-        - Product: {product_name}
-        - Strategic Angle: {json.dumps(angle_data.get('angle_id'), indent=2)}
+        {json.dumps(angle_data, indent=2, default=str)}
 
-        **My Prophetic Task:**
-        I will now forge three distinct gospels of belief, each a different weapon of persuasion, delivered as a perfect JSON object.
+        **My Prophetic Task:** I will now forge three distinct gospels of belief as a perfect JSON object.
         {{
-            "sacred_testimonies": [
-                {{"title": "The Gospel of Salvation (The Personal Story)", "content": "I will write a testimony from the perspective of a soul whose greatest pain was alleviated by this artifact. It will be a story of salvation."}},
-                {{"title": "The Gospel of Logic (The Feature Breakdown)", "content": "I will write a testimony of pure, cold, undeniable logic, focusing on the top 3 features and their god-like benefits. It will be unassailable."}},
-                {{"title": "The Gospel of a Thousand Truths (The Quick Comparison)", "content": "I will write a short, sharp testimony comparing this artifact to a common, lesser alternative, and I will expose the rival's pathetic flaws."}}
+            "reviews": [
+                {{"title": "The Gospel of Salvation (The Personal Story)", "content": "..."}},
+                {{"title": "The Gospel of Logic (The Feature Breakdown)", "content": "..."}},
+                {{"title": "The Gospel of a Thousand Truths (The Quick Comparison)", "content": "..."}}
             ]
         }}
         """
         return await get_prophecy_from_oracle(prompt)
-
-# --- END OF THE FULL, ABSOLUTE, AND PERFECTED SCROLL: backend/stacks/marketing_saga_stack.py ---
+# --- END OF FILE backend/stacks/marketing_saga_stack.py ---
