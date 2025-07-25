@@ -5,9 +5,9 @@ import React, { useEffect } from 'react';
 import { useVentureStore } from '@/store/ventureStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
+import RefinementChamber from './RefinementChamber'; // Summoning the real Refinement Chamber.
 
 // Veils for the components we will soon forge.
-const RefinementChamber = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your strategic refinement...</div>;
 const HallOfVisions = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The ten visions are revealed...</div>;
 const BlueprintScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final blueprint is unfurled...</div>;
 
@@ -20,17 +20,16 @@ export default function VentureManager() {
   const status = useVentureStore((state) => state.status);
   const enterSpire = useVentureStore((state) => state.enterSpire);
 
-  // When the manager first appears, it commands the store to enter the first state.
   useEffect(() => {
     if (status === 'idle') {
       enterSpire();
     }
   }, [status, enterSpire]);
 
-  // This function decides which sacred chamber to unveil.
   const renderCurrentStage = () => {
     switch (status) {
       case 'awaiting_refinement':
+        // Now unveiling the real component instead of the veil.
         return <RefinementChamber />;
       
       case 'questing_for_visions':
@@ -44,6 +43,10 @@ export default function VentureManager() {
 
       case 'blueprint_revealed':
         return <BlueprintScroll />;
+
+      // The entry rite is now also handled by the RitualScreen
+      case 'performing_entry_rite':
+        return <RitualScreen />;
 
       default:
         return <div className="text-center p-8">Ascending the Seer's Spire...</div>;
