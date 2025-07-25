@@ -1,16 +1,15 @@
 // --- START OF FILE src/components/LedgerManager.tsx ---
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useCommerceStore } from '@/store/commerceStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 
-// We will create these new components in the upcoming steps.
-// For now, they are placeholders.
-const CommerceCrossroads = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for CommerceCrossroads</div>;
-const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for CommerceInputForm</div>;
-const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg">Placeholder for CommerceProphecyScroll</div>;
+// Veils for the components we will soon forge.
+const CommerceCrossroads = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting choice of prophecy...</div>;
+const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
+const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final prophecy is revealed...</div>;
 
 
 /**
@@ -20,16 +19,8 @@ const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded
 export default function LedgerManager() {
   // SAGA LOGIC: Connect to the Mind of the Merchant.
   const status = useCommerceStore((state) => state.status);
-  const enterLedger = useCommerceStore((state) => state.enterLedger);
 
-  // SAGA LOGIC: When the manager first appears, it invokes the entry rite.
-  useEffect(() => {
-    if (status === 'idle') {
-      enterLedger();
-    }
-  }, [status, enterLedger]);
-
-  // This function will decide which component to show.
+  // This function decides which sacred chamber to unveil.
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
@@ -38,11 +29,14 @@ export default function LedgerManager() {
       case 'awaiting_input':
         return <CommerceInputForm />;
 
-      case 'forging_prophecy':
-        return <RitualScreen />;
-
       case 'prophecy_revealed':
         return <CommerceProphecyScroll />;
+
+      // The RitualScreen is now shown for ALL forging states, including the entry rite
+      // and the choice rite, as you commanded.
+      case 'performing_entry_rite':
+      case 'forging_prophecy':
+        return <RitualScreen />;
       
       default:
         return <div className="text-center p-8">Opening the Merchant's Ledger...</div>;
