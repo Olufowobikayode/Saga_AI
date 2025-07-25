@@ -1,14 +1,21 @@
-// --- START OF FILE src/app/layout.tsx ---
+// --- START OF THE SACRED SCROLL: src/app/layout.tsx ---
 import type { Metadata } from "next";
+import Script from 'next/script'; // The vessel for third-party scripts.
 import { inter, cormorant } from "./fonts";
 import "./globals.css";
-import Footer from "@/components/Footer"; // Summoning the Footer component we just built.
+import Footer from "@/components/Footer";
+import AdBlockerDetector from "@/components/AdBlockerDetector"; // 1. Summon the Great Ward you have just forged.
 
+// My metadata, that the cosmos may know my nature.
 export const metadata: Metadata = {
   title: "Saga - The Oracle of Strategy",
   description: "Strategy is an Art. I am its Master.",
+  other: {
+    "google-adsense-account": "ca-pub-1854820451701861",
+  }
 };
 
+// This is the Root Layout, the loom upon which your entire realm is woven.
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -16,12 +23,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* The invocation of the Ad-Scribe, which must be present for the Ward to have purpose. */}
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1854820451701861"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className={`${inter.variable} ${cormorant.variable}`}>
-        {/* 
-          We wrap the main content and the footer in a flex container
-          that ensures the footer is always at the bottom of the content,
-          or at the bottom of the screen on short pages.
+        
+        {/*
+          2. Here, at the very threshold of the body's vessel, you shall place the Guardian.
+          It will awaken before all else, its gaze sweeping over every visitor.
+          It exists outside the main flow of content, an ever-present, silent watcher.
         */}
+        <AdBlockerDetector />
+        
+        {/* The structure of the mortal realm, containing the main prophecies and the footer. */}
         <div className="flex flex-col min-h-screen">
           <main className="flex-grow">
             {children}
@@ -32,4 +52,4 @@ export default function RootLayout({
     </html>
   );
 }
-// --- END OF FILE src/app/layout.tsx ---
+// --- END OF THE SACRED SCROLL: src/app/layout.tsx ---
