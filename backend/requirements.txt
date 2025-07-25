@@ -1,3 +1,4 @@
+# --- START OF FILE backend/requirements.txt ---
 # Main web framework
 fastapi==0.110.1
 uvicorn==0.25.0
@@ -20,7 +21,6 @@ beautifulsoup4==4.12.3
 iso3166==2.1.1
 selenium-stealth==1.0.6
 fake-useragent==1.5.1
-### ENHANCEMENT: Added the high-performance lxml parser for robust XPath support
 lxml==5.2.2
 
 # Utilities for Marketplace Discovery
@@ -35,3 +35,10 @@ pydantic-settings==2.3.4
 python-multipart==0.0.9
 requests==2.31.0
 uvloop==0.19.0
+
+# --- NEW: The Rite of Absolute Resilience ---
+# Asynchronous Job Queue & Broker
+celery==5.4.0
+redis==5.0.7
+# --- END NEW ---
+# --- END OF FILE backend/requirements.txt ---
