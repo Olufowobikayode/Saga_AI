@@ -5,10 +5,10 @@ import React from 'react';
 import { useCommerceStore } from '@/store/commerceStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import CommerceCrossroads from './CommerceCrossroads'; // Summoning the real Crossroads.
+import CommerceCrossroads from './CommerceCrossroads';
+import CommerceInputForm from './CommerceInputForm'; // Summoning the real Input Form.
 
-// Veils for the components we will soon forge.
-const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
+// Veil for the final component we will forge.
 const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final prophecy is revealed...</div>;
 
 
@@ -22,10 +22,10 @@ export default function LedgerManager() {
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
-        // Now unveiling the real component instead of the veil.
         return <CommerceCrossroads />;
       
       case 'awaiting_input':
+        // Now unveiling the real component instead of the veil.
         return <CommerceInputForm />;
 
       case 'prophecy_revealed':
