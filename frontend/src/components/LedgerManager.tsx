@@ -1,13 +1,16 @@
 // --- START OF FILE src/components/LedgerManager.tsx ---
-'use client';
+'client';
 
 import React from 'react';
 import { useCommerceStore } from '@/store/commerceStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
-import CommerceCrossroads from './CommerceCrossroads';
-import CommerceInputForm from './CommerceInputForm';
-import CommerceProphecyScroll from './CommerceProphecyScroll'; // Summoning the real Final Scroll.
+import CommerceCrossroads from './CommerceCrossroads'; // Summoning the real Crossroads.
+
+// Veils for the components we will soon forge.
+const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
+const CommerceProphecyScroll = () => <div className="p-8 bg-saga-surface rounded-lg text-center">The final prophecy is revealed...</div>;
+
 
 /**
  * LedgerManager: The master controller for the entire Commerce Saga workflow.
@@ -20,13 +23,13 @@ export default function LedgerManager() {
   const renderCurrentStage = () => {
     switch (status) {
       case 'crossroads':
+        // Now unveiling the real component instead of the veil.
         return <CommerceCrossroads />;
       
       case 'awaiting_input':
         return <CommerceInputForm />;
 
       case 'prophecy_revealed':
-        // Now unveiling the real component instead of the veil.
         return <CommerceProphecyScroll />;
 
       case 'performing_entry_rite':
