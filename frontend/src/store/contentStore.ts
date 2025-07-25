@@ -1,150 +1,143 @@
 // --- START OF FILE src/store/contentStore.ts ---
 import { create } from 'zustand';
+import { useSagaStore } from './sagaStore';
 
-// SAGA PERSONA: Defining the many stages of the Weaver's Loom.
-type LoomStatus =
-  | 'idle'                // The Loom is quiet.
-  | 'awaiting_spark_topic'// Awaiting the user's topic to generate sparks.
-  | 'weaving_sparks'      // Ritual to generate content sparks.
-  | 'sparks_revealed'     // The 5 Content Sparks are ready for the user to choose one.
-  | 'crossroads_revealed' // A spark is chosen, now showing the 3 content type cards.
-  
-  // Social Post Path
-  | 'awaiting_tone'       // Awaiting choice of writing style.
-  | 'awaiting_realm'      // Awaiting choice of social platform.
-  | 'awaiting_length'     // Awaiting choice of post length.
-  | 'weaving_social_post' // Final ritual for the social post.
-  | 'social_post_woven'   // The final social post is ready.
+// Shared Polling Helper
+const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/prophesy/status/${taskId}`);
+      if (!res.ok) throw new Error("Failed to get prophecy status.");
+      const data = await res.json();
+      if (data.status === 'SUCCESS') {
+        clearInterval(interval);
+        if (data.result?.error) onError(data.result);
+        else onComplete(data.result);
+      } else if (data.status === 'FAILURE') {
+        clearInterval(interval);
+        onError(data.result || { error: "Prophecy failed without a reason." });
+      }
+    } catch (err) {
+      clearInterval(interval);
+      onError({ error: "Network error while checking prophecy status.", details: err });
+    }
+  }, 3000);
+};
 
-  // Comment Path
-  | 'awaiting_echo'       // Awaiting the post to comment on.
-  | 'weaving_comment'     // Ritual to generate the comment.
-  | 'comment_woven'       // The final comment is ready.
-
-  // Blog Post Path
-  | 'weaving_blog'        // Ritual to generate the blog post.
-  | 'blog_woven';         // The final blog post is ready.
-
-// SAGA PERSONA: Defining the structures for the Weaver's prophecies.
+// --- State Types ---
+type LoomStatus = 'idle' | 'awaiting_spark_topic' | 'forging' | 'sparks_revealed' | 'crossroads_revealed' | 'awaiting_final_input' | 'final_content_revealed';
 interface ContentSpark { id: string; title: string; description: string; format_suggestion: string; }
 interface FinalContent { [key: string]: any; }
 
 interface ContentSagaState {
   status: LoomStatus;
   error: string | null;
-  ritualPromise: Promise<any> | null;
+  isRitualRunning: boolean;
   
-  // --- Memory of the Weaver ---
-  grandStrategyData: any | null; // To hold the initial data from the main sagaStore
+  // Memory & Context
   tacticalInterest: string;
-  sparks: ContentSpark[];
+  sparksResult: { sparks: ContentSpark[] } & any | null;
   chosenSpark: ContentSpark | null;
-  chosenTone: string | null;
-  chosenRealm: string | null;
-  chosenLength: string | null;
-  postToCommentOn: string | null;
+  
+  // Final Result
   finalContent: FinalContent | null;
 
-  // --- The Rites of the Loom ---
-  beginWeaving: (grandStrategyData: any, tacticalInterest: string) => void;
+  // Rites of the Loom
+  beginWeaving: () => void;
   generateSparks: (topic: string) => Promise<void>;
   chooseSpark: (sparkId: string) => void;
-  chooseContentType: (type: 'Social Post' | 'Comment' | 'Blog Post') => Promise<void>;
-  chooseTone: (tone: string) => void;
-  chooseRealm: (realm: string) => void;
-  chooseLength: (length: string) => Promise<void>;
-  submitPostToCommentOn: (post: string) => Promise<void>;
+  forgeContent: (type: 'Social Post' | 'Comment' | 'Blog Post', details: any) => Promise<void>;
   regenerate: () => Promise<void>;
   resetLoom: () => void;
+  returnToSparks: () => void;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const useContentStore = create<ContentSagaState>((set, get) => ({
-  // --- Initial State ---
-  status: 'idle', error: null, ritualPromise: null, grandStrategyData: null, tacticalInterest: '',
-  sparks: [], chosenSpark: null, chosenTone: null, chosenRealm: null, 
-  chosenLength: null, postToCommentOn: null, finalContent: null,
-
-  // --- The Rites ---
-  beginWeaving: (grandStrategyData, tacticalInterest) => {
-    set({ status: 'awaiting_spark_topic', grandStrategyData, tacticalInterest, error: null, ritualPromise: null });
+  status: 'idle', error: null, isRitualRunning: false,
+  tacticalInterest: '', sparksResult: null, chosenSpark: null, finalContent: null,
+  
+  beginWeaving: () => {
+    const strategyData = useSagaStore.getState().strategyData;
+    const tacticalInterest = strategyData?.prophecy?.content_pillars?.[0]?.tactical_interest || 'a compelling topic';
+    set({ status: 'awaiting_spark_topic', tacticalInterest, error: null });
   },
 
   generateSparks: async (topic) => {
-    // This API call doesn't exist yet, we simulate.
-    const promise = new Promise(resolve => setTimeout(resolve, 3000));
-    set({ status: 'weaving_sparks', error: null, ritualPromise: promise, tacticalInterest: topic });
-    await promise; 
-    const simulatedSparks: ContentSpark[] = Array(5).fill(0).map((_, i) => ({
-      id: `spark_${i+1}`, title: `Generated Spark Title for '${topic}' ${i+1}`,
-      description: 'A compelling description for this content idea.',
-      format_suggestion: 'Listicle Blog Post'
-    }));
-    set({ status: 'sparks_revealed', sparks: simulatedSparks, ritualPromise: null });
+    const strategyData = useSagaStore.getState().strategyData;
+    set({ status: 'forging', isRitualRunning: true, error: null, tacticalInterest: topic });
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/prophesy/content-saga`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content_type: 'sparks',
+          tactical_interest: topic,
+          retrieved_histories: strategyData?.retrieved_histories
+        })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+      const { task_id } = await res.json();
+
+      pollProphecy(task_id,
+        (result) => set({ status: 'sparks_revealed', isRitualRunning: false, sparksResult: result }),
+        (error) => set({ status: 'awaiting_spark_topic', isRitualRunning: false, error: error.details || error.error })
+      );
+    } catch (err: any) {
+      set({ status: 'awaiting_spark_topic', isRitualRunning: false, error: err.message });
+    }
   },
 
   chooseSpark: (sparkId) => {
-    const chosen = get().sparks.find(s => s.id === sparkId);
+    const chosen = get().sparksResult?.sparks.find(s => s.id === sparkId);
     if (chosen) {
       set({ status: 'crossroads_revealed', chosenSpark: chosen });
     }
   },
 
-  chooseContentType: async (type) => {
-    if (type === 'Social Post') set({ status: 'awaiting_tone' });
-    if (type === 'Comment') set({ status: 'awaiting_echo' });
-    if (type === 'Blog Post') {
-      const promise = new Promise(resolve => setTimeout(resolve, 3000));
-      set({ status: 'weaving_blog', error: null, ritualPromise: promise });
-      await promise;
-      set({ status: 'blog_woven', finalContent: { title: get().chosenSpark?.title, body: "<p>Full blog post content...</p>" }, ritualPromise: null });
+  forgeContent: async (type, details) => {
+    const { chosenSpark } = get();
+    if (!chosenSpark) return set({ error: "No content spark was chosen." });
+
+    set({ status: 'forging', isRitualRunning: true, error: null });
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/prophesy/content-saga`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content_type: type.toLowerCase().replace(' ', '_'),
+                spark: chosenSpark,
+                ...details
+            })
+        });
+        if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+        const { task_id } = await res.json();
+
+        pollProphecy(task_id,
+            (result) => set({ status: 'final_content_revealed', isRitualRunning: false, finalContent: {type, ...result} }),
+            (error) => set({ status: 'crossroads_revealed', isRitualRunning: false, error: error.details || error.error })
+        );
+    } catch (err: any) {
+        set({ status: 'crossroads_revealed', isRitualRunning: false, error: err.message });
     }
   },
-
-  chooseTone: (tone) => set({ status: 'awaiting_realm', chosenTone: tone }),
-  chooseRealm: (realm) => set({ status: 'awaiting_length', chosenRealm: realm }),
   
-  chooseLength: async (length) => {
-    const promise = new Promise(resolve => setTimeout(resolve, 3000));
-    set({ status: 'weaving_social_post', chosenLength: length, error: null, ritualPromise: promise });
-    await promise;
-    set({ status: 'social_post_woven', finalContent: { post_text: "Generated social post...", image_prompt: "...", video_prompt: "..." }, ritualPromise: null });
-  },
-
-  submitPostToCommentOn: async (post) => {
-    const promise = new Promise(resolve => setTimeout(resolve, 3000));
-    set({ status: 'weaving_comment', postToCommentOn: post, error: null, ritualPromise: promise });
-    await promise;
-    set({ status: 'comment_woven', finalContent: { comments: ["Generated comment 1...", "Generated comment 2..."] }, ritualPromise: null });
-  },
-
   regenerate: async () => {
-    const { status } = get();
-    if (status === 'blog_woven') {
-      await get().chooseContentType('Blog Post');
-    } else if (status === 'social_post_woven') {
-      await get().chooseLength(get().chosenLength!);
-    } else if (status === 'comment_woven') {
-      await get().submitPostToCommentOn(get().postToCommentOn!);
-    }
+    // This logic would need to be enhanced to store the last request details
+    console.log("Regeneration rite must be inscribed with more memory.");
   },
 
   resetLoom: () => {
-    // This resets back to the list of sparks if they exist.
-    if (get().sparks.length > 0) {
-        set({
-            status: 'sparks_revealed', error: null, chosenSpark: null, 
-            chosenTone: null, chosenRealm: null, chosenLength: null, postToCommentOn: null, finalContent: null,
-            ritualPromise: null
-        });
-    } else {
-        set({
-            status: 'awaiting_spark_topic', error: null, sparks: [], chosenSpark: null, 
-            chosenTone: null, chosenRealm: null, chosenLength: null, postToCommentOn: null, finalContent: null,
-            ritualPromise: null
-        });
-    }
+    set({
+      status: 'idle', error: null, isRitualRunning: false,
+      tacticalInterest: '', sparksResult: null, chosenSpark: null, finalContent: null,
+    });
   },
+
+  returnToSparks: () => {
+    set({ status: 'sparks_revealed', chosenSpark: null, finalContent: null });
+  }
 }));
 // --- END OF FILE src/store/contentStore.ts ---
