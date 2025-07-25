@@ -35,9 +35,9 @@ const prophecyOptions = [
 
 /**
  * CommerceCrossroads: Displays the four main prophecy types for the user to choose from.
+ * Each choice will invoke a sacred ritual.
  */
 export default function CommerceCrossroads() {
-  // SAGA LOGIC: Get the 'chooseProphecy' rite from the store.
   const chooseProphecy = useCommerceStore((state) => state.chooseProphecy);
 
   return (
@@ -53,7 +53,7 @@ export default function CommerceCrossroads() {
           Choose Your Prophecy
         </h2>
         <p className="mt-4 text-lg text-saga-text-dark">
-          Select the commercial wisdom you seek from the Ledger.
+          Select the commercial wisdom you seek from the Ledger. Each choice begins a new ritual.
         </p>
       </header>
 
