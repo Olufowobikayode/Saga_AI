@@ -6,7 +6,8 @@ import { useCommerceStore } from '@/store/commerceStore';
 import { AnimatePresence } from 'framer-motion';
 import RitualScreen from './RitualScreen';
 import CommerceCrossroads from './CommerceCrossroads';
-import HallOfScrutiny from './HallOfScrutiny'; // Summoning the new Hall of Scrutiny.
+import HallOfScrutiny from './HallOfScrutiny';
+import HallOfScales from './HallOfScales'; // Summoning the new Hall of Scales.
 
 // Veils for the components we will soon forge.
 const CommerceInputForm = () => <div className="p-8 bg-saga-surface rounded-lg text-center">Awaiting your specific query...</div>;
@@ -26,9 +27,12 @@ export default function LedgerManager() {
       case 'crossroads':
         return <CommerceCrossroads />;
       
-      // NEW: Unveil the Hall of Scrutiny at the correct time.
       case 'awaiting_audit_type':
         return <HallOfScrutiny />;
+
+      // NEW: Unveil the Hall of Scales at the correct time.
+      case 'awaiting_arbitrage_mode':
+        return <HallOfScales />;
 
       case 'awaiting_input':
         return <CommerceInputForm />;
@@ -37,7 +41,7 @@ export default function LedgerManager() {
         return <CommerceProphecyScroll />;
 
       case 'performing_entry_rite':
-      case 'performing_choice_rite': // The ritual after any choice is now handled here.
+      case 'performing_choice_rite':
       case 'forging_prophecy':
         return <RitualScreen />;
       
