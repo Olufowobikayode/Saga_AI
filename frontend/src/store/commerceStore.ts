@@ -36,6 +36,7 @@ interface CommerceState {
   error: string | null;
   ritualPromise: Promise<any> | null;
   
+  // No need to store saga context, it can be passed directly to forgeProphecy
   chosenProphecyType: CommerceProphecyType | null;
   chosenAuditType: AuditType | null;
   chosenArbitrageMode: ArbitrageMode | null;
@@ -59,9 +60,14 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
   chosenProphecyType: null, chosenAuditType: null, chosenArbitrageMode: null,
   lastRequestData: null, finalProphecy: null,
 
-  enterLedger: () => set({ status: 'crossroads' }),
+  enterLedger: () => {
+    // This rite is now just a simple state transition.
+    // The page will handle the context check.
+    set({ status: 'crossroads' });
+  },
 
   chooseProphecy: (prophecyType) => {
+    // ... (This function remains unchanged)
     set({ chosenProphecyType: prophecyType, chosenAuditType: null, chosenArbitrageMode: null });
     if (prophecyType === 'Commerce Audit') {
       set({ status: 'awaiting_audit_type' });
@@ -76,6 +82,7 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
   chooseArbitrageMode: (arbitrageMode) => set({ chosenArbitrageMode: arbitrageMode, status: 'awaiting_input' }),
 
   forgeProphecy: (requestData, sessionId) => {
+    // ... (This function remains unchanged)
     if (!sessionId) return set({ error: "Session ID missing." });
 
     const { chosenProphecyType, chosenAuditType, chosenArbitrageMode } = get();
@@ -114,15 +121,16 @@ export const useCommerceStore = create<CommerceState>((set, get) => ({
   },
 
   regenerateProphecy: (sessionId) => {
+    // ... (This function remains unchanged)
     const { lastRequestData } = get();
     if (lastRequestData) {
-      // We only need the requestData part, not the session_id from the last request
       const { session_id, ...pureRequestData } = lastRequestData;
       get().forgeProphecy(pureRequestData, sessionId);
     }
   },
 
   returnToCrossroads: () => {
+    // ... (This function remains unchanged)
     set({
       status: 'crossroads', error: null, chosenProphecyType: null,
       chosenAuditType: null, chosenArbitrageMode: null,
