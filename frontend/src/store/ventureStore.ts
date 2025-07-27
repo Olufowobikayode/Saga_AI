@@ -1,8 +1,9 @@
-// --- START OF FILE src/store/ventureStore.ts ---
+// --- START OF REFACTORED FILE frontend/src/store/ventureStore.ts ---
 import { create } from 'zustand';
 import { useSagaStore } from './sagaStore';
 
 // --- Polling Helper ---
+// This is the same robust polling function used across stores.
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
   const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
   const interval = setInterval(async () => {
@@ -22,11 +23,11 @@ const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError
       clearInterval(interval);
       onError({ error: "Network error while checking prophecy status.", details: err });
     }
-  }, 3000);
+  }, 4000);
 };
 
 // --- State Types ---
-type VentureStatus = 'idle' | 'awaiting_refinement' | 'forging' | 'visions_revealed' | 'blueprint_revealed';
+type VentureStatus = 'idle' | 'awaiting_refinement' | 'questing_for_visions' | 'visions_revealed' | 'forging_blueprint' | 'blueprint_revealed';
 interface Vision { prophecy_id: string; title: string; one_line_pitch: string; business_model: string; evidence_tag: string; }
 interface Blueprint { [key: string]: any; }
 interface VentureBrief { business_model?: string; primary_strength?: string; investment_level?: string; }
@@ -34,7 +35,7 @@ interface VentureBrief { business_model?: string; primary_strength?: string; inv
 interface VentureState {
   status: VentureStatus;
   error: string | null;
-  isRitualRunning: boolean;
+  ritualPromise: Promise<any> | null;
   
   visionsResult: { visions: Vision[] } & any | null;
   chosenVision: Vision | null;
@@ -42,84 +43,107 @@ interface VentureState {
 
   // Rites now accept the session ID
   enterSpire: () => void;
-  beginQuest: (ventureBrief: VentureBrief, sessionId: string) => Promise<void>;
-  chooseVision: (visionId: string, sessionId: string) => Promise<void>;
-  regenerateBlueprint: (sessionId: string) => Promise<void>;
+  beginQuest: (ventureBrief: VentureBrief, sessionId: string) => void;
+  chooseVision: (visionId: string, sessionId: string) => void;
+  regenerateBlueprint: (sessionId: string) => void;
   returnToVisions: () => void;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const useVentureStore = create<VentureState>((set, get) => ({
-  status: 'idle', error: null, isRitualRunning: false,
+  status: 'idle', error: null, ritualPromise: null,
   visionsResult: null, chosenVision: null, blueprint: null,
 
   enterSpire: () => set({ status: 'awaiting_refinement' }),
 
-  beginQuest: async (ventureBrief, sessionId) => {
+  beginQuest: (ventureBrief, sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing." });
     
-    const brief = useSagaStore.getState().brief;
-    set({ status: 'forging', isRitualRunning: true, error: null });
-    
-    try {
-      const res = await fetch(`${API_BASE_URL}/prophesy/new-venture-visions`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          interest: brief.interest, sub_niche: brief.subNiche,
-          user_content_text: brief.toneText, user_content_url: brief.toneUrl,
-          target_country_name: brief.targetCountry, venture_brief: ventureBrief
-        }),
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      const { task_id } = await res.json();
+    const brief = useSagaStore.getState().brief; // Get context from the main store
+    set({ status: 'questing_for_visions', error: null });
 
-      pollProphecy(task_id,
-        (result) => set({ status: 'visions_revealed', isRitualRunning: false, visionsResult: result }),
-        (error) => set({ status: 'awaiting_refinement', isRitualRunning: false, error: error.details || error.error })
-      );
-    } catch (err: any) {
-      set({ status: 'awaiting_refinement', isRitualRunning: false, error: err.message });
-    }
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/prophesy/new-venture-visions`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  session_id: sessionId,
+                  interest: brief.interest, sub_niche: brief.subNiche,
+                  user_content_text: brief.toneText, user_content_url: brief.toneUrl,
+                  target_country_name: brief.targetCountry, venture_brief: ventureBrief
+                }),
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+            const { task_id } = await res.json();
+      
+            pollProphecy(task_id,
+              (result) => {
+                set({ status: 'visions_revealed', visionsResult: result });
+                resolve(result);
+              },
+              (error) => {
+                const errorMessage = error.details || error.error;
+                set({ status: 'awaiting_refinement', error: errorMessage });
+                reject(new Error(errorMessage));
+              }
+            );
+        } catch (err: any) {
+            set({ status: 'awaiting_refinement', error: err.message });
+            reject(err);
+        }
+    });
+
+    set({ ritualPromise: promise });
   },
 
-  chooseVision: async (visionId, sessionId) => {
+  chooseVision: (visionId, sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing." });
 
     const { visionsResult } = get();
     const chosenVision = visionsResult?.visions.find(v => v.prophecy_id === visionId) || null;
     if (!visionsResult || !chosenVision) return set({ error: "Session is missing critical context." });
     
-    set({ status: 'forging', isRitualRunning: true, error: null, chosenVision });
+    set({ status: 'forging_blueprint', error: null, chosenVision });
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/prophesy/new-venture-blueprint`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              session_id: sessionId,
-              chosen_vision: chosenVision,
-              retrieved_histories: visionsResult.retrieved_histories,
-              user_tone_instruction: visionsResult.user_tone_instruction,
-              country_name: visionsResult.country_name,
-          }),
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      const { task_id } = await res.json();
-
-      pollProphecy(task_id,
-        (result) => set({ status: 'blueprint_revealed', isRitualRunning: false, blueprint: result }),
-        (error) => set({ status: 'visions_revealed', isRitualRunning: false, error: error.details || error.error })
-      );
-    } catch (err: any) {
-      set({ status: 'visions_revealed', isRitualRunning: false, error: err.message });
-    }
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/prophesy/new-venture-blueprint`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    chosen_vision: chosenVision,
+                    retrieved_histories: visionsResult.retrieved_histories,
+                    user_tone_instruction: visionsResult.user_tone_instruction,
+                    country_name: visionsResult.country_name,
+                }),
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+            const { task_id } = await res.json();
+      
+            pollProphecy(task_id,
+              (result) => {
+                set({ status: 'blueprint_revealed', blueprint: result });
+                resolve(result);
+              },
+              (error) => {
+                const errorMessage = error.details || error.error;
+                set({ status: 'visions_revealed', error: errorMessage });
+                reject(new Error(errorMessage));
+              }
+            );
+        } catch (err: any) {
+            set({ status: 'visions_revealed', error: err.message });
+            reject(err);
+        }
+    });
+    set({ ritualPromise: promise });
   },
 
-  regenerateBlueprint: async (sessionId) => {
+  regenerateBlueprint: (sessionId) => {
     const { chosenVision } = get();
     if (chosenVision) {
-      await get().chooseVision(chosenVision.prophecy_id, sessionId);
+      get().chooseVision(chosenVision.prophecy_id, sessionId);
     }
   },
 
@@ -127,4 +151,4 @@ export const useVentureStore = create<VentureState>((set, get) => ({
     set({ status: 'visions_revealed', blueprint: null, chosenVision: null, error: null });
   },
 }));
-// --- END OF FILE src/store/ventureStore.ts ---
+// --- END OF REFACTORED FILE frontend/src/store/ventureStore.ts ---
