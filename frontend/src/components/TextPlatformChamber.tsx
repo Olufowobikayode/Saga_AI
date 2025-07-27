@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/TextPlatformChamber.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/TextPlatformChamber.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 
 // SAGA UI: Defining the data for our text/ad platform selection cards.
 const platformOptions = [
@@ -52,6 +53,18 @@ const platformOptions = [
 export default function TextPlatformChamber() {
   const chosenAssetType = useMarketingStore((state) => state.chosenAssetType);
   const choosePlatform = useMarketingStore((state) => state.choosePlatform);
+  
+  // -- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
+  const handlePlatformSelection = (platformId: string) => {
+    if (isSessionLoading || !sessionId) {
+        alert("Session is not yet ready. Please wait a moment.");
+        return;
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    choosePlatform(platformId, sessionId);
+  };
 
   return (
     <motion.div
@@ -79,9 +92,10 @@ export default function TextPlatformChamber() {
             transition={{ duration: 0.5, delay: index * 0.1 }}
           >
             <button
-              onClick={() => choosePlatform(option.id)}
+              onClick={() => handlePlatformSelection(option.id)}
+              disabled={isSessionLoading}
               className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
-                         hover:border-saga-primary hover:scale-105 transition-all duration-300"
+                         hover:border-saga-primary hover:scale-105 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="text-4xl mb-4">{option.icon}</div>
               <h3 className="font-serif text-2xl font-bold text-saga-secondary mb-2">
@@ -97,4 +111,4 @@ export default function TextPlatformChamber() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/TextPlatformChamber.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/TextPlatformChamber.tsx ---
