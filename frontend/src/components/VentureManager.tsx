@@ -1,4 +1,4 @@
-// --- START OF FILE frontend/src/components/VentureManager.tsx ---
+// --- START OF REFACTORED FILE src/components/VentureManager.tsx ---
 'use client';
 
 import React, { useEffect } from 'react';
@@ -8,15 +8,17 @@ import RitualScreen from './RitualScreen';
 import RefinementChamber from './RefinementChamber';
 import HallOfVisions from './HallOfVisions';
 import BlueprintScroll from './BlueprintScroll';
+// --- 1. IMPORT THE SKELETON COMPONENTS ---
+import HallOfVisionsSkeleton from './skeletons/HallOfVisionsSkeleton';
+import BlueprintScrollSkeleton from './skeletons/BlueprintScrollSkeleton';
+
 
 /**
  * VentureManager: The master controller for the entire New Ventures workflow.
- * It reads the status from the ventureStore and renders the appropriate UI.
+ * It now uses skeleton loaders for seamless transitions.
  */
 export default function VentureManager() {
-  const status = useVentureStore((state) => state.status);
-  const enterSpire = useVentureStore((state) => state.enterSpire);
-  const ritualPromise = useVentureStore((state) => state.ritualPromise);
+  const { status, enterSpire, ritualPromise, visionsResult, blueprint } = useVentureStore();
 
   useEffect(() => {
     if (status === 'idle') {
@@ -25,8 +27,8 @@ export default function VentureManager() {
   }, [status, enterSpire]);
 
   const handleRitualComplete = () => {
-    console.log("VentureManager acknowledges ritual completion.");
-    // The store manages its own state transitions upon promise resolution.
+    // This allows the store to transition state, and the manager will react accordingly.
+    // The promise resolution in the store already sets the new status.
   };
 
   const renderCurrentStage = () => {
@@ -34,16 +36,18 @@ export default function VentureManager() {
       case 'awaiting_refinement':
         return <RefinementChamber />;
 
+      // --- 2. ADD SKELETON LOGIC FOR VISIONS ---
       case 'visions_revealed':
-        return <HallOfVisions />;
+        // If the status is correct but the data hasn't populated yet, show a skeleton.
+        return visionsResult ? <HallOfVisions /> : <HallOfVisionsSkeleton />;
 
+      // --- 3. ADD SKELETON LOGIC FOR BLUEPRINT ---
       case 'blueprint_revealed':
-        return <BlueprintScroll />;
+        // Same pattern for the blueprint view.
+        return blueprint ? <BlueprintScroll /> : <BlueprintScrollSkeleton />;
 
-      case 'performing_entry_rite':
       case 'questing_for_visions':
       case 'forging_blueprint':
-        // CORRECTED: Pass the required props to RitualScreen
         return (
           <RitualScreen
             key={`venture-ritual-${status}`}
@@ -65,4 +69,4 @@ export default function VentureManager() {
     </div>
   );
 }
-// --- END OF FILE frontend/src/components/VentureManager.tsx ---
+// --- END OF REFACTORED FILE src/components/VentureManager.tsx ---
