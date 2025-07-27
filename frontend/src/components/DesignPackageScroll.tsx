@@ -1,16 +1,31 @@
-// --- START OF FILE src/components/DesignPackageScroll.tsx ---
+// --- START OF REFACTORED FILE src/components/DesignPackageScroll.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { usePodStore } from '@/store/podStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 
-// SAGA UI: A reusable card for displaying a piece of the design package.
+// A reusable card for displaying a piece of the design package.
+// It now handles its own regenerate logic.
 const PackageCard = ({ title, content }: { title: string; content: string }) => {
   const { regeneratePackage, status } = usePodStore();
   const isLoading = status === 'forging_package';
 
+  // --- 2. USE SESSION HOOK WITHIN THE CARD ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
   const handleCopy = () => navigator.clipboard.writeText(content);
+
+  const handleRegenerate = () => {
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    regeneratePackage(sessionId);
+  };
+
 
   return (
     <div className="bg-saga-surface p-6 rounded-lg border border-white/10">
@@ -18,7 +33,11 @@ const PackageCard = ({ title, content }: { title: string; content: string }) => 
       <p className="text-saga-text-dark whitespace-pre-wrap font-sans text-lg">{content}</p>
       <div className="flex items-center space-x-4 mt-6 pt-4 border-t border-white/10">
         <button onClick={handleCopy} className="text-sm font-semibold text-saga-primary hover:text-saga-secondary">Copy</button>
-        <button onClick={regeneratePackage} className="text-sm font-semibold text-saga-primary hover:text-saga-secondary flex items-center">
+        <button 
+          onClick={handleRegenerate}
+          disabled={isLoading || isSessionLoading}
+          className="text-sm font-semibold text-saga-primary hover:text-saga-secondary flex items-center disabled:opacity-50"
+        >
           {isLoading ? 'Regenerating...' : 'Regenerate'}
           {!isLoading && <span className="ml-1">✨</span>}
         </button>
@@ -60,7 +79,6 @@ export default function DesignPackageScroll() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Column 1: AI Design Prompts */}
         <div className="space-y-8">
           <h3 className="font-serif text-3xl text-saga-primary text-center lg:text-left">AI Design Prompts</h3>
           {design_prompts?.map((prompt: any) => (
@@ -68,7 +86,6 @@ export default function DesignPackageScroll() {
           ))}
         </div>
 
-        {/* Column 2: E-commerce Listing Copy */}
         <div className="space-y-8">
           <h3 className="font-serif text-3xl text-saga-primary text-center lg:text-left">E-commerce Listing Copy</h3>
           {listing_copy?.product_title && <PackageCard title={listing_copy.product_title.title} content={listing_copy.product_title.content} />}
@@ -77,7 +94,6 @@ export default function DesignPackageScroll() {
         </div>
       </div>
 
-      {/* Reset Button to choose a different concept */}
       <div className="text-center mt-16">
         <button 
           onClick={resetAnvil}
@@ -89,4 +105,4 @@ export default function DesignPackageScroll() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/DesignPackageScroll.tsx ---
+// --- END OF REFACTORED FILE src/components/DesignPackageScroll.tsx ---
