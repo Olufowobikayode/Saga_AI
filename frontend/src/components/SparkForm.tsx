@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/SparkForm.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/SparkForm.tsx ---
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useContentStore } from '@/store/contentStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 
@@ -12,14 +13,15 @@ import SagaButton from './SagaButton';
  * for which Saga will generate "Content Sparks".
  */
 export default function SparkForm() {
-  // SAGA LOGIC: Connect to the Mind of the Weaver.
   const { tacticalInterest, generateSparks, status } = useContentStore();
   const isLoading = status === 'weaving_sparks';
+
+  // --- 2. USE THE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
 
   // Local state for the form input.
   const [topic, setTopic] = useState('');
 
-  // SAGA LOGIC: When the component loads, pre-fill the topic from the store.
   useEffect(() => {
     if (tacticalInterest) {
       setTopic(tacticalInterest);
@@ -31,10 +33,13 @@ export default function SparkForm() {
       alert("The Weaver requires a topic to find the threads of inspiration.");
       return;
     }
-    // SAGA LOGIC: We will need to update the store's state before generating.
-    // For now, this calls the rite to trigger the ritual.
-    // A more advanced version could update the tacticalInterest in the store if changed.
-    generateSparks();
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+    // SAGA LOGIC: The store now handles the topic, just pass the session ID.
+    // --- 3. PASS THE SESSION ID TO THE STORE ACTION ---
+    generateSparks(sessionId);
   };
 
   return (
@@ -66,8 +71,12 @@ export default function SparkForm() {
           />
 
           <div className="pt-4 text-center">
-            <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg">
-              {isLoading ? "Observing Ritual..." : "Generate Content Sparks"}
+            <SagaButton 
+              onClick={handleSubmit} 
+              className="py-3 px-8 text-lg"
+              disabled={isLoading || isSessionLoading}
+            >
+              {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Ritual..." : "Generate Content Sparks")}
             </SagaButton>
           </div>
         </form>
@@ -75,4 +84,4 @@ export default function SparkForm() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/SparkForm.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/SparkForm.tsx ---
