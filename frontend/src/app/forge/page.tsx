@@ -7,39 +7,36 @@ import Link from 'next/link';
 import ForgeManager from '@/components/ForgeManager';
 import { useMarketingStore } from '@/store/marketingStore';
 import { useSagaStore } from '@/store/sagaStore';
+import StrategySidebar from '@/components/StrategySidebar'; // <-- 1. IMPORT THE SIDEBAR
 
 /**
  * The Skald's Forge: The main page for the Marketing Saga Stack.
- * It is now responsible for initializing the marketingStore.
+ * It is now responsible for initializing the marketingStore and displaying the sidebar.
  */
 export default function ForgePage() {
   const router = useRouter();
 
-  // Get the initialization function from the marketingStore
   const invokeForge = useMarketingStore((state) => state.invokeForge);
-  // Get the current status to prevent re-initialization
   const marketingStatus = useMarketingStore((state) => state.status);
-
-  // Get the context from the main sagaStore to ensure a strategy exists
   const grandStrategyInterest = useSagaStore((state) => state.brief.interest);
 
-  // This effect runs once when the page loads, acting as the "Context Bridge".
   useEffect(() => {
     if (marketingStatus === 'idle') {
-      // If the user lands here directly, the core interest will be missing.
       if (!grandStrategyInterest || grandStrategyInterest.trim() === '') {
-        // Redirect them back to the start.
         alert("A Grand Strategy is required to use the Skald's Forge. Returning to the Altar of Inquiry.");
         router.push('/consult');
       } else {
-        // If context exists, initialize the marketing workflow.
         invokeForge();
       }
     }
   }, [marketingStatus, grandStrategyInterest, invokeForge, router]);
 
   return (
-    <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
+    <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4 relative">
+      
+      {/* --- 2. ADD THE SIDEBAR COMPONENT HERE --- */}
+      <StrategySidebar />
+
       <div className="max-w-4xl mx-auto">
         
         <header className="text-center mb-12">
@@ -51,10 +48,6 @@ export default function ForgePage() {
           </p>
         </header>
 
-        {/* 
-          The ForgeManager will now operate with the correct context
-          or the user will have been redirected.
-        */}
         <ForgeManager />
 
         <div className="text-center mt-16">
