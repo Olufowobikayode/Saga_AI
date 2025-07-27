@@ -1,18 +1,47 @@
-// --- START OF FILE src/app/forge/page.tsx ---
-import React from 'react';
+// --- START OF REFACTORED FILE src/app/forge/page.tsx ---
+'use client';
+
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import ForgeManager from '@/components/ForgeManager'; // Summoning the Forge Manager.
+import ForgeManager from '@/components/ForgeManager';
+import { useMarketingStore } from '@/store/marketingStore';
+import { useSagaStore } from '@/store/sagaStore';
 
 /**
  * The Skald's Forge: The main page for the Marketing Saga Stack.
- * All of its complex, multi-stage logic is now handled by the ForgeManager.
+ * It is now responsible for initializing the marketingStore.
  */
 export default function ForgePage() {
+  const router = useRouter();
+
+  // Get the initialization function from the marketingStore
+  const invokeForge = useMarketingStore((state) => state.invokeForge);
+  // Get the current status to prevent re-initialization
+  const marketingStatus = useMarketingStore((state) => state.status);
+
+  // Get the context from the main sagaStore to ensure a strategy exists
+  const grandStrategyInterest = useSagaStore((state) => state.brief.interest);
+
+  // This effect runs once when the page loads, acting as the "Context Bridge".
+  useEffect(() => {
+    if (marketingStatus === 'idle') {
+      // If the user lands here directly, the core interest will be missing.
+      if (!grandStrategyInterest || grandStrategyInterest.trim() === '') {
+        // Redirect them back to the start.
+        alert("A Grand Strategy is required to use the Skald's Forge. Returning to the Altar of Inquiry.");
+        router.push('/consult');
+      } else {
+        // If context exists, initialize the marketing workflow.
+        invokeForge();
+      }
+    }
+  }, [marketingStatus, grandStrategyInterest, invokeForge, router]);
+
   return (
     <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
       <div className="max-w-4xl mx-auto">
         
-        {/* Page Header */}
         <header className="text-center mb-12">
           <h1 className="font-serif text-5xl md:text-6xl font-bold text-saga-secondary">
             The Skald's Forge
@@ -23,13 +52,11 @@ export default function ForgePage() {
         </header>
 
         {/* 
-          The ForgeManager is now placed here. It will read from the marketingStore
-          and automatically display the correct UI for the user's current stage
-          in the marketing prophecy workflow.
+          The ForgeManager will now operate with the correct context
+          or the user will have been redirected.
         */}
         <ForgeManager />
 
-        {/* Navigation Link to return to the main hall */}
         <div className="text-center mt-16">
           <Link href="/consult" className="font-serif text-xl text-saga-text-dark hover:text-saga-primary transition-colors">
             ← Return to the Hall of Prophecies
@@ -40,4 +67,4 @@ export default function ForgePage() {
     </div>
   );
 }
-// --- END OF FILE src/app/forge/page.tsx ---
+// --- END OF REFACTORED FILE src/app/forge/page.tsx ---
