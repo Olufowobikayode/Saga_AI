@@ -1,10 +1,9 @@
-// --- START OF FILE frontend/src/components/RitualScreen.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/RitualScreen.tsx ---
 'use client';
 
-import React, 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTributeStore } from '@/store/tributeStore';
-import { useEffect, useState, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -14,7 +13,9 @@ declare global {
 
 // --- CONFIGURATION ---
 const MINIMUM_RITUAL_DURATION_MS = 5000; // 5 seconds
-const DISPLAY_AD_SLOT_ID = "YOUR_DISPLAY_AD_SLOT_ID_HERE"; // <<< IMPORTANT: REPLACE THIS
+
+// A placeholder. In a real app, you would have different slots.
+const DISPLAY_AD_SLOT_ID = "3987431269"; 
 
 // --- BANNER AD COMPONENT ---
 const BannerAdVessel = () => {
@@ -27,7 +28,7 @@ const BannerAdVessel = () => {
   }, []);
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[320px] h-[50px] z-[100]">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[320px] h-[50px] z-[100] bg-saga-surface/50">
       <ins
         className="adsbygoogle"
         style={{ display: 'inline-block', width: '320px', height: '50px' }}
@@ -64,7 +65,7 @@ interface RitualScreenProps {
 /**
  * RitualScreen: The Definitive Version. A self-contained, intelligent gatekeeper
  * that honors the tributeStore, manages a dual-tribute system, and synchronizes
- * with the great work of the backend. It now correctly accepts a 'ritualPromise'.
+ * with the great work of the backend by consuming a promise from the store.
  */
 export default function RitualScreen({ ritualPromise, onRitualComplete }: RitualScreenProps) {
   const [isBackendDone, setIsBackendDone] = useState(false);
@@ -97,45 +98,37 @@ export default function RitualScreen({ ritualPromise, onRitualComplete }: Ritual
       try {
         const adBreak = {
           type: 'ad_break',
-          name: 'saga_grand_tribute',
-          adDismissed: () => setIsAdDone(true),
-          adError: () => setIsAdDone(true),
+          name: 'saga_grand_tribute', // A name for this ad break placement
+          adDismissed: () => { console.log('Ad dismissed'); setIsAdDone(true); },
+          adError: (e: any) => { console.error('Ad error:', e.error); setIsAdDone(true); },
           adBreakDone: (placementInfo: any) => {
-            // This is a more robust way to handle completion
-            if (placementInfo.breakStatus !== 'unfilled') {
-              setIsAdDone(true);
-            } else {
-              setIsAdDone(true); // Treat unfilled as 'done'
-            }
+             console.log('Ad break done:', placementInfo.breakStatus);
+             setIsAdDone(true);
           },
         };
         (window.adsbygoogle = window.adsbygoogle || []).push(adBreak);
       } catch (e) {
         console.error("The Grand Tribute (Interstitial) failed to manifest:", e);
-        setIsAdDone(true); // Fail open
+        setIsAdDone(true); // Fail open to not block user
       }
     } else {
       tributeTypeRef.current = 'lesser';
-      setIsAdDone(true); // Banner ad is considered "done" instantly
+      setIsAdDone(true); // Banner ad doesn't block, so it's considered "done" instantly
     }
 
     // 3. Backend Prophecy Logic
     if (ritualPromise) {
       ritualPromise
-        .then(() => {
-          console.log("Backend prophecy received successfully.");
-        })
         .catch(err => {
           console.error("The backend prophecy ritual failed:", err);
-          // The store will handle the error state, we just need to finish the screen.
+          // The store handles setting the error state. This screen's job is just to finish.
         })
         .finally(() => {
           setIsBackendDone(true);
         });
     } else {
-      // If for some reason no promise was passed, fail gracefully
       console.error("RitualScreen was summoned without a ritualPromise.");
-      setIsBackendDone(true);
+      setIsBackendDone(true); // Fail open if no promise was provided
     }
 
     // Cleanup
@@ -154,7 +147,6 @@ export default function RitualScreen({ ritualPromise, onRitualComplete }: Ritual
     };
   }, []);
 
-  // --- The Visual Manifestation of the Ritual ---
   return (
     <motion.div
       className="fixed inset-0 bg-saga-bg bg-cosmic-gradient z-50 flex flex-col items-center justify-center p-4"
@@ -193,4 +185,4 @@ export default function RitualScreen({ ritualPromise, onRitualComplete }: Ritual
     </motion.div>
   );
 }
-// --- END OF FILE frontend/src/components/RitualScreen.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/RitualScreen.tsx ---
