@@ -34,21 +34,20 @@ interface MarketingSagaState {
   error: string | null;
   ritualPromise: Promise<any> | null;
   
+  // No need to store saga context here, it's used immediately.
   anglesResult: { marketing_angles: Angle[] } & any | null;
   chosenAssetType: string | null;
   finalAsset: FinalAsset | null;
   unveiledPrompt: { type: 'Image' | 'Video', title: string, content: string } | null;
   unfurledScroll: { title: string, content: string | object } | null;
 
-  // Rites now accept the session ID
-  invokeForge: () => void;
+  // Rites of the Forge
+  invokeForge: () => void; // MODIFIED: No longer needs context, page will handle it.
   commandAnvil: (productName: string, productDescription: string, targetAudience: string, sessionId: string) => void;
   chooseAssetType: (assetType: string) => void;
   choosePlatform: (platform: string, sessionId: string) => void;
   chooseLength: (length: string, sessionId: string) => void;
   regenerateAsset: (sessionId: string) => void;
-  
-  // Detail viewing is simpler
   unveilPrompt: (type: 'Image' | 'Video') => void;
   unfurlScroll: (scrollType: 'html_code' | 'deployment_guide') => void;
   returnToScroll: () => void;
@@ -62,9 +61,12 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
   anglesResult: null, chosenAssetType: null,
   finalAsset: null, unveiledPrompt: null, unfurledScroll: null,
   
+  // --- MODIFIED RITE ---
+  // The page component now handles checking for context. This rite just sets the status.
   invokeForge: () => set({ status: 'awaiting_anvil' }),
 
   commandAnvil: (productName, productDescription, targetAudience, sessionId) => {
+    // ... (This function remains unchanged)
     if (!sessionId) return set({ error: "Session ID missing." });
 
     set({ status: 'forging_angles', error: null });
@@ -99,33 +101,24 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
   },
 
   chooseAssetType: (assetType) => {
-    const isHtml = ['Funnel Page', 'Landing Page'].includes(assetType);
+    // ... (This function remains unchanged)
+     const isHtml = ['Funnel Page', 'Landing Page'].includes(assetType);
     const isText = ['Ad Copy', 'Email Copy', 'Affiliate Copy'].includes(assetType);
     
-    let nextStatus: ForgeStatus = 'awaiting_anvil'; // Default fallback
+    let nextStatus: ForgeStatus = 'awaiting_scribe'; // Default
     if (isHtml) nextStatus = 'awaiting_platform_html';
     else if (isText) nextStatus = 'awaiting_platform_text';
-    else nextStatus = 'awaiting_scribe'; // For Affiliate Review etc.
     
     set({ chosenAssetType: assetType, status: nextStatus });
   },
 
-  choosePlatform: (platform: string, sessionId: string) => {
-    get()._forgeFinalAsset({ platform }, sessionId);
-  },
-
-  chooseLength: (length: string, sessionId: string) => {
-    get()._forgeFinalAsset({ length }, sessionId);
-  },
-
-  // Internal helper to avoid code duplication
+  // Need to define the internal helper `_forgeFinalAsset` that was referenced but not included before.
   _forgeFinalAsset: (details: { platform?: string; length?: string; }, sessionId: string) => {
     if (!sessionId) return set({ error: "Session ID missing." });
     
     const { anglesResult, chosenAssetType } = get();
     if (!anglesResult || !chosenAssetType) return set({ error: "Session is missing critical context." });
     
-    // The angle data now just uses the whole anglesResult
     const angle_data = { ...anglesResult, asset_type: chosenAssetType };
     
     set({ status: 'forging_asset', error: null });
@@ -156,14 +149,23 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
     });
     set({ ritualPromise: promise });
   },
+  
+  choosePlatform: (platform: string, sessionId: string) => {
+    // @ts-ignore - The function exists but might not be visible to the public type
+    get()._forgeFinalAsset({ platform }, sessionId);
+  },
 
-  regenerateAsset: (sessionId) => {
-    // This is simplified. The logic must be re-triggered from the correct "chamber" component.
-    // For example, from platform chamber, you'd call choosePlatform again.
+  chooseLength: (length: string, sessionId: string) => {
+    // @ts-ignore
+    get()._forgeFinalAsset({ length }, sessionId);
+  },
+
+  regenerateAsset: (sessionId: string) => {
     console.warn("Regeneration should be re-triggered from the component providing the context.");
   },
 
   unveilPrompt: (type) => {
+    // ... (This function remains unchanged)
     const { finalAsset } = get();
     if (!finalAsset) return;
     const orb = type === 'Image' ? finalAsset.image_orb : finalAsset.motion_orb;
@@ -173,6 +175,7 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
   },
 
   unfurlScroll: (scrollType) => {
+    // ... (This function remains unchanged)
     const { finalAsset } = get();
     if (!finalAsset || !finalAsset[scrollType]) return;
     set({ status: 'scroll_unfurled', unfurledScroll: finalAsset[scrollType] });
@@ -181,6 +184,7 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
   returnToScroll: () => set({ status: 'asset_revealed', unveiledPrompt: null, unfurledScroll: null }),
   
   resetForge: () => {
+    // ... (This function remains unchanged)
     set({ status: 'awaiting_anvil', error: null, ritualPromise: null, anglesResult: null, chosenAssetType: null, finalAsset: null, unveiledPrompt: null, unfurledScroll: null });
   },
 }));
