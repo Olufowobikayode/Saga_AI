@@ -1,19 +1,44 @@
-// --- START OF FILE src/app/spire/page.tsx ---
-'use client'; // This page is the root of a complex client-side workflow.
+// --- START OF REFACTORED FILE src/app/spire/page.tsx ---
+'use client'; 
 
 import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import VentureManager from '@/components/VentureManager'; // We will create this next.
+import VentureManager from '@/components/VentureManager';
 import { useVentureStore } from '@/store/ventureStore';
+import { useSagaStore } from '@/store/sagaStore';
 
 /**
  * The Seer's Spire: The main page for the New Ventures Stack.
- * All of its multi-stage logic is governed by the VentureManager.
+ * It is now responsible for initializing the ventureStore with the correct context.
  */
 export default function SpirePage() {
-  // SAGA LOGIC: Connect to the store to begin the entry rite when the user arrives.
-  // Although the store has an entry rite, the first user action will be on the
-  // RefinementChamber, so we don't need to call it here. The manager will handle the flow.
+  const router = useRouter();
+
+  // Get the initialization function from the ventureStore
+  const enterSpire = useVentureStore((state) => state.enterSpire);
+  // Get the current status to prevent re-initialization
+  const ventureStatus = useVentureStore((state) => state.status);
+  
+  // Get the ENTIRE brief context from the main sagaStore
+  const grandStrategyBrief = useSagaStore((state) => state.brief);
+
+  // This effect runs once when the page loads, acting as the "Context Bridge".
+  useEffect(() => {
+    // Only initialize if the store is in its default 'idle' state.
+    if (ventureStatus === 'idle') {
+      // If the user lands here directly, the core interest will be missing.
+      if (!grandStrategyBrief || !grandStrategyBrief.interest || grandStrategyBrief.interest.trim() === '') {
+        // Redirect them back to the start.
+        alert("A Grand Strategy is required to use the Seer's Spire. Returning to the Altar of Inquiry.");
+        router.push('/consult');
+      } else {
+        // If we have context, initialize the ventureStore with it.
+        // We pass the whole brief object as the ventureStore needs all of it.
+        enterSpire(grandStrategyBrief);
+      }
+    }
+  }, [ventureStatus, grandStrategyBrief, enterSpire, router]);
 
   return (
     <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
@@ -29,8 +54,8 @@ export default function SpirePage() {
         </header>
 
         {/* 
-          The VentureManager will now preside over this hall. It will read from the
-          ventureStore and unveil the correct UI for the user's current stage.
+          The VentureManager will now operate with the correct context
+          or the user will have been redirected.
         */}
         <VentureManager />
 
@@ -39,9 +64,8 @@ export default function SpirePage() {
             ← Return to the Hall of Prophecies
           </Link>
         </div>
-
       </div>
     </div>
   );
 }
-// --- END OF FILE src/app/spire/page.tsx ---
+// --- END OF REFACTORED FILE src/app/spire/page.tsx ---
