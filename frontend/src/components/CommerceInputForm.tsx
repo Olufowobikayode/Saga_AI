@@ -4,16 +4,17 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useCommerceStore } from '@/store/commerceStore';
-import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
+import { useSession } from '@/hooks/useSession';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
+import ErrorMessage from './ErrorMessage'; // <-- 1. IMPORT THE NEW COMPONENT
 
 // A simple Select component for this form.
-const SelectRune = ({ id, label, value, onChange, options }: any) => (
+const SelectRune = ({ id, label, name, value, onChange, options }: any) => (
     <div>
       <label htmlFor={id} className="block font-serif text-lg text-saga-text-light mb-2">{label}</label>
       <div className="relative">
-        <select id={id} name={id} value={value} onChange={onChange} className={`w-full appearance-none bg-saga-bg border-2 border-saga-surface rounded-lg px-4 py-3 text-saga-text-light focus:outline-none focus:ring-2 focus:ring-saga-primary transition-all duration-300`}>
+        <select id={id} name={name} value={value} onChange={onChange} className={`w-full appearance-none bg-saga-bg border-2 border-saga-surface rounded-lg px-4 py-3 text-saga-text-light focus:outline-none focus:ring-2 focus:ring-saga-primary transition-all duration-300`}>
           {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
         </select>
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-saga-text-dark">
@@ -32,13 +33,11 @@ export default function CommerceInputForm() {
   const { chosenProphecyType, chosenAuditType, chosenArbitrageMode, forgeProphecy, status, error } = useCommerceStore();
   const isLoading = status === 'forging_prophecy';
   
-  // -- 2. USE SESSION HOOK ---
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [formData, setFormData] = useState<any>({});
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    // Use the `name` attribute from the input to update the state.
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -47,9 +46,14 @@ export default function CommerceInputForm() {
       alert("Session is not yet ready. Please wait a moment.");
       return;
     }
-    // --- 3. PASS SESSION ID TO STORE ACTION ---
     forgeProphecy(formData, sessionId);
   };
+  
+  // --- 2. CREATE A RETRY HANDLER ---
+  const handleRetry = () => {
+    handleSubmit();
+  };
+
 
   // SAGA LOGIC: Intelligently render only the necessary form fields.
   const renderFormFields = () => {
@@ -115,7 +119,9 @@ export default function CommerceInputForm() {
                         {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Grand Ritual..." : "Forge Prophecy")}
                     </SagaButton>
                 </div>
-                {error && <p className="text-center text-red-400 mt-4">{error}</p>}
+                
+                {/* --- 3. REPLACE THE OLD ERROR TEXT WITH THE NEW COMPONENT --- */}
+                <ErrorMessage error={error} onRetry={handleRetry} />
             </form>
         </div>
     </motion.div>
