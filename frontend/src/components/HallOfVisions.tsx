@@ -1,22 +1,38 @@
-// --- START OF FILE src/components/HallOfVisions.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/HallOfVisions.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useVentureStore } from '@/store/ventureStore';
 import { useSagaStore } from '@/store/sagaStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 
 /**
  * HallOfVisions: Displays the 10 AI-generated "Vision Cards" for the user to choose from.
  */
 export default function HallOfVisions() {
-  const { visions, chooseVision, error } = useVentureStore();
+  const { visionsResult, chooseVision, error } = useVentureStore();
   const interest = useSagaStore((state) => state.brief.interest);
 
+  // --- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
+  const handleChooseVision = (visionId: string) => {
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    chooseVision(visionId, sessionId);
+  };
+  
   if (error) {
     return <div className="text-center p-8 text-red-400">{error}</div>;
   }
   
+  // visionsResult contains the visions array and other context
+  const visions = visionsResult?.visions;
+
   if (!visions || visions.length === 0) {
     return <div className="text-center p-8">The mists are thick... Saga could not divine any visions for this quest.</div>;
   }
@@ -47,9 +63,10 @@ export default function HallOfVisions() {
             transition={{ duration: 0.5, delay: 0.05 * index }}
           >
             <button
-              onClick={() => chooseVision(vision.prophecy_id)}
+              onClick={() => handleChooseVision(vision.prophecy_id)}
+              disabled={isSessionLoading} // Disable button while session is loading
               className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
-                         hover:border-saga-primary transition-all duration-300 group"
+                         hover:border-saga-primary transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <h3 className="font-serif text-2xl font-bold text-saga-primary mb-2 group-hover:text-saga-secondary transition-colors">
                 {vision.title}
@@ -72,4 +89,4 @@ export default function HallOfVisions() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/HallOfVisions.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/HallOfVisions.tsx ---
