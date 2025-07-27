@@ -1,4 +1,4 @@
-// --- START OF FILE src/components/HallOfAngles.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/HallOfAngles.tsx ---
 'use client';
 
 import React from 'react';
@@ -15,8 +15,18 @@ const assetTypes = [
 ];
 
 export default function HallOfAngles() {
-  // SAGA LOGIC: Get the new 'chooseAssetType' function from the store.
+  // SAGA LOGIC: Get the 'chooseAssetType' function from the store. This is now a simple state update.
   const chooseAssetType = useMarketingStore((state) => state.chooseAssetType);
+  const anglesResult = useMarketingStore((state) => state.anglesResult);
+
+  if (!anglesResult?.marketing_angles || anglesResult.marketing_angles.length === 0) {
+      return (
+          <div className="text-center p-8 bg-saga-surface rounded-lg">
+              <h2 className="font-serif text-3xl text-red-400 mb-4">The Forge is Silent</h2>
+              <p className="text-saga-text-dark">Saga could not divine any strategic angles for the provided artifact. Please return to the Anvil and try a different description or target audience.</p>
+          </div>
+      )
+  }
 
   return (
     <motion.div
@@ -34,6 +44,16 @@ export default function HallOfAngles() {
           The core strategies have been forged. Now, choose the form your weapon shall take.
         </p>
       </header>
+      
+      {/* Displaying the actual angles from the store for user context */}
+      <div className="mb-12 space-y-4">
+          {anglesResult.marketing_angles.map((angle) => (
+              <div key={angle.angle_id} className="bg-saga-bg p-4 rounded-lg border border-saga-surface">
+                  <h3 className="font-semibold text-lg text-saga-primary">{angle.title}</h3>
+                  <p className="text-sm text-saga-text-dark">{angle.description}</p>
+              </div>
+          ))}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {assetTypes.map((asset, index) => (
@@ -44,7 +64,7 @@ export default function HallOfAngles() {
             transition={{ duration: 0.5, delay: index * 0.1 }}
           >
             <button
-              // SAGA LOGIC: When a card is clicked, call the rite from the store.
+              // SAGA LOGIC: This now simply sets the asset type in the store and advances the state machine.
               onClick={() => chooseAssetType(asset.id)}
               className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
                          hover:border-saga-primary hover:scale-105 transition-all duration-300"
@@ -63,4 +83,4 @@ export default function HallOfAngles() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/HallOfAngles.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/HallOfAngles.tsx ---
