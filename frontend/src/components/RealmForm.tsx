@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/RealmForm.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/RealmForm.tsx ---
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSagaStore } from '@/store/sagaStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT THE SESSION HOOK
 import CountrySelector from './CountrySelector';
 import SagaButton from './SagaButton';
 
@@ -13,16 +14,20 @@ import SagaButton from './SagaButton';
  */
 export default function RealmForm() {
   const submitRealmAndDivine = useSagaStore((state) => state.submitRealmAndDivine);
-  const isLoading = useSagaStore((state) => state.status === 'performing_grand_rite');
+  const status = useSagaStore((state) => state.status);
+  const isLoading = status === 'forging';
 
   const [country, setCountry] = useState('Global');
+  
+  // --- 2. USE THE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
 
   // SAGA LOGIC: Pre-fill the country from the IP detection.
   useEffect(() => {
     fetch('https://ipapi.co/country_name/')
       .then(res => res.text())
       .then(countryName => {
-        if (countryName) {
+        if (countryName && countryName.trim().length > 0) {
           setCountry(countryName);
         }
       })
@@ -33,9 +38,18 @@ export default function RealmForm() {
   }, []);
 
   const handleSubmit = () => {
-    // Call the final rite from the store with the chosen country.
-    // This will trigger the Grand Ritual and the final API call.
-    submitRealmAndDivine(country);
+    if (isSessionLoading) {
+      alert("Session is still materializing. Please wait a moment.");
+      return;
+    }
+
+    if (!sessionId) {
+      alert("A valid session is required to forge a prophecy. Please refresh the page.");
+      return;
+    }
+    
+    // --- 3. PASS THE SESSION ID TO THE STORE ACTION ---
+    submitRealmAndDivine(country, sessionId);
   };
 
   return (
@@ -68,8 +82,13 @@ export default function RealmForm() {
           />
 
           <div className="pt-4 text-center">
-            <SagaButton onClick={handleSubmit} className="py-4 px-10 text-xl">
-              {isLoading ? "Observing Grand Ritual..." : "Divine My Grand Strategy"}
+            {/* The button is now disabled while the session or the prophecy is loading */}
+            <SagaButton 
+              onClick={handleSubmit} 
+              className="py-4 px-10 text-xl"
+              disabled={isLoading || isSessionLoading}
+            >
+              {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Grand Ritual..." : "Divine My Grand Strategy")}
             </SagaButton>
           </div>
         </form>
@@ -77,4 +96,4 @@ export default function RealmForm() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/RealmForm.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/RealmForm.tsx ---
