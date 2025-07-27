@@ -1,4 +1,4 @@
-// --- START OF FILE src/store/podStore.ts ---
+// --- START OF REFACTORED FILE frontend/src/store/podStore.ts ---
 import { create } from 'zustand';
 import { useSagaStore } from './sagaStore';
 
@@ -22,18 +22,18 @@ const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError
       clearInterval(interval);
       onError({ error: "Network error while checking prophecy status.", details: err });
     }
-  }, 3000);
+  }, 4000);
 };
 
 // --- State Types ---
-type AnvilStatus = 'idle' | 'awaiting_style' | 'forging' | 'concepts_revealed' | 'package_revealed';
+type AnvilStatus = 'idle' | 'awaiting_style' | 'hunting_opportunities' | 'concepts_revealed' | 'forging_package' | 'package_revealed';
 interface DesignConcept { concept_id: string; title: string; description: string; justification: string; suggested_products: string[]; }
 interface DesignPackage { [key: string]: any; }
 
 interface PODState {
   status: AnvilStatus;
   error: string | null;
-  isRitualRunning: boolean;
+  ritualPromise: Promise<any> | null;
   
   nicheInterest: string | null;
   chosenStyle: string | null;
@@ -43,16 +43,16 @@ interface PODState {
 
   // Rites now accept the session ID
   beginForging: () => void;
-  huntOpportunities: (style: string, sessionId: string) => Promise<void>;
-  chooseConcept: (conceptId: string, sessionId: string) => Promise<void>;
-  regeneratePackage: (sessionId: string) => Promise<void>;
-  resetAnvil: () => void;
+  huntOpportunities: (style: string, sessionId: string) => void;
+  chooseConcept: (conceptId: string, sessionId: string) => void;
+  regeneratePackage: (sessionId: string) => void;
+  resetAnvil: () => void; // Resets to the concept selection screen
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const usePodStore = create<PODState>((set, get) => ({
-  status: 'idle', error: null, isRitualRunning: false,
+  status: 'idle', error: null, ritualPromise: null,
   nicheInterest: null, chosenStyle: null,
   opportunitiesResult: null, chosenConcept: null, designPackage: null,
 
@@ -61,63 +61,87 @@ export const usePodStore = create<PODState>((set, get) => ({
     set({ status: 'awaiting_style', nicheInterest: interest, error: null });
   },
 
-  huntOpportunities: async (style, sessionId) => {
+  huntOpportunities: (style, sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing." });
     
     const { nicheInterest } = get();
     if (!nicheInterest) return set({ error: "The core niche interest was lost." });
     
-    set({ status: 'forging', isRitualRunning: true, error: null, chosenStyle: style });
+    set({ status: 'hunting_opportunities', error: null, chosenStyle: style });
     
-    try {
-      const res = await fetch(`${API_BASE_URL}/prophesy/pod/opportunities`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, niche_interest: nicheInterest, style: style }),
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      const { task_id } = await res.json();
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/prophesy/pod/opportunities`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: sessionId, niche_interest: nicheInterest, style: style }),
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+            const { task_id } = await res.json();
+      
+            pollProphecy(task_id,
+              (result) => {
+                set({ status: 'concepts_revealed', opportunitiesResult: result });
+                resolve(result);
+              },
+              (error) => {
+                const errorMessage = error.details || error.error;
+                set({ status: 'awaiting_style', error: errorMessage });
+                reject(new Error(errorMessage));
+              }
+            );
+        } catch (err: any) {
+            set({ status: 'awaiting_style', error: err.message });
+            reject(err);
+        }
+    });
 
-      pollProphecy(task_id,
-        (result) => set({ status: 'concepts_revealed', isRitualRunning: false, opportunitiesResult: result }),
-        (error) => set({ status: 'awaiting_style', isRitualRunning: false, error: error.details || error.error })
-      );
-    } catch (err: any) {
-      set({ status: 'awaiting_style', isRitualRunning: false, error: err.message });
-    }
+    set({ ritualPromise: promise });
   },
 
-  chooseConcept: async (conceptId, sessionId) => {
+  chooseConcept: (conceptId, sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing." });
     
     const { opportunitiesResult } = get();
     const chosenConcept = opportunitiesResult?.design_concepts.find(c => c.concept_id === conceptId) || null;
     if (!opportunitiesResult || !chosenConcept) return set({ error: "Session is missing critical context." });
     
-    set({ status: 'forging', isRitualRunning: true, error: null, chosenConcept });
+    set({ status: 'forging_package', error: null, chosenConcept });
     
     const opportunity_data = { ...opportunitiesResult, ...chosenConcept };
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/prophesy/pod/package`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, opportunity_data: opportunity_data }),
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      const { task_id } = await res.json();
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/prophesy/pod/package`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: sessionId, opportunity_data: opportunity_data }),
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+            const { task_id } = await res.json();
+      
+            pollProphecy(task_id,
+              (result) => {
+                set({ status: 'package_revealed', designPackage: result });
+                resolve(result);
+              },
+              (error) => {
+                const errorMessage = error.details || error.error;
+                set({ status: 'concepts_revealed', error: errorMessage });
+                reject(new Error(errorMessage));
+              }
+            );
+        } catch (err: any) {
+            set({ status: 'concepts_revealed', error: err.message });
+            reject(err)
+        }
+    });
 
-      pollProphecy(task_id,
-        (result) => set({ status: 'package_revealed', isRitualRunning: false, designPackage: result }),
-        (error) => set({ status: 'concepts_revealed', isRitualRunning: false, error: error.details || error.error })
-      );
-    } catch (err: any) {
-      set({ status: 'concepts_revealed', isRitualRunning: false, error: err.message });
-    }
+    set({ ritualPromise: promise });
   },
 
-  regeneratePackage: async (sessionId) => {
+  regeneratePackage: (sessionId: string) => {
     const { chosenConcept } = get();
     if (chosenConcept) {
-      await get().chooseConcept(chosenConcept.concept_id, sessionId);
+      get().chooseConcept(chosenConcept.concept_id, sessionId);
     }
   },
 
@@ -125,4 +149,4 @@ export const usePodStore = create<PODState>((set, get) => ({
     set({ status: 'concepts_revealed', error: null, chosenConcept: null, designPackage: null });
   },
 }));
-// --- END OF FILE src/store/podStore.ts ---
+// --- END OF REFACTORED FILE frontend/src/store/podStore.ts ---
