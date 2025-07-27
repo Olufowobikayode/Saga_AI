@@ -66,12 +66,23 @@ class CommerceRequest(BaseProphecyRequest): prophecy_type: str; audit_type: Opti
 class ContentSagaRequest(BaseProphecyRequest): content_type: str; tactical_interest: Optional[str] = None; retrieved_histories: Optional[Dict] = None; spark: Optional[Dict] = None; platform: Optional[str] = None; length: Optional[str] = None; post_to_comment_on: Optional[str] = None
 
 # Grimoire Models
-class GrimoirePageBase(BaseModel): title: str; slug: str; author: str = "Saga"; content: str; summary: str; tags: List[str] = []
-@validator('slug', pre=True, always=True)
-def generate_slug_from_title(cls, v, values):
-    if not v:
-        title = values.get('title', ''); s = title.lower().strip(); s = re.sub(r'[\s\W-]+', '-', s); return s.strip('-')
-    return v
+class GrimoirePageBase(BaseModel):
+    title: str
+    slug: str
+    author: str = "Saga"
+    content: str
+    summary: str
+    tags: List[str] = []
+
+    @validator('slug', pre=True, always=True)
+    def generate_slug_from_title(cls, v, values):
+        if not v or v.strip() == "":
+            title = values.get('title', '')
+            s = title.lower().strip()
+            s = re.sub(r'[\s\W-]+', '-', s)
+            return s.strip('-')
+        return v
+
 class GrimoirePageCreate(GrimoirePageBase): pass
 class GrimoirePageUpdate(BaseModel): title: Optional[str] = None; slug: Optional[str] = None; content: Optional[str] = None; summary: Optional[str] = None; tags: Optional[List[str]] = None
 class GrimoirePageDB(GrimoirePageBase): id: str = Field(..., alias="_id"); created_at: datetime = Field(default_factory=datetime.utcnow); class Config: json_encoders = {ObjectId: str}; allow_population_by_field_name = True
@@ -186,7 +197,8 @@ async def delete_grimoire_page(id: str, db: motor.motor_asyncio.AsyncIOMotorData
 async def generate_grimoire_titles(request: TopicRequest):
     return await engine.content_saga_stack.prophesy_title_slug_concepts(request.topic)
 
-@api_outer.post("/grimoire/generate-content", tags=["5. Saga Grimoire"], dependencies=[Depends(verify_admin_key)])
+# FIX: Corrected typo from `api_outer.post` to `api_router.post`
+@api_router.post("/grimoire/generate-content", tags=["5. Saga Grimoire"], dependencies=[Depends(verify_admin_key)])
 async def generate_grimoire_content(request: TitleRequest):
     return await engine.content_saga_stack.prophesy_full_scroll_content(request.title, request.topic)
 
