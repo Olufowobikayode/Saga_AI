@@ -1,15 +1,16 @@
-// --- START OF FILE src/components/CommerceProphecyScroll.tsx ---
+// --- START OF REFACTORED FILE src/components/CommerceProphecyScroll.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useCommerceStore } from '@/store/commerceStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 
-// SAGA UI: A recursive component to beautifully render any JSON-like object from the prophecy.
+// A recursive component to beautifully render any JSON-like object from the prophecy.
 const ProphecyDetailRenderer = ({ data, title }: { data: any, title?: string }) => {
+    // ... (This sub-component remains unchanged as it's for display only)
     if (!data || typeof data !== 'object') return null;
 
-    // Filter out internal keys that are handled elsewhere.
     const keysToRender = Object.keys(data).filter(key => !['audit_type', 'prophecy_mode', 'title'].includes(key));
 
     return (
@@ -51,12 +52,23 @@ const ProphecyDetailRenderer = ({ data, title }: { data: any, title?: string }) 
 export default function CommerceProphecyScroll() {
   const { finalProphecy, chosenProphecyType, regenerateProphecy, returnToCrossroads, status } = useCommerceStore();
   const isLoading = status === 'forging_prophecy';
+  
+  // --- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
+  const handleRegenerate = () => {
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    regenerateProphecy(sessionId);
+  };
 
   if (!finalProphecy) {
     return <div className="text-center p-8">The prophecy is faint... No data was found.</div>;
   }
   
-  // Use the title from within the prophecy if it exists, otherwise use the chosen type.
   const prophecyTitle = finalProphecy.title || chosenProphecyType;
 
   return (
@@ -86,8 +98,9 @@ export default function CommerceProphecyScroll() {
             Copy Full Prophecy (JSON)
           </button>
           <button 
-            onClick={regenerateProphecy}
-            className="font-semibold text-saga-primary hover:text-saga-secondary flex items-center transition-colors"
+            onClick={handleRegenerate}
+            disabled={isLoading || isSessionLoading}
+            className="font-semibold text-saga-primary hover:text-saga-secondary flex items-center transition-colors disabled:opacity-50"
           >
             {isLoading ? "Regenerating..." : "Regenerate"}
             {!isLoading && <span className="ml-1">✨</span>}
@@ -103,4 +116,4 @@ export default function CommerceProphecyScroll() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/CommerceProphecyScroll.tsx ---
+// --- END OF REFACTORED FILE src/components/CommerceProphecyScroll.tsx ---
