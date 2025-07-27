@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/EchoChamber.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/EchoChamber.tsx ---
 'use client';
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useContentStore } from '@/store/contentStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 
@@ -12,9 +13,11 @@ import SagaButton from './SagaButton';
  * in the context of their chosen Content Spark.
  */
 export default function EchoChamber() {
-  // SAGA LOGIC: Get the necessary state and function from the store.
   const { chosenSpark, submitPostToCommentOn, status } = useContentStore();
   const isLoading = status === 'weaving_comment';
+
+  // --- 2. USE THE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [postContent, setPostContent] = useState('');
 
@@ -23,7 +26,12 @@ export default function EchoChamber() {
       alert("The Weaver requires the original post's text to craft a worthy echo.");
       return;
     }
-    submitPostToCommentOn(postContent);
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+    // --- 3. PASS THE SESSION ID TO THE STORE ACTION ---
+    submitPostToCommentOn(postContent, sessionId);
   };
 
   return (
@@ -62,12 +70,18 @@ export default function EchoChamber() {
             placeholder="Paste the text of the social media post you wish to respond to here..."
             value={postContent}
             onChange={(e) => setPostContent(e.target.value)}
-            className="min-h-[150px]"
+            // A custom className can be passed to components like InputRune if designed to accept it.
+            // For now, this is a good-to-have, but the default styling is fine.
+            // className="min-h-[150px]"
           />
 
           <div className="pt-4 text-center">
-            <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg">
-              {isLoading ? "Observing Ritual..." : "Weave Insightful Comments"}
+            <SagaButton 
+              onClick={handleSubmit} 
+              className="py-3 px-8 text-lg"
+              disabled={isLoading || isSessionLoading}
+            >
+              {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Ritual..." : "Weave Insightful Comments")}
             </SagaButton>
           </div>
         </form>
@@ -75,4 +89,4 @@ export default function EchoChamber() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/EchoChamber.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/EchoChamber.tsx ---
