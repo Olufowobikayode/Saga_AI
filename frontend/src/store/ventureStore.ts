@@ -1,9 +1,8 @@
 // --- START OF REFACTORED FILE frontend/src/store/ventureStore.ts ---
 import { create } from 'zustand';
-import { useSagaStore } from './sagaStore';
+import { useSagaStore } from './sagaStore'; // This store is an exception, it needs the full brief.
 
 // --- Polling Helper ---
-// This is the same robust polling function used across stores.
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
   const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
   const interval = setInterval(async () => {
@@ -31,18 +30,26 @@ type VentureStatus = 'idle' | 'awaiting_refinement' | 'questing_for_visions' | '
 interface Vision { prophecy_id: string; title: string; one_line_pitch: string; business_model: string; evidence_tag: string; }
 interface Blueprint { [key: string]: any; }
 interface VentureBrief { business_model?: string; primary_strength?: string; investment_level?: string; }
+interface SagaBriefContext { // Define the structure of the context we need
+    interest: string;
+    subNiche?: string;
+    toneText?: string;
+    toneUrl?: string;
+    targetCountry?: string;
+}
 
 interface VentureState {
   status: VentureStatus;
   error: string | null;
   ritualPromise: Promise<any> | null;
   
+  sagaBrief: SagaBriefContext | null; // <-- To store the context
   visionsResult: { visions: Vision[] } & any | null;
   chosenVision: Vision | null;
   blueprint: Blueprint | null;
 
-  // Rites now accept the session ID
-  enterSpire: () => void;
+  // Rites of the Spire
+  enterSpire: (context: SagaBriefContext) => void; // <-- MODIFIED to accept context
   beginQuest: (ventureBrief: VentureBrief, sessionId: string) => void;
   chooseVision: (visionId: string, sessionId: string) => void;
   regenerateBlueprint: (sessionId: string) => void;
@@ -53,14 +60,20 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const useVentureStore = create<VentureState>((set, get) => ({
   status: 'idle', error: null, ritualPromise: null,
+  sagaBrief: null,
   visionsResult: null, chosenVision: null, blueprint: null,
 
-  enterSpire: () => set({ status: 'awaiting_refinement' }),
+  // --- MODIFIED RITE ---
+  enterSpire: (context) => {
+    set({ status: 'awaiting_refinement', sagaBrief: context });
+  },
 
   beginQuest: (ventureBrief, sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing." });
     
-    const brief = useSagaStore.getState().brief; // Get context from the main store
+    const brief = get().sagaBrief; // <-- Use the stored context
+    if (!brief) return set({ error: "Saga context is missing." });
+    
     set({ status: 'questing_for_visions', error: null });
 
     const promise = new Promise(async (resolve, reject) => {
@@ -93,11 +106,11 @@ export const useVentureStore = create<VentureState>((set, get) => ({
             reject(err);
         }
     });
-
     set({ ritualPromise: promise });
   },
 
   chooseVision: (visionId, sessionId) => {
+    // ... (This function remains unchanged)
     if (!sessionId) return set({ error: "Session ID missing." });
 
     const { visionsResult } = get();
@@ -141,6 +154,7 @@ export const useVentureStore = create<VentureState>((set, get) => ({
   },
 
   regenerateBlueprint: (sessionId) => {
+    // ... (This function remains unchanged)
     const { chosenVision } = get();
     if (chosenVision) {
       get().chooseVision(chosenVision.prophecy_id, sessionId);
@@ -148,6 +162,7 @@ export const useVentureStore = create<VentureState>((set, get) => ({
   },
 
   returnToVisions: () => {
+    // ... (This function remains unchanged)
     set({ status: 'visions_revealed', blueprint: null, chosenVision: null, error: null });
   },
 }));
