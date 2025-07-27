@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/WeaversCrossroads.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/WeaversCrossroads.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useContentStore } from '@/store/contentStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 
 // SAGA UI: Defining the data for our three core content type cards.
 const contentTypes = [
@@ -32,9 +33,23 @@ const contentTypes = [
  * has selected a Content Spark.
  */
 export default function WeaversCrossroads() {
-  // SAGA LOGIC: Get the necessary state and functions from the store.
-  const chooseContentType = useContentStore((state) => state.chooseContentType);
-  const chosenSpark = useContentStore((state) => state.chosenSpark);
+  const { chooseContentType, chosenSpark } = useContentStore();
+
+  // --- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
+  const handleContentTypeSelection = (type: 'Social Post' | 'Comment' | 'Blog Post') => {
+    if (type === 'Blog Post') {
+      // Blog posts trigger an API call immediately, so we need the session ID.
+      if (isSessionLoading || !sessionId) {
+        alert("Session is not yet ready. Please wait a moment.");
+        return;
+      }
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    // The store action will handle the logic of when to use the sessionId.
+    chooseContentType(type, sessionId || '');
+  };
 
   if (!chosenSpark) {
     return <div className="text-center p-8">The chosen spark has faded. Please return and select a thread of inspiration.</div>;
@@ -68,9 +83,10 @@ export default function WeaversCrossroads() {
             transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
           >
             <button
-              onClick={() => chooseContentType(type.id as any)}
+              onClick={() => handleContentTypeSelection(type.id as any)}
+              disabled={isSessionLoading}
               className="w-full h-full bg-saga-surface p-8 rounded-lg border border-white/10 shadow-lg text-left
-                         hover:border-saga-primary hover:scale-105 transition-all duration-300 group"
+                         hover:border-saga-primary hover:scale-105 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="text-5xl mb-4">{type.icon}</div>
               <h3 className="font-serif text-2xl font-bold text-saga-primary mb-2 group-hover:text-saga-secondary transition-colors">
@@ -86,4 +102,4 @@ export default function WeaversCrossroads() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/WeaversCrossroads.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/WeaversCrossroads.tsx ---
