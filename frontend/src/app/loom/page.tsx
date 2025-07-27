@@ -7,42 +7,37 @@ import Link from 'next/link';
 import WeaverManager from '@/components/WeaverManager';
 import { useContentStore } from '@/store/contentStore';
 import { useSagaStore } from '@/store/sagaStore';
+import StrategySidebar from '@/components/StrategySidebar'; // <-- 1. IMPORT THE SIDEBAR
 
 /**
  * The Weaver's Loom: The main page for the Content Saga Stack.
- * It is now responsible for initializing the contentStore with the correct context.
+ * It is now responsible for initializing the contentStore and displaying the sidebar.
  */
 export default function LoomPage() {
   const router = useRouter();
 
-  // Get the initialization function from the contentStore
   const beginWeaving = useContentStore((state) => state.beginWeaving);
-  // Get the current status to prevent re-initialization
   const contentStatus = useContentStore((state) => state.status);
-  
-  // Get the full strategy data from the main sagaStore
   const grandStrategyData = useSagaStore((state) => state.strategyData);
 
-  // This effect runs once when the page loads, acting as the "Context Bridge".
   useEffect(() => {
     if (contentStatus === 'idle') {
-      // If the user lands here directly, the strategy data will be missing.
       if (!grandStrategyData || !grandStrategyData.prophecy) {
-        // Redirect them back to the start.
         alert("A Grand Strategy is required to use the Weaver's Loom. Returning to the Altar of Inquiry.");
         router.push('/consult');
       } else {
-        // If we have context, initialize the contentStore with it.
-        // We derive the initial topic from the strategy, but the user can change it.
         const tacticalInterest = grandStrategyData.prophecy?.the_three_great_sagas[1]?.prime_directive || grandStrategyData.prophecy?.divine_summary || 'a compelling topic';
-        
         beginWeaving(grandStrategyData, tacticalInterest);
       }
     }
   }, [contentStatus, grandStrategyData, beginWeaving, router]);
 
   return (
-    <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
+    <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4 relative">
+     
+      {/* --- 2. ADD THE SIDEBAR COMPONENT HERE --- */}
+      <StrategySidebar />
+
       <div className="max-w-4xl mx-auto">
         
         <header className="text-center mb-12">
@@ -54,10 +49,6 @@ export default function LoomPage() {
           </p>
         </header>
 
-        {/* 
-          The WeaverManager will now operate with the correct context
-          or the user will have been redirected.
-        */}
         <WeaverManager />
 
         <div className="text-center mt-16">
