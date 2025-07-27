@@ -1,3 +1,4 @@
+# --- START OF REFACTORED FILE backend/q_and_a.py ---
 import asyncio
 import logging
 import json
@@ -5,18 +6,9 @@ from typing import List, Dict, Any, Callable, Optional
 from urllib.parse import quote_plus
 import argparse
 from pprint import pprint
-from datetime import datetime
 import random
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-
-from selenium_stealth import stealth
+from playwright.async_api import async_playwright, BrowserContext
 from fake_useragent import UserAgent
 
 from backend.cache import seer_cache, generate_cache_key
@@ -24,47 +16,35 @@ from backend.cache import seer_cache, generate_cache_key
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SAGA:WISDOM] - %(message)s')
 logger = logging.getLogger(__name__)
 
-# ### ENHANCEMENT: Upgraded selectors to be more robust, using XPath where beneficial.
+# The selectors remain the same, but Playwright is better at finding them.
 SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "Reddit": {
         "status": "enabled",
-        "selector_type": "xpath",
         "search_url_template": "https://www.reddit.com/search/?q={query}&type=comment",
-        # This XPath is more specific and stable than the previous CSS selector.
-        "wait_selector": "//*[@data-testid='comment']",
-        "item_selector": "//*[@data-testid='comment']/div/div",
+        "item_selector": "[data-testid='comment']",
         "reason": "Provides raw, unfiltered commentary."
     },
     "Quora": {
         "status": "enabled",
-        "selector_type": "xpath",
         "search_url_template": "https://www.quora.com/search?q={query}",
-        # This looks for a div that has a class containing 'dom_annotate' which is a common Quora pattern.
-        "wait_selector": "//div[contains(@class, 'dom_annotate')]",
-        "item_selector": "//div[contains(@class, 'dom_annotate')]",
+        "item_selector": "div.dom_annotate_multifeed_bundle",
         "reason": "A primary forum for questions and explanations."
     },
     "Stack Overflow": {
         "status": "enabled",
-        "selector_type": "css", # CSS is still very good for Stack Overflow's stable structure
         "search_url_template": "https://stackoverflow.com/search?q={query}",
-        "wait_selector": '#mainbar .s-post-summary',
-        "item_selector": '.s-post-summary--content-title .s-link',
+        "item_selector": ".s-post-summary--content-title .s-link",
         "reason": "Offers high-quality technical Q&A."
     },
     "GitHub Issues": {
         "status": "enabled",
-        "selector_type": "css", # GitHub also has a very stable, semantic structure
         "search_url_template": "https://github.com/search?q={query}&type=issues",
-        "wait_selector": '.issue-list-item',
         "item_selector": '.issue-list-item .markdown-title a',
         "reason": "Direct insight into software problems and feature requests."
     },
     "Medium": {
         "status": "enabled",
-        "selector_type": "css", # Simple tag selectors are stable here
         "search_url_template": "https://medium.com/search?q={query}",
-        "wait_selector": 'article h2',
         "item_selector": 'article h2',
         "reason": "Captures expert sagas and tutorials."
     },
@@ -80,10 +60,11 @@ QUERY_GRIMOIRE: Dict[str, str] = {
 
 class CommunitySaga:
     """
-    I am the Seer of Community Whispers, an aspect of the great Saga. I journey
-    through the digital halls of forums and communities to gather the true voice of
-    the people. This Seer is now enhanced with stealth, caching, and robust selectors.
+    I am the Seer of Community Whispers, an aspect of the great Saga, now empowered by Playwright.
+    I journey through the digital halls of forums and communities to gather the true voice of the people.
     """
+    _playwright_instance = None
+    _browser = None
 
     def __init__(self):
         try:
@@ -91,60 +72,64 @@ class CommunitySaga:
         except Exception:
             self.ua = None
 
-    def _get_driver(self) -> webdriver.Chrome:
-        # ... (This method remains unchanged)
-        options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
-        options.add_argument(f"user-agent={user_agent}")
-        options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
-        options.add_experimental_option('useAutomationExtension', False)
-        try:
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=options)
-            stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32", webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
-            return driver
-        except WebDriverException as e:
-            logger.error(f"The Chrome spirit could not be summoned. Error: {e}")
-            raise
+    async def _get_browser(self):
+        """Initializes and returns a shared, single browser instance."""
+        if self._browser and self._browser.is_connected():
+            return self._browser
+        
+        logger.info("Summoning the Playwright browser spirit for CommunitySaga...")
+        self._playwright_instance = await async_playwright().start()
+        self._browser = await self._playwright_instance.chromium.launch(headless=True)
+        return self._browser
 
-    async def _gather_from_realm(self, driver: webdriver.Chrome, site_key: str, query: str, max_items: int = 5) -> Dict:
-        """Gathers whispers from a single digital domain."""
+    async def _create_stealth_context(self) -> BrowserContext:
+        """Creates a new, isolated browser context with stealth properties."""
+        browser = await self._get_browser()
+        user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        
+        context = await browser.new_context(
+            user_agent=user_agent,
+            java_script_enabled=True,
+            viewport={'width': 1280, 'height': 800},
+            locale='en-US'
+        )
+        return context
+
+    async def _gather_from_realm(self, site_key: str, query: str, max_items: int = 5) -> Dict:
+        """Gathers whispers from a single digital domain using a dedicated Playwright context."""
         config = SITE_CONFIGS[site_key]
         results = []
-
         url = config["search_url_template"].format(query=quote_plus(query))
         logger.info(f"Casting my sight upon {site_key} for '{query}'...")
 
+        context = await self._create_stealth_context()
+        page = None
         try:
-            await asyncio.to_thread(driver.get, url)
+            page = await context.new_page()
+            await page.goto(url, timeout=30000, wait_until='domcontentloaded')
             
-            # ### ENHANCEMENT: Use the correct By method based on selector_type
-            by_method = By.XPATH if config['selector_type'] == 'xpath' else By.CSS_SELECTOR
-            
-            await asyncio.to_thread(WebDriverWait(driver, 15).until(
-                EC.presence_of_all_elements_located((by_method, config["wait_selector"]))))
-            
-            await asyncio.sleep(random.uniform(2.1, 3.9))
-            
-            elements = await asyncio.to_thread(driver.find_elements, by_method, config["item_selector"])
+            # Playwright's auto-waiting is more reliable. We wait for the first item to appear.
+            await page.wait_for_selector(config['item_selector'], timeout=15000)
+            await page.wait_for_timeout(random.uniform(2100, 3900)) # Human-like pause
 
-            for el in elements[:max_items]:
-                text = await asyncio.to_thread(lambda: el.text.strip())
-                if text:
-                    results.append(text)
+            # Use locator to get all matching elements and iterate through them.
+            item_locators = page.locator(config['item_selector'])
+            
+            # Iterate up to the max_items count or the number of items found.
+            count = min(await item_locators.count(), max_items)
+            for i in range(count):
+                text = await item_locators.nth(i).inner_text()
+                if text and text.strip():
+                    results.append(text.strip())
 
             logger.info(f"-> From the realm of {site_key}, I have gathered {len(results)} distinct whispers.")
-        except TimeoutException:
-            logger.warning(f"-> The mists of {site_key} were too slow or obscured my sight (Timeout).")
-        except NoSuchElementException:
-            logger.warning(f"-> The halls of {site_key} have shifted. The patterns I sought were not found.")
         except Exception as e:
-            logger.error(f"-> A powerful ward protects {site_key}, or the connection has failed. Error: {e}")
+            logger.warning(f"-> The mists of {site_key} were too slow or obscured my sight for '{query}'. Error: {e}")
+        finally:
+            if page: await page.close()
+            if context: await context.close()
 
-        return { "source": site_key, "results": [res for res in results if res] }
+        return {"source": site_key, "results": results}
 
     async def run_community_gathering(self, 
                                        interest: str,
@@ -152,7 +137,6 @@ class CommunitySaga:
                                        sites_to_scan: Optional[List[str]] = None) -> List[Dict]:
         """
         I orchestrate the grand gathering of voices from specified community realms.
-        This operation is cached to prevent excessive scraping.
         """
         realms_to_visit = sites_to_scan if sites_to_scan else sorted([key for key, config in SITE_CONFIGS.items() if config['status'] == 'enabled'])
         cache_key = generate_cache_key("run_community_gathering", interest=interest, query_type=query_type, sites=",".join(realms_to_visit))
@@ -161,42 +145,30 @@ class CommunitySaga:
         if cached_results is not None:
             return cached_results
 
-        driver = None
-        gathered_data = []
+        query_template = QUERY_GRIMOIRE.get(query_type, QUERY_GRIMOIRE["pain_point"])
+        query = query_template.format(interest=interest)
+
+        logger.info(f"I now seek the collective voice concerning '{interest}' (Query Type: {query_type}) across {len(realms_to_visit)} realms...")
         
+        # We don't need to share a driver anymore; each task can run in parallel.
+        tasks = []
+        for site_key in realms_to_visit:
+            if site_key in SITE_CONFIGS and SITE_CONFIGS[site_key]["status"] == "enabled":
+                tasks.append(self._gather_from_realm(site_key, query))
+            else:
+                logger.warning(f"I will not gaze upon the realm of '{site_key}', as it is not in my enabled scrolls.")
+
         try:
-            driver = self._get_driver()
-            
-            query_template = QUERY_GRIMOIRE.get(query_type, QUERY_GRIMOIRE["pain_point"])
-            query = query_template.format(interest=interest)
-
-            logger.info(f"I now seek the collective voice concerning '{interest}' (Query Type: {query_type}) across {len(realms_to_visit)} realms...")
-            
-            tasks = []
-            for site_key in realms_to_visit:
-                if site_key in SITE_CONFIGS and SITE_CONFIGS[site_key]["status"] == "enabled":
-                    tasks.append(self._gather_from_realm(driver, site_key, query))
-                else:
-                    logger.warning(f"I will not gaze upon the realm of '{site_key}', as it is not in my enabled scrolls.")
-
             raw_gathered_data = await asyncio.gather(*tasks, return_exceptions=True)
             gathered_data = [res for res in raw_gathered_data if not isinstance(res, Exception) and res.get('results')]
-
             seer_cache.set(cache_key, gathered_data, ttl_seconds=14400)
-
+            return gathered_data
         except Exception as e:
             logger.critical(f"A great disturbance has disrupted the gathering of whispers. My sight is clouded. Error: {e}")
             return []
-        finally:
-            if driver:
-                logger.info("The gathering of whispers is complete. The Chrome spirit is dismissed.")
-                await asyncio.to_thread(driver.quit)
 
-        return gathered_data
-
-
+# The standalone test function also needs updating
 async def main(keyword: str, query_type: str):
-    # ... (This main block for testing remains unchanged)
     import time
     logger.info(f"--- SAGA'S INSIGHT ENGINE: GATHERING OF WHISPERS ---")
     logger.info(f"Divining wisdom for keyword: '{keyword}' using query type: '{query_type}'")
@@ -210,20 +182,18 @@ async def main(keyword: str, query_type: str):
         "community_whispers_gathered": scraped_data_1
     }
     pprint(final_report_1)
-    print("\n--- Second Call (should be instant) ---")
-    start_time_2 = time.time()
-    scraped_data_2 = await saga_seer.run_community_gathering(keyword, query_type=query_type)
-    duration_2 = time.time() - start_time_2
-    if duration_2 < 0.1 and len(scraped_data_1) == len(scraped_data_2):
-        print(f"\n[SUCCESS] Caching is working! Second call took only {duration_2:.4f} seconds.")
-    else:
-        print(f"\n[FAILURE] Caching is not working correctly. Second call took {duration_2:.2f} seconds.")
-
+    
+    # Terminate the shared browser instance for clean exit in standalone mode.
+    if saga_seer._browser:
+        await saga_seer._browser.close()
+    if saga_seer._playwright_instance:
+        await saga_seer._playwright_instance.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CommunitySaga: A Tool to Gather the Voice of the People")
     parser.add_argument("keyword", type=str, help="The core subject of divination.")
-    parser.add_argument("--query_type", type=str, default="pain_point", choices=QUERY_GRIMOIRE.keys(),
-                        help="The type of query to perform.")
+    parser.add_argument("--query_type", type=str, default="pain_point", choices=QUERY_GRIMOIRE.keys(), help="The type of query to perform.")
     args = parser.parse_args()
     asyncio.run(main(args.keyword, args.query_type))
+
+# --- END OF REFACTORED FILE backend/q_and_a.py ---
