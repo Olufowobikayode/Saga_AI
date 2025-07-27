@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/AnvilForm.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/AnvilForm.tsx ---
 'use client';
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 
@@ -13,23 +14,32 @@ import SagaButton from './SagaButton';
  */
 export default function AnvilForm() {
   const commandAnvil = useMarketingStore((state) => state.commandAnvil);
-  const isLoading = useMarketingStore((state) => state.status === 'forging_angles');
+  const status = useMarketingStore((state) => state.status);
   const error = useMarketingStore((state) => state.error);
+  const isLoading = status === 'forging_angles';
+  
+  // -- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-  const [targetAudience, setTargetAudience] = useState(''); // NEW field
-  // The productLink is not required by the angles API, so we can remove it for this specific form if desired,
-  // but we'll keep it for potential future use.
-  const [productLink, setProductLink] = useState('');
+  const [targetAudience, setTargetAudience] = useState('');
+  
+  // Note: productLink was not used by the backend for this step, so it has been removed for clarity.
 
   const handleSubmit = () => {
     if (!productName || !productDescription || !targetAudience) {
       alert("The Skald requires a Name, Description, and Target Audience to begin the forging.");
       return;
     }
-    // Call the command from our store with all required data.
-    commandAnvil(productName, productDescription, targetAudience);
+
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    commandAnvil(productName, productDescription, targetAudience, sessionId);
   };
 
   return (
@@ -65,8 +75,7 @@ export default function AnvilForm() {
           value={productDescription}
           onChange={(e) => setProductDescription(e.target.value)}
         />
-
-        {/* NEW: Target Audience field, required by the backend. */}
+        
         <InputRune
           id="targetAudience"
           label="Target Audience"
@@ -75,19 +84,13 @@ export default function AnvilForm() {
           onChange={(e) => setTargetAudience(e.target.value)}
         />
 
-        <InputRune
-          id="productLink"
-          label="Link"
-          type="url"
-          placeholder="https://your-product-page.com"
-          value={productLink}
-          onChange={(e) => setProductLink(e.target.value)}
-          optional
-        />
-
         <div className="pt-4 text-center">
-          <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg w-full md:w-auto">
-            {isLoading ? "Forging Angles..." : "Forge Marketing Angles"}
+          <SagaButton 
+            onClick={handleSubmit} 
+            className="py-3 px-8 text-lg w-full md:w-auto"
+            disabled={isLoading || isSessionLoading}
+          >
+            {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Forging Angles..." : "Forge Marketing Angles")}
           </SagaButton>
         </div>
 
@@ -99,4 +102,4 @@ export default function AnvilForm() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/AnvilForm.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/AnvilForm.tsx ---
