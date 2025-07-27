@@ -1,4 +1,4 @@
-// --- START OF FILE src/store/sagaStore.ts ---
+// --- START OF REFACTORED FILE frontend/src/store/sagaStore.ts ---
 import { create } from 'zustand';
 
 // --- Polling Helper ---
@@ -17,12 +17,18 @@ const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError
       } else if (data.status === 'FAILURE') {
         clearInterval(interval);
         onError(data.result || { error: "Prophecy failed without a reason." });
+      } else if (data.status === 'PENDING' || data.status === 'STARTED') {
+        // Continue polling, do nothing.
+      } else {
+        // Handle unexpected statuses
+        clearInterval(interval);
+        onError({ error: `Unexpected prophecy status: ${data.status}` });
       }
     } catch (err) {
       clearInterval(interval);
       onError({ error: "Network error while checking prophecy status.", details: err });
     }
-  }, 3000);
+  }, 4000); // Polling every 4 seconds.
 };
 
 // --- State Types ---
@@ -37,12 +43,12 @@ interface SagaState {
   error: string | null;
   brief: StrategicBrief;
   strategyData: any | null;
-  isRitualRunning: boolean;
+  ritualPromise: Promise<any> | null;
   
   beginGrandRitual: () => void;
   submitQuery: (interest: string, subNiche?: string, toneText?: string, toneUrl?: string) => void;
   submitArtifact: (assetType?: string, assetName?: string, assetDescription?: string, promoLinkType?: string, promoLinkUrl?: string) => void;
-  submitRealmAndDivine: (targetCountry: string, sessionId: string) => Promise<void>; // ACCEPTS SESSION ID
+  submitRealmAndDivine: (targetCountry: string, sessionId: string) => void;
   resetSaga: () => void;
 }
 
@@ -54,10 +60,10 @@ export const useSagaStore = create<SagaState>((set, get) => ({
   error: null,
   brief: initialBrief,
   strategyData: null,
-  isRitualRunning: false,
+  ritualPromise: null,
 
   beginGrandRitual: () => {
-    set({ status: 'awaiting_query', brief: initialBrief, error: null, strategyData: null, isRitualRunning: false });
+    set({ status: 'awaiting_query', brief: initialBrief, error: null, strategyData: null, ritualPromise: null });
   },
 
   submitQuery: (interest, subNiche, toneText, toneUrl) => {
@@ -74,55 +80,63 @@ export const useSagaStore = create<SagaState>((set, get) => ({
     }));
   },
 
-  submitRealmAndDivine: async (targetCountry: string, sessionId: string) => {
+  submitRealmAndDivine: (targetCountry: string, sessionId: string) => {
+    // --- CRITICAL FIX: The sessionId is now received directly as an argument ---
     if (!sessionId) {
       set({ status: 'awaiting_realm', error: "Session ID is missing. The rite cannot proceed." });
       return;
     }
-
-    set({ status: 'forging', isRitualRunning: true, error: null });
     
     const finalBrief = { ...get().brief, targetCountry };
+    set({ status: 'forging', error: null });
 
-    try {
-      const dispatchRes = await fetch(`${API_BASE_URL}/prophesy/grand-strategy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId, // <-- THE SACRED ID IS NOW INCLUDED
-          interest: finalBrief.interest, sub_niche: finalBrief.subNiche,
-          user_content_text: finalBrief.toneText, user_content_url: finalBrief.toneUrl,
-          target_country_name: finalBrief.targetCountry,
-          asset_info: {
-            type: finalBrief.assetType, name: finalBrief.assetName,
-            description: finalBrief.assetDescription, promo_link: finalBrief.promoLinkUrl,
-          }
-        }),
-      });
+    const promise = new Promise(async (resolve, reject) => {
+      try {
+        const dispatchRes = await fetch(`${API_BASE_URL}/prophesy/grand-strategy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId, // <-- THE SACRED ID IS NOW INCLUDED
+            interest: finalBrief.interest, sub_niche: finalBrief.subNiche,
+            user_content_text: finalBrief.toneText, user_content_url: finalBrief.toneUrl,
+            target_country_name: finalBrief.targetCountry,
+            asset_info: {
+              type: finalBrief.assetType, name: finalBrief.assetName,
+              description: finalBrief.assetDescription, promo_link: finalBrief.promoLinkUrl,
+            }
+          }),
+        });
 
-      if (!dispatchRes.ok) {
-        const err = await dispatchRes.json();
-        throw new Error(err.detail || "Failed to dispatch the prophecy.");
-      }
-
-      const { task_id } = await dispatchRes.json();
-
-      pollProphecy(
-        task_id,
-        (result) => {
-          set({ status: 'prophesied', strategyData: result, brief: finalBrief, isRitualRunning: false });
-        },
-        (error) => {
-          set({ status: 'awaiting_realm', error: error.details || error.error, isRitualRunning: false });
+        if (!dispatchRes.ok) {
+          const err = await dispatchRes.json();
+          throw new Error(err.detail || "Failed to dispatch the prophecy.");
         }
-      );
-    } catch (err: any) {
-      set({ status: 'awaiting_realm', error: err.message, isRitualRunning: false });
-    }
+
+        const { task_id } = await dispatchRes.json();
+
+        pollProphecy(
+          task_id,
+          (result) => {
+            set({ status: 'prophesied', strategyData: result, brief: finalBrief });
+            resolve(result);
+          },
+          (error) => {
+            const errorMessage = error.details || error.error || "An unknown error occurred.";
+            set({ status: 'awaiting_realm', error: errorMessage });
+            reject(new Error(errorMessage));
+          }
+        );
+      } catch (err: any) {
+        set({ status: 'awaiting_realm', error: err.message });
+        reject(err);
+      }
+    });
+
+    set({ ritualPromise: promise });
   },
 
   resetSaga: () => {
-    set({ status: 'idle', error: null, brief: initialBrief, strategyData: null, isRitualRunning: false });
+    set({ status: 'idle', error: null, brief: initialBrief, strategyData: null, ritualPromise: null });
   },
 }));
-// --- END OF FILE src/store/sagaStore.ts ---
+// --- END OF REFACTORED FILE frontend/src/store/sagaStore.ts ---
