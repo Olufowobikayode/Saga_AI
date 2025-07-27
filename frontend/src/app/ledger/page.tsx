@@ -1,27 +1,42 @@
-// --- START OF FILE src/app/ledger/page.tsx ---
-'use client'; // This page is the root of a complex client-side workflow.
+// --- START OF REFACTORED FILE src/app/ledger/page.tsx ---
+'use client'; 
 
 import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import LedgerManager from '@/components/LedgerManager'; // Summoning the Ledger Manager.
+import LedgerManager from '@/components/LedgerManager';
 import { useCommerceStore } from '@/store/commerceStore';
+import { useSagaStore } from '@/store/sagaStore';
 
 /**
  * The Hall of Commerce: The main page for the Commerce Saga Stack.
- * All of its multi-stage logic is now governed by the LedgerManager.
+ * It is now responsible for initializing the commerceStore.
  */
 export default function LedgerPage() {
-  // SAGA LOGIC: Connect to the store to begin the entry ritual when the user arrives.
-  const enterLedger = useCommerceStore((state) => state.enterLedger);
-  const status = useCommerceStore((state) => state.status);
+  const router = useRouter();
 
-  // When this page loads for the first time, begin the sacred entry ritual.
+  // Get the initialization function from the commerceStore
+  const enterLedger = useCommerceStore((state) => state.enterLedger);
+  // Get the current status to prevent re-initialization
+  const commerceStatus = useCommerceStore((state) => state.status);
+
+  // Get the context from the main sagaStore to ensure a strategy exists
+  const grandStrategyInterest = useSagaStore((state) => state.brief.interest);
+
+  // This effect runs once when the page loads, acting as the "Context Bridge".
   useEffect(() => {
-    // The 'idle' check ensures this rite is only performed once upon entry.
-    if (status === 'idle') {
-      enterLedger();
+    if (commerceStatus === 'idle') {
+      // If the user lands here directly, the core interest will be missing.
+      if (!grandStrategyInterest || grandStrategyInterest.trim() === '') {
+        // Redirect them back to the start.
+        alert("A Grand Strategy is required to use the Merchant's Ledger. Returning to the Altar of Inquiry.");
+        router.push('/consult');
+      } else {
+        // If context exists, initialize the commerce workflow.
+        enterLedger();
+      }
     }
-  }, [status, enterLedger]);
+  }, [commerceStatus, grandStrategyInterest, enterLedger, router]);
 
   return (
     <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
@@ -37,8 +52,8 @@ export default function LedgerPage() {
         </header>
 
         {/* 
-          The LedgerManager now presides over this hall. It will read from the
-          commerceStore and unveil the correct UI for the user's current stage.
+          The LedgerManager will now operate with the correct context
+          or the user will have been redirected.
         */}
         <LedgerManager />
 
@@ -52,4 +67,4 @@ export default function LedgerPage() {
     </div>
   );
 }
-// --- END OF FILE src/app/ledger/page.tsx ---
+// --- END OF REFACTORED FILE src/app/ledger/page.tsx ---
