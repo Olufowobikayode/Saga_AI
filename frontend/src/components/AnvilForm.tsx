@@ -4,28 +4,24 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
-import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
+import { useSession } from '@/hooks/useSession';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
+import ErrorMessage from './ErrorMessage'; // <-- 1. IMPORT THE NEW COMPONENT
 
 /**
  * AnvilForm: The component where a user provides the core product details
  * to begin the marketing angle prophecy.
  */
 export default function AnvilForm() {
-  const commandAnvil = useMarketingStore((state) => state.commandAnvil);
-  const status = useMarketingStore((state) => state.status);
-  const error = useMarketingStore((state) => state.error);
+  const { commandAnvil, status, error } = useMarketingStore();
   const isLoading = status === 'forging_angles';
   
-  // -- 2. USE SESSION HOOK ---
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
-  
-  // Note: productLink was not used by the backend for this step, so it has been removed for clarity.
 
   const handleSubmit = () => {
     if (!productName || !productDescription || !targetAudience) {
@@ -38,8 +34,14 @@ export default function AnvilForm() {
       return;
     }
 
-    // --- 3. PASS SESSION ID TO STORE ACTION ---
     commandAnvil(productName, productDescription, targetAudience, sessionId);
+  };
+  
+  // --- 2. CREATE A RETRY HANDLER ---
+  // This function simply re-runs the last submission.
+  const handleRetry = () => {
+    // We can just call handleSubmit again as the form state is preserved.
+    handleSubmit();
   };
 
   return (
@@ -94,10 +96,9 @@ export default function AnvilForm() {
           </SagaButton>
         </div>
 
-        {/* Display any errors that occur during the API call */}
-        {error && (
-          <p className="text-center text-red-400 mt-4">{error}</p>
-        )}
+        {/* --- 3. REPLACE THE OLD ERROR TEXT WITH THE NEW COMPONENT --- */}
+        <ErrorMessage error={error} onRetry={handleRetry} />
+        
       </form>
     </motion.div>
   );
