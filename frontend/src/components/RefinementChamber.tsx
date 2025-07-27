@@ -7,6 +7,7 @@ import { useVentureStore } from '@/store/ventureStore';
 import { useSagaStore } from '@/store/sagaStore';
 import { useSession } from '@/hooks/useSession';
 import SagaButton from './SagaButton';
+import ErrorMessage from './ErrorMessage'; // <-- 1. IMPORT THE NEW COMPONENT
 import { businessModels, primaryStrengths, investmentLevels } from '@/lib/ventureOptions';
 
 // A reusable Select component for this form.
@@ -35,8 +36,6 @@ export default function RefinementChamber() {
   
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
-  // State for the form fields, with default selections from the imported arrays.
-  // --- CORRECTED STATE INITIALIZATION ---
   const [brief, setBrief] = useState({
     business_model: businessModels[0],
     primary_strength: primaryStrengths[0],
@@ -54,6 +53,12 @@ export default function RefinementChamber() {
     }
     beginQuest(brief, sessionId);
   };
+
+  // --- 2. CREATE A RETRY HANDLER ---
+  const handleRetry = () => {
+    handleSubmit();
+  };
+
 
   return (
     <motion.div
@@ -87,7 +92,9 @@ export default function RefinementChamber() {
                     {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Ritual..." : "Begin the Vision Quest")}
                 </SagaButton>
             </div>
-            {error && <p className="text-center text-red-400 mt-4">{error}</p>}
+            
+            {/* --- 3. REPLACE THE OLD ERROR TEXT WITH THE NEW COMPONENT --- */}
+            <ErrorMessage error={error} onRetry={handleRetry} />
         </form>
       </div>
     </motion.div>
