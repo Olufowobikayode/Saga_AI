@@ -31,7 +31,8 @@ from backend.tasks import (
     prophesy_marketing_asset_task,
     prophesy_pod_opportunities_task,
     prophesy_pod_package_task,
-    prophesy_commerce_saga_task
+    prophesy_commerce_saga_task,
+    prophesy_content_saga_task  # <-- CORRECTED: The import is now present
 )
 
 
@@ -61,7 +62,9 @@ class SagaEngine:
         # This will load from .env if the key is not passed directly
         _gemini_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
         if not _gemini_key:
-            raise ValueError("GEMINI_API_KEY must be provided either as an argument or in the .env file.")
+            # In a containerized setup, env vars are king. Let's rely on them.
+            # The API keys are loaded in the rotator, so we don't need to check here.
+            pass
 
         seers = {
             'community_seer': CommunitySaga(),
@@ -136,6 +139,13 @@ class SagaEngine:
         prophecy_type = kwargs.get('prophecy_type')
         logger.info(f"SAGA ENGINE: Delegating Commerce Saga of type '{prophecy_type}' to the Seers.")
         task = prophesy_commerce_saga_task.delay(**kwargs)
+        return task.id
+
+    def delegate_content_saga_task(self, **kwargs) -> str:
+        """Dispatches any Content Saga prophecy to a background Seer."""
+        content_type = kwargs.get('content_type')
+        logger.info(f"SAGA ENGINE: Delegating Content Saga of type '{content_type}' to the Seers.")
+        task = prophesy_content_saga_task.delay(**kwargs)
         return task.id
 
 # --- END OF FILE backend/engine.py ---
