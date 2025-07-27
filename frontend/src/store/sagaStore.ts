@@ -2,7 +2,6 @@
 import { create } from 'zustand';
 
 // --- Polling Helper ---
-// This helper remains the same and will be used by all stores.
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
   const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
   const interval = setInterval(async () => {
@@ -20,7 +19,6 @@ const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError
       } else if (data.status === 'PENDING' || data.status === 'STARTED') {
         // Continue polling, do nothing.
       } else {
-        // Handle unexpected statuses
         clearInterval(interval);
         onError({ error: `Unexpected prophecy status: ${data.status}` });
       }
@@ -28,11 +26,12 @@ const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError
       clearInterval(interval);
       onError({ error: "Network error while checking prophecy status.", details: err });
     }
-  }, 4000); // Polling every 4 seconds.
+  }, 4000);
 };
 
 // --- State Types ---
-type GrandRitualStatus = 'idle' | 'awaiting_query' | 'awaiting_artifact' | 'awaiting_realm' | 'forging' | 'prophesied';
+// MODIFIED: Added a new `prophesied_view` status
+type GrandRitualStatus = 'idle' | 'awaiting_query' | 'awaiting_artifact' | 'awaiting_realm' | 'forging' | 'prophesied_hub' | 'prophesied_scroll';
 interface StrategicBrief {
   interest: string; subNiche?: string; toneText?: string; toneUrl?: string;
   assetType?: string; assetName?: string; assetDescription?: string;
@@ -50,6 +49,10 @@ interface SagaState {
   submitArtifact: (assetType?: string, assetName?: string, assetDescription?: string, promoLinkType?: string, promoLinkUrl?: string) => void;
   submitRealmAndDivine: (targetCountry: string, sessionId: string) => void;
   resetSaga: () => void;
+
+  // --- NEW ACTIONS TO TOGGLE THE VIEW ---
+  showStrategyScroll: () => void;
+  showTacticalHub: () => void;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
@@ -81,7 +84,6 @@ export const useSagaStore = create<SagaState>((set, get) => ({
   },
 
   submitRealmAndDivine: (targetCountry: string, sessionId: string) => {
-    // --- CRITICAL FIX: The sessionId is now received directly as an argument ---
     if (!sessionId) {
       set({ status: 'awaiting_realm', error: "Session ID is missing. The rite cannot proceed." });
       return;
@@ -96,7 +98,7 @@ export const useSagaStore = create<SagaState>((set, get) => ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            session_id: sessionId, // <-- THE SACRED ID IS NOW INCLUDED
+            session_id: sessionId,
             interest: finalBrief.interest, sub_niche: finalBrief.subNiche,
             user_content_text: finalBrief.toneText, user_content_url: finalBrief.toneUrl,
             target_country_name: finalBrief.targetCountry,
@@ -117,7 +119,8 @@ export const useSagaStore = create<SagaState>((set, get) => ({
         pollProphecy(
           task_id,
           (result) => {
-            set({ status: 'prophesied', strategyData: result, brief: finalBrief });
+            // --- MODIFIED: Set initial view to the hub ---
+            set({ status: 'prophesied_hub', strategyData: result, brief: finalBrief });
             resolve(result);
           },
           (error) => {
@@ -137,6 +140,19 @@ export const useSagaStore = create<SagaState>((set, get) => ({
 
   resetSaga: () => {
     set({ status: 'idle', error: null, brief: initialBrief, strategyData: null, ritualPromise: null });
+  },
+
+  // --- IMPLEMENTATION OF NEW ACTIONS ---
+  showStrategyScroll: () => {
+    if (get().status === 'prophesied_hub') {
+      set({ status: 'prophesied_scroll' });
+    }
+  },
+
+  showTacticalHub: () => {
+    if (get().status === 'prophesied_scroll') {
+      set({ status: 'prophesied_hub' });
+    }
   },
 }));
 // --- END OF REFACTORED FILE frontend/src/store/sagaStore.ts ---
