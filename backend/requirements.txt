@@ -1,4 +1,4 @@
-# --- START OF FILE backend/requirements.txt ---
+# --- START OF REFACTORED FILE backend/requirements.txt ---
 # Main web framework
 fastapi==0.110.1
 uvicorn==0.25.0
@@ -14,14 +14,15 @@ certifi==2024.7.4
 google-generativeai==0.8.0
 pytrends==4.9.0
 pandas==2.2.0
-selenium==4.22.0
-webdriver-manager==4.0.1
 aiohttp==3.9.5
 beautifulsoup4==4.12.3
 iso3166==2.1.1
-selenium-stealth==1.0.6
 fake-useragent==1.5.1
 lxml==5.2.2
+
+# --- NEW: Web Scraping and Automation with Playwright ---
+playwright==1.44.0
+# --- REMOVED: selenium, webdriver-manager, selenium-stealth ---
 
 # Utilities for Marketplace Discovery
 googlesearch-python==1.2.3
@@ -36,9 +37,7 @@ python-multipart==0.0.9
 requests==2.31.0
 uvloop==0.19.0
 
-# --- NEW: The Rite of Absolute Resilience ---
 # Asynchronous Job Queue & Broker
 celery==5.4.0
 redis==5.0.7
-# --- END NEW ---
-# --- END OF FILE backend/requirements.txt ---
+# --- END OF REFACTORED FILE backend/requirements.txt ---
