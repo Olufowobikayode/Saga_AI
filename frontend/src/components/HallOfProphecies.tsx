@@ -1,57 +1,56 @@
-// --- START OF FILE src/components/HallOfProphecies.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/HallOfProphecies.tsx ---
 'use client';
 
 import React from 'react';
+import Link from 'next/link'; // <-- 1. IMPORT NEXT.JS LINK
 import { motion } from 'framer-motion';
 import { useSagaStore } from '@/store/sagaStore';
 
-// SAGA UI: Defining the data for our tactical stack cards.
-// This matches the names we decided upon.
+// SAGA LOGIC: Add a 'path' property to each stack for navigation.
 const tacticalStacks = [
   {
     id: 'marketing',
     title: "The Skald's Forge",
     description: "Weave Words of Power: Ads, Funnels, & Persuasion",
-    icon: "🔥"
+    icon: "🔥",
+    path: "/forge" // <-- The URL for this feature
   },
   {
     id: 'content',
     title: "The Weaver's Loom",
     description: "Craft Sagas for Any Realm: Posts, Blogs, & Comments",
-    icon: "🕸️"
+    icon: "🕸️",
+    path: "/loom" // <-- The URL for this feature
   },
   {
     id: 'new_ventures',
     title: "The Seer's Spire",
     description: "Gaze Into What May Be: Discover & Plan New Ventures",
-    icon: "🔮"
+    icon: "🔮",
+    path: "/spire" // <-- The URL for this feature
   },
   {
     id: 'pod',
     title: "The Artisan's Anvil",
     description: "Forge Designs of Legend: Print-on-Demand Opportunities",
-    icon: "⚒️"
+    icon: "⚒️",
+    path: "/anvil" // <-- The URL for this feature
   },
   {
     id: 'commerce',
     title: "The Merchant's Ledger",
     description: "Master the Flow of Coin: Audits, Arbitrage, & Product Routes",
-    icon: "💰"
+    icon: "💰",
+    path: "/ledger" // <-- The URL for this feature
   }
 ];
 
 /**
  * HallOfProphecies: The main results screen after the Grand Strategy is divined.
- * It displays the available tactical stacks as a series of clickable cards.
+ * It now functions as a central hub, linking to the tactical feature pages.
  */
 export default function HallOfProphecies() {
-  // SAGA LOGIC: We get the 'resetSaga' function to allow the user to start over.
   const resetSaga = useSagaStore((state) => state.resetSaga);
-
-  const handleCardClick = (stackId: string) => {
-    console.log(`Entering the ${stackId} prophecy...`);
-    // In the future, this will navigate to the specific page for that stack.
-  };
 
   return (
     <motion.div
@@ -59,7 +58,7 @@ export default function HallOfProphecies() {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} // A smooth, elegant ease.
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
       <header className="text-center mb-12">
         <h2 className="font-serif text-4xl md:text-5xl font-bold text-white">
@@ -69,38 +68,33 @@ export default function HallOfProphecies() {
           The path is revealed. Now, choose your next action.
         </p>
       </header>
-
-      {/* 
-        SAGA UI: A container that will scroll horizontally on small screens,
-        and display as a centered grid on larger screens.
-      */}
+      
       <div className="flex gap-8 pb-8 overflow-x-auto md:flex-wrap md:justify-center md:overflow-x-visible">
         {tacticalStacks.map((stack, index) => (
           <motion.div
             key={stack.id}
-            className="flex-shrink-0 w-72" // Ensures cards have a fixed width on mobile
+            className="flex-shrink-0 w-72"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
           >
-            <button
-              onClick={() => handleCardClick(stack.id)}
-              className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
-                         hover:border-saga-primary hover:scale-105 transition-all duration-300"
-            >
-              <div className="text-4xl mb-4">{stack.icon}</div>
-              <h3 className="font-serif text-2xl font-bold text-saga-secondary mb-2">
-                {stack.title}
-              </h3>
-              <p className="text-saga-text-dark leading-relaxed">
-                {stack.description}
-              </p>
-            </button>
+            {/* --- 2. WRAP THE CARD IN A LINK COMPONENT --- */}
+            <Link href={stack.path} passHref>
+              <div className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
+                         hover:border-saga-primary hover:scale-105 transition-all duration-300 cursor-pointer">
+                <div className="text-4xl mb-4">{stack.icon}</div>
+                <h3 className="font-serif text-2xl font-bold text-saga-secondary mb-2">
+                  {stack.title}
+                </h3>
+                <p className="text-saga-text-dark leading-relaxed">
+                  {stack.description}
+                </p>
+              </div>
+            </Link>
           </motion.div>
         ))}
       </div>
 
-      {/* Reset Button to start a new consultation */}
       <div className="text-center mt-12">
         <button 
           onClick={resetSaga}
@@ -112,4 +106,4 @@ export default function HallOfProphecies() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/HallOfProphecies.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/HallOfProphecies.tsx ---
