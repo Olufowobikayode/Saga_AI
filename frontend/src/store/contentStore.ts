@@ -1,6 +1,5 @@
 // --- START OF REFACTORED FILE frontend/src/store/contentStore.ts ---
 import { create } from 'zustand';
-import { useSagaStore } from './sagaStore';
 
 // --- Polling Helper ---
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
@@ -36,6 +35,8 @@ interface ContentSagaState {
   error: string | null;
   ritualPromise: Promise<any> | null;
   
+  // This will hold the full context from the main strategy
+  strategyContext: any | null; 
   tacticalInterest: string;
   sparksResult: { sparks: ContentSpark[] } & any | null;
   chosenSpark: ContentSpark | null;
@@ -44,8 +45,8 @@ interface ContentSagaState {
   chosenRealm: string | null;
   finalContent: FinalContent | null;
 
-  // Rites now accept the session ID
-  beginWeaving: (initialStrategyData: any, initialTacticalInterest: string) => void;
+  // Rites of the Loom
+  beginWeaving: (strategyData: any, initialTacticalInterest: string) => void;
   generateSparks: (sessionId: string) => void;
   chooseSpark: (sparkId: string) => void;
   chooseContentType: (type: 'Social Post' | 'Comment' | 'Blog Post', sessionId: string) => void;
@@ -61,13 +62,16 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const useContentStore = create<ContentSagaState>((set, get) => ({
   status: 'idle', error: null, ritualPromise: null,
-  tacticalInterest: '', sparksResult: null, chosenSpark: null, 
+  strategyContext: null, tacticalInterest: '',
+  sparksResult: null, chosenSpark: null, 
   chosenContentType: null, chosenTone: null, chosenRealm: null,
   finalContent: null,
   
-  beginWeaving: (initialStrategyData, initialTacticalInterest) => {
+  // --- MODIFIED RITE ---
+  beginWeaving: (strategyData, initialTacticalInterest) => {
     set({ 
       status: 'awaiting_spark_topic', 
+      strategyContext: strategyData, // Store the context
       tacticalInterest: initialTacticalInterest, 
       error: null 
     });
@@ -75,8 +79,7 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
 
   generateSparks: (sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing."});
-    const { tacticalInterest } = get();
-    const strategyData = useSagaStore.getState().strategyData;
+    const { tacticalInterest, strategyContext } = get();
     set({ status: 'weaving_sparks', error: null });
 
     const promise = new Promise(async (resolve, reject) => {
@@ -86,7 +89,7 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
               body: JSON.stringify({
                 session_id: sessionId, content_type: 'sparks', 
                 tactical_interest: tacticalInterest, 
-                retrieved_histories: strategyData?.retrieved_histories
+                retrieved_histories: strategyContext?.retrieved_histories
               })
             });
             if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
@@ -119,10 +122,12 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
   },
 
   chooseContentType: (type, sessionId) => {
+     // @ts-ignore
     set({ chosenContentType: type });
     if (type === 'Social Post') set({ status: 'awaiting_tone' });
     else if (type === 'Comment') set({ status: 'awaiting_echo' });
     else if (type === 'Blog Post') {
+       // @ts-ignore
       get()._forgeContent('blog_post', {}, sessionId);
     }
   },
@@ -176,8 +181,9 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
   },
 
   resetLoom: () => {
-    // Keep initial context but reset the workflow
-    set({ status: 'awaiting_spark_topic', error: null, ritualPromise: null, sparksResult: null, chosenSpark: null, finalContent: null });
+    const { strategyContext, tacticalInterest } = get();
+    // Keep initial context but reset the rest of the workflow
+    set({ status: 'awaiting_spark_topic', error: null, ritualPromise: null, sparksResult: null, chosenSpark: null, finalContent: null, strategyContext, tacticalInterest });
   },
 }));
 // --- END OF REFACTORED FILE frontend/src/store/contentStore.ts ---
