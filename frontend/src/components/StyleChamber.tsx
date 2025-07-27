@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/StyleChamber.tsx ---
+// --- START OF REFACTORED FILE frontend/src/components/StyleChamber.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { usePodStore } from '@/store/podStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 // NEW: Importing the centralized data
 import { podStyles } from '@/lib/podOptions';
 
@@ -12,6 +13,18 @@ import { podStyles } from '@/lib/podOptions';
  */
 export default function StyleChamber() {
   const { nicheInterest, huntOpportunities } = usePodStore();
+  
+  // --- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
+  const handleStyleSelection = (styleId: string) => {
+    if (isSessionLoading || !sessionId) {
+        alert("Session is not yet ready. Please wait a moment.");
+        return;
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    huntOpportunities(styleId, sessionId);
+  };
 
   return (
     <motion.div
@@ -42,9 +55,10 @@ export default function StyleChamber() {
             transition={{ duration: 0.5, delay: 0.1 * index }}
           >
             <button
-              onClick={() => huntOpportunities(option.id)}
+              onClick={() => handleStyleSelection(option.id)}
+              disabled={isSessionLoading}
               className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 shadow-lg text-left
-                         hover:border-saga-primary hover:scale-105 transition-all duration-300 group"
+                         hover:border-saga-primary hover:scale-105 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="text-4xl mb-4">{option.icon}</div>
               <h3 className="font-serif text-2xl font-bold text-saga-primary mb-2 group-hover:text-saga-secondary transition-colors">
@@ -60,4 +74,4 @@ export default function StyleChamber() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/StyleChamber.tsx ---
+// --- END OF REFACTORED FILE frontend/src/components/StyleChamber.tsx ---
