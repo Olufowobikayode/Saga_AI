@@ -1,9 +1,10 @@
-// --- START OF FILE src/components/BlueprintScroll.tsx ---
+// --- START OF REFACTORED FILE src/components/BlueprintScroll.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useVentureStore } from '@/store/ventureStore';
+import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
 
 // SAGA UI: A reusable component for each section of the blueprint.
 const BlueprintSection = ({ title, children }: { title: string, children: React.ReactNode }) => (
@@ -17,10 +18,24 @@ const BlueprintSection = ({ title, children }: { title: string, children: React.
 
 /**
  * BlueprintScroll: Displays the final, detailed business blueprint prophecy.
+ * Now with a functional "Regenerate" button.
  */
 export default function BlueprintScroll() {
   const { blueprint, chosenVision, regenerateBlueprint, returnToVisions, status } = useVentureStore();
   const isLoading = status === 'forging_blueprint';
+
+  // --- 2. USE SESSION HOOK ---
+  const { sessionId, isLoading: isSessionLoading } = useSession();
+
+  const handleRegenerate = () => {
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+    // --- 3. PASS SESSION ID TO STORE ACTION ---
+    regenerateBlueprint(sessionId);
+  };
+
 
   if (!blueprint || !chosenVision) {
     return <div className="text-center p-8">The vision is unclear... The blueprint could not be forged.</div>;
@@ -77,7 +92,6 @@ export default function BlueprintScroll() {
           </ol>
         </BlueprintSection>
         
-        {/* Actions Footer */}
         <div className="flex items-center space-x-6 pt-6 border-t border-white/10">
           <button 
             onClick={() => navigator.clipboard.writeText(JSON.stringify(blueprint, null, 2))}
@@ -86,8 +100,9 @@ export default function BlueprintScroll() {
             Copy Full Blueprint (JSON)
           </button>
           <button 
-            onClick={regenerateBlueprint}
-            className="font-semibold text-saga-primary hover:text-saga-secondary flex items-center transition-colors"
+            onClick={handleRegenerate}
+            disabled={isLoading || isSessionLoading}
+            className="font-semibold text-saga-primary hover:text-saga-secondary flex items-center transition-colors disabled:opacity-50"
           >
             {isLoading ? "Regenerating..." : "Regenerate Blueprint"}
             {!isLoading && <span className="ml-1">✨</span>}
@@ -103,4 +118,4 @@ export default function BlueprintScroll() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/BlueprintScroll.tsx ---
+// --- END OF REFACTORED FILE src/components/BlueprintScroll.tsx ---
