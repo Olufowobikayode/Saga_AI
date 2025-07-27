@@ -1,4 +1,4 @@
-// --- START OF FILE src/store/marketingStore.ts ---
+// --- START OF REFACTORED FILE frontend/src/store/marketingStore.ts ---
 import { create } from 'zustand';
 
 // Shared Polling Helper
@@ -21,126 +21,167 @@ const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError
       clearInterval(interval);
       onError({ error: "Network error while checking prophecy status.", details: err });
     }
-  }, 3000);
+  }, 4000);
 };
 
 // --- State Types ---
-type ForgeStatus = 'idle' | 'awaiting_anvil' | 'forging' | 'angles_revealed' | 'awaiting_final_input' | 'asset_revealed' | 'viewing_detail';
+type ForgeStatus = 'idle' | 'awaiting_anvil' | 'forging_angles' | 'angles_revealed' | 'awaiting_platform_html' | 'awaiting_scribe' | 'awaiting_platform_text' | 'forging_asset' | 'asset_revealed' | 'prompt_unveiled' | 'scroll_unfurled';
 interface Angle { angle_id: string; title: string; description: string; framework_of_conquest: string[]; }
 interface FinalAsset { [key: string]: any; }
 
 interface MarketingSagaState {
   status: ForgeStatus;
   error: string | null;
-  isRitualRunning: boolean;
+  ritualPromise: Promise<any> | null;
   
-  productName: string | null;
-  productDescription: string | null;
-  targetAudience: string | null;
   anglesResult: { marketing_angles: Angle[] } & any | null;
-  chosenAngle: Angle | null;
   chosenAssetType: string | null;
   finalAsset: FinalAsset | null;
-  detailedContent: { title: string; content: string | object; type: 'scroll' | 'prompt_image' | 'prompt_video' } | null;
+  unveiledPrompt: { type: 'Image' | 'Video', title: string, content: string } | null;
+  unfurledScroll: { title: string, content: string | object } | null;
 
   // Rites now accept the session ID
   invokeForge: () => void;
-  commandAnvil: (productName: string, productDescription: string, targetAudience: string, sessionId: string) => Promise<void>;
-  chooseAngleAndAsset: (angleId: string, assetType: string) => Promise<void>;
-  forgeFinalAsset: (details: { platform?: string; length?: string; }, sessionId: string) => Promise<void>;
-  regenerateAsset: () => void; // Becomes simpler
-  viewDetail: (contentType: 'html_code' | 'deployment_guide' | 'image' | 'video') => void;
-  returnToAsset: () => void;
+  commandAnvil: (productName: string, productDescription: string, targetAudience: string, sessionId: string) => void;
+  chooseAssetType: (assetType: string) => void;
+  choosePlatform: (platform: string, sessionId: string) => void;
+  chooseLength: (length: string, sessionId: string) => void;
+  regenerateAsset: (sessionId: string) => void;
+  
+  // Detail viewing is simpler
+  unveilPrompt: (type: 'Image' | 'Video') => void;
+  unfurlScroll: (scrollType: 'html_code' | 'deployment_guide') => void;
+  returnToScroll: () => void;
   resetForge: () => void;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
 
 export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
-  status: 'idle', error: null, isRitualRunning: false,
-  productName: null, productDescription: null, targetAudience: null,
-  anglesResult: null, chosenAngle: null, chosenAssetType: null,
-  finalAsset: null, detailedContent: null,
+  status: 'idle', error: null, ritualPromise: null,
+  anglesResult: null, chosenAssetType: null,
+  finalAsset: null, unveiledPrompt: null, unfurledScroll: null,
   
   invokeForge: () => set({ status: 'awaiting_anvil' }),
 
-  commandAnvil: async (productName, productDescription, targetAudience, sessionId) => {
+  commandAnvil: (productName, productDescription, targetAudience, sessionId) => {
     if (!sessionId) return set({ error: "Session ID missing." });
-    set({ status: 'forging', isRitualRunning: true, error: null });
+
+    set({ status: 'forging_angles', error: null });
+
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/prophesy/marketing/angles`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId, product_name: productName, product_description: productDescription, target_audience: targetAudience, asset_type: 'Marketing Angles' })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+            const { task_id } = await res.json();
+          
+            pollProphecy(task_id,
+                (result) => {
+                    set({ status: 'angles_revealed', anglesResult: result });
+                    resolve(result);
+                },
+                (error) => {
+                    const msg = error.details || error.error;
+                    set({ status: 'awaiting_anvil', error: msg });
+                    reject(new Error(msg));
+                }
+            );
+        } catch (err: any) {
+            set({ status: 'awaiting_anvil', error: err.message });
+            reject(err);
+        }
+    });
+
+    set({ ritualPromise: promise });
+  },
+
+  chooseAssetType: (assetType) => {
+    const isHtml = ['Funnel Page', 'Landing Page'].includes(assetType);
+    const isText = ['Ad Copy', 'Email Copy', 'Affiliate Copy'].includes(assetType);
     
-    try {
-      const res = await fetch(`${API_BASE_URL}/prophesy/marketing/angles`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, product_name: productName, product_description: productDescription, target_audience: targetAudience, asset_type: 'Ad Copy' })
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      const { task_id } = await res.json();
+    let nextStatus: ForgeStatus = 'awaiting_anvil'; // Default fallback
+    if (isHtml) nextStatus = 'awaiting_platform_html';
+    else if (isText) nextStatus = 'awaiting_platform_text';
+    else nextStatus = 'awaiting_scribe'; // For Affiliate Review etc.
+    
+    set({ chosenAssetType: assetType, status: nextStatus });
+  },
+
+  choosePlatform: (platform: string, sessionId: string) => {
+    get()._forgeFinalAsset({ platform }, sessionId);
+  },
+
+  chooseLength: (length: string, sessionId: string) => {
+    get()._forgeFinalAsset({ length }, sessionId);
+  },
+
+  // Internal helper to avoid code duplication
+  _forgeFinalAsset: (details: { platform?: string; length?: string; }, sessionId: string) => {
+    if (!sessionId) return set({ error: "Session ID missing." });
+    
+    const { anglesResult, chosenAssetType } = get();
+    if (!anglesResult || !chosenAssetType) return set({ error: "Session is missing critical context." });
+    
+    // The angle data now just uses the whole anglesResult
+    const angle_data = { ...anglesResult, asset_type: chosenAssetType };
+    
+    set({ status: 'forging_asset', error: null });
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/prophesy/marketing/asset`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: sessionId, angle_data: angle_data, ...details })
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+            const { task_id } = await res.json();
       
-      pollProphecy(task_id,
-        (result) => set({ status: 'angles_revealed', isRitualRunning: false, anglesResult: result, productName, productDescription, targetAudience }),
-        (error) => set({ status: 'awaiting_anvil', isRitualRunning: false, error: error.details || error.error })
-      );
-    } catch (err: any) {
-      set({ status: 'awaiting_anvil', isRitualRunning: false, error: err.message });
-    }
+            pollProphecy(task_id,
+              (result) => {
+                set({ status: 'asset_revealed', finalAsset: result });
+                resolve(result);
+              },
+              (error) => {
+                const msg = error.details || error.error;
+                set({ status: 'angles_revealed', error: msg });
+                reject(new Error(msg));
+              }
+            );
+        } catch (err: any) {
+            set({ status: 'angles_revealed', error: err.message });
+            reject(err);
+        }
+    });
+    set({ ritualPromise: promise });
   },
 
-  chooseAngleAndAsset: async (angleId, assetType) => {
-    const chosenAngle = get().anglesResult?.marketing_angles.find(a => a.angle_id === angleId) || null;
-    set({ chosenAngle, chosenAssetType: assetType });
-
-    if (['Affiliate Review'].includes(assetType)) {
-      // Forge immediately, but we need the session ID from the component.
-      // This highlights a flow change: the component will now call forgeFinalAsset directly.
-      set({ status: 'awaiting_final_input' }); // Wait for component to call forge
-    } else {
-      set({ status: 'awaiting_final_input' });
-    }
+  regenerateAsset: (sessionId) => {
+    // This is simplified. The logic must be re-triggered from the correct "chamber" component.
+    // For example, from platform chamber, you'd call choosePlatform again.
+    console.warn("Regeneration should be re-triggered from the component providing the context.");
   },
 
-  forgeFinalAsset: async (details, sessionId) => {
-    if (!sessionId) return set({ error: "Session ID missing." });
-    
-    const { anglesResult, chosenAngle, chosenAssetType } = get();
-    if (!anglesResult || !chosenAngle || !chosenAssetType) return set({ error: "Session is missing critical context." });
-    
-    const angle_data = { ...anglesResult, ...chosenAngle, asset_type: chosenAssetType };
-    
-    set({ status: 'forging', isRitualRunning: true, error: null });
-    try {
-      const res = await fetch(`${API_BASE_URL}/prophesy/marketing/asset`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, angle_data: angle_data, ...details })
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
-      const { task_id } = await res.json();
-
-      pollProphecy(task_id,
-        (result) => set({ status: 'asset_revealed', isRitualRunning: false, finalAsset: result }),
-        (error) => set({ status: 'angles_revealed', isRitualRunning: false, error: error.details || error.error })
-      );
-    } catch (err: any) {
-      set({ status: 'angles_revealed', isRitualRunning: false, error: err.message });
-    }
-  },
-
-  regenerateAsset: () => { console.log("Regeneration needs to be triggered from UI with session ID."); },
-
-  viewDetail: (contentType) => {
+  unveilPrompt: (type) => {
     const { finalAsset } = get();
     if (!finalAsset) return;
-    let detail: MarketingSagaState['detailedContent'] = null;
-    if (contentType === 'html_code' && finalAsset.html_code) detail = { ...finalAsset.html_code, type: 'scroll' };
-    else if (contentType === 'deployment_guide' && finalAsset.deployment_guide) detail = { ...finalAsset.deployment_guide, type: 'scroll' };
-    else if (contentType === 'image' && finalAsset.image_orb) detail = { title: finalAsset.image_orb.title, content: finalAsset.image_orb.description, type: 'prompt_image' };
-    else if (contentType === 'video' && finalAsset.motion_orb) detail = { title: finalAsset.motion_orb.title, content: finalAsset.motion_orb.description, type: 'prompt_video' };
-    if (detail) set({ status: 'viewing_detail', detailedContent: detail });
+    const orb = type === 'Image' ? finalAsset.image_orb : finalAsset.motion_orb;
+    if (orb) {
+      set({ status: 'prompt_unveiled', unveiledPrompt: { type, title: orb.title, content: orb.description } });
+    }
   },
 
-  returnToAsset: () => set({ status: 'asset_revealed', detailedContent: null }),
+  unfurlScroll: (scrollType) => {
+    const { finalAsset } = get();
+    if (!finalAsset || !finalAsset[scrollType]) return;
+    set({ status: 'scroll_unfurled', unfurledScroll: finalAsset[scrollType] });
+  },
+  
+  returnToScroll: () => set({ status: 'asset_revealed', unveiledPrompt: null, unfurledScroll: null }),
   
   resetForge: () => {
-    set({ status: 'idle', error: null, isRitualRunning: false, productName: null, productDescription: null, targetAudience: null, anglesResult: null, chosenAngle: null, chosenAssetType: null, finalAsset: null, detailedContent: null });
+    set({ status: 'awaiting_anvil', error: null, ritualPromise: null, anglesResult: null, chosenAssetType: null, finalAsset: null, unveiledPrompt: null, unfurledScroll: null });
   },
 }));
-// --- END OF FILE src/store/marketingStore.ts ---
+// --- END OF REFACTORED FILE frontend/src/store/marketingStore.ts ---
