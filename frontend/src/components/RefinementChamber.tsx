@@ -10,8 +10,7 @@ import SagaButton from './SagaButton';
 import { businessModels, primaryStrengths, investmentLevels } from '@/lib/ventureOptions';
 
 // A reusable Select component for this form.
-// --- CORRECTED MAPPING ---
-const SelectRune = ({ id, label, value, onChange, options }: any) => (
+const SelectRune = ({ id, label, value, onChange, options }: { id: string, label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, options: string[] }) => (
   <div>
     <label htmlFor={id} className="block font-serif text-lg text-saga-text-light mb-2">{label}</label>
     <div className="relative">
@@ -36,7 +35,8 @@ export default function RefinementChamber() {
   
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
-  // State for the form fields, with default selections.
+  // State for the form fields, with default selections from the imported arrays.
+  // --- CORRECTED STATE INITIALIZATION ---
   const [brief, setBrief] = useState({
     business_model: businessModels[0],
     primary_strength: primaryStrengths[0],
