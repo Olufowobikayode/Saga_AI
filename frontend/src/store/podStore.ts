@@ -1,6 +1,6 @@
 // --- START OF REFACTORED FILE frontend/src/store/podStore.ts ---
 import { create } from 'zustand';
-import { useSagaStore } from './sagaStore';
+// We no longer need to import useSagaStore here, context will be passed in.
 
 // --- Polling Helper ---
 const pollProphecy = (taskId: string, onComplete: (result: any) => void, onError: (error: any) => void) => {
@@ -41,12 +41,12 @@ interface PODState {
   chosenConcept: DesignConcept | null;
   designPackage: DesignPackage | null;
 
-  // Rites now accept the session ID
-  beginForging: () => void;
+  // Rites of the Anvil
+  beginForging: (interest: string) => void; // <-- MODIFIED to accept context
   huntOpportunities: (style: string, sessionId: string) => void;
   chooseConcept: (conceptId: string, sessionId: string) => void;
   regeneratePackage: (sessionId: string) => void;
-  resetAnvil: () => void; // Resets to the concept selection screen
+  resetAnvil: () => void;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SAGA_API_URL;
@@ -56,12 +56,14 @@ export const usePodStore = create<PODState>((set, get) => ({
   nicheInterest: null, chosenStyle: null,
   opportunitiesResult: null, chosenConcept: null, designPackage: null,
 
-  beginForging: () => {
-    const interest = useSagaStore.getState().brief.interest;
+  // --- MODIFIED RITE ---
+  // This rite now explicitly receives the interest from the page component.
+  beginForging: (interest: string) => {
     set({ status: 'awaiting_style', nicheInterest: interest, error: null });
   },
 
   huntOpportunities: (style, sessionId) => {
+    // ... (This function remains unchanged)
     if (!sessionId) return set({ error: "Session ID missing." });
     
     const { nicheInterest } = get();
@@ -99,6 +101,7 @@ export const usePodStore = create<PODState>((set, get) => ({
   },
 
   chooseConcept: (conceptId, sessionId) => {
+    // ... (This function remains unchanged)
     if (!sessionId) return set({ error: "Session ID missing." });
     
     const { opportunitiesResult } = get();
@@ -139,6 +142,7 @@ export const usePodStore = create<PODState>((set, get) => ({
   },
 
   regeneratePackage: (sessionId: string) => {
+    // ... (This function remains unchanged)
     const { chosenConcept } = get();
     if (chosenConcept) {
       get().chooseConcept(chosenConcept.concept_id, sessionId);
@@ -146,6 +150,7 @@ export const usePodStore = create<PODState>((set, get) => ({
   },
 
   resetAnvil: () => {
+    // ... (This function remains unchanged)
     set({ status: 'concepts_revealed', error: null, chosenConcept: null, designPackage: null });
   },
 }));
