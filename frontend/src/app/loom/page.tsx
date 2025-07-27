@@ -1,39 +1,50 @@
-// --- START OF FILE src/app/loom/page.tsx ---
-'use client'; // This page is the root of a complex client-side workflow.
+// --- START OF REFACTORED FILE src/app/loom/page.tsx ---
+'use client'; 
 
 import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import WeaverManager from '@/components/WeaverManager'; // Summoning the Weaver Manager.
+import WeaverManager from '@/components/WeaverManager';
 import { useContentStore } from '@/store/contentStore';
-import { useSagaStore } from '@/store/sagaStore'; // We need the master store for initial context.
+import { useSagaStore } from '@/store/sagaStore';
 
 /**
  * The Weaver's Loom: The main page for the Content Saga Stack.
- * All of its complex, multi-stage logic is handled by the WeaverManager.
+ * It is now responsible for initializing the contentStore with the correct context.
  */
 export default function LoomPage() {
-  // SAGA LOGIC: Connect to both the master and the content stores.
+  const router = useRouter();
+
+  // Get the initialization function from the contentStore
   const beginWeaving = useContentStore((state) => state.beginWeaving);
-  const status = useContentStore((state) => state.status);
+  // Get the current status to prevent re-initialization
+  const contentStatus = useContentStore((state) => state.status);
+  
+  // Get the full strategy data from the main sagaStore
   const grandStrategyData = useSagaStore((state) => state.strategyData);
 
-  // When this page loads, we pass the strategic context from the master store
-  // to the content store to begin the weaving process.
+  // This effect runs once when the page loads, acting as the "Context Bridge".
   useEffect(() => {
-    if (status === 'idle' && grandStrategyData) {
-      // For now, we'll pick the first content pillar's tactical interest as the default.
-      // A more advanced UI would let the user choose which pillar to work on.
-      const tacticalInterest = grandStrategyData.prophecy?.content_pillars?.[0]?.tactical_interest || 'a topic of interest';
-      
-      beginWeaving(grandStrategyData, tacticalInterest);
+    if (contentStatus === 'idle') {
+      // If the user lands here directly, the strategy data will be missing.
+      if (!grandStrategyData || !grandStrategyData.prophecy) {
+        // Redirect them back to the start.
+        alert("A Grand Strategy is required to use the Weaver's Loom. Returning to the Altar of Inquiry.");
+        router.push('/consult');
+      } else {
+        // If we have context, initialize the contentStore with it.
+        // We derive the initial topic from the strategy, but the user can change it.
+        const tacticalInterest = grandStrategyData.prophecy?.the_three_great_sagas[1]?.prime_directive || grandStrategyData.prophecy?.divine_summary || 'a compelling topic';
+        
+        beginWeaving(grandStrategyData, tacticalInterest);
+      }
     }
-  }, [status, beginWeaving, grandStrategyData]);
+  }, [contentStatus, grandStrategyData, beginWeaving, router]);
 
   return (
     <div className="bg-cosmic-gradient min-h-screen py-12 md:py-20 px-4">
       <div className="max-w-4xl mx-auto">
         
-        {/* Page Header */}
         <header className="text-center mb-12">
           <h1 className="font-serif text-5xl md:text-6xl font-bold text-saga-secondary">
             The Weaver's Loom
@@ -44,12 +55,11 @@ export default function LoomPage() {
         </header>
 
         {/* 
-          The WeaverManager now controls this entire section. It will read from the
-          contentStore and display the correct UI for the user's current stage.
+          The WeaverManager will now operate with the correct context
+          or the user will have been redirected.
         */}
         <WeaverManager />
 
-        {/* Navigation Link to return to the Hall of Prophecies */}
         <div className="text-center mt-16">
           <Link href="/consult" className="font-serif text-xl text-saga-text-dark hover:text-saga-primary transition-colors">
             ← Return to the Hall of Prophecies
@@ -59,4 +69,4 @@ export default function LoomPage() {
     </div>
   );
 }
-// --- END OF FILE src/app/loom/page.tsx ---
+// --- END OF REFACTORED FILE src/app/loom/page.tsx ---
