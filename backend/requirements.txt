@@ -3,6 +3,7 @@
 fastapi==0.110.1
 uvicorn==0.25.0
 gunicorn==22.0.0
+request
 
 # Database
 pymongo==4.5.0
