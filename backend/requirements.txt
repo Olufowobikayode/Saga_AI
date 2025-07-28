@@ -28,11 +28,11 @@ playwright==1.44.0
 # Utilities for Marketplace Discovery
 googlesearch-python==1.2.3
 tldextract==3.6.0
-duckduckgo-search==5.3.1.post1
+duckduckgo-search==5.3.1
 
 # Utilities
 python-dotenv==1.0.1
-pydantic==2.6.4
+pydantic==2.8.2
 pydantic-settings==2.3.4
 python-multipart==0.0.9
 requests==2.31.0
