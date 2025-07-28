@@ -1,4 +1,3 @@
-// --- START OF FILE frontend/src/components/AltarManager.tsx ---
 'use client';
 
 import React from 'react';
@@ -18,60 +17,38 @@ export default function AltarManager() {
   const status = useSagaStore((state) => state.status);
   const ritualPromise = useSagaStore((state) => state.ritualPromise);
 
-  // A handler to be called by RitualScreen when it completes
+  // A handler to be called by RitualScreen when it completes.
+  // The store handles the state transition automatically upon promise resolution.
   const handleRitualComplete = () => {
     console.log("AltarManager acknowledges ritual completion.");
-    // In this specific manager, the store handles the state transition automatically
-    // upon promise resolution. So, this function can be empty or used for logging.
   };
 
   const renderCurrentStage = () => {
     switch (status) {
-      // Stage 1: The Query
       case 'awaiting_query':
         return <QueryForm />;
-      case 'performing_rite_1':
-        // CORRECTED: Pass the required props to RitualScreen
-        return (
-          <RitualScreen
-            key="rite1"
-            ritualPromise={ritualPromise}
-            onRitualComplete={handleRitualComplete}
-          />
-        );
 
-      // Stage 2: The Artifact
       case 'awaiting_artifact':
         return <ArtifactForm />;
-      case 'performing_rite_2':
-        // CORRECTED: Pass the required props to RitualScreen
-        return (
-          <RitualScreen
-            key="rite2"
-            ritualPromise={ritualPromise}
-            onRitualComplete={handleRitualComplete}
-          />
-        );
 
-      // Stage 3: The Realm
       case 'awaiting_realm':
         return <RealmForm />;
-      case 'performing_grand_rite':
-        // CORRECTED: Pass the required props to RitualScreen
+
+      case 'forging': // This is the new, single loading state that replaces all previous "performing_rite_*" states.
         return (
           <RitualScreen
-            key="grandrite"
+            key="forging-rite"
             ritualPromise={ritualPromise}
             onRitualComplete={handleRitualComplete}
           />
         );
 
-      // The Final Destination
-      case 'prophesied':
+      case 'prophesied_hub':
+      case 'prophesied_scroll': // Both of these final states now correctly show the HallOfProphecies component.
         return <HallOfProphecies />;
 
-      // Default/Idle State
       default:
+        // This handles the 'idle' state and any other unexpected states.
         return <div className="text-center p-8">Awaiting the beginning of the ritual...</div>;
     }
   };
@@ -84,4 +61,3 @@ export default function AltarManager() {
     </div>
   );
 }
-// --- END OF FILE frontend/src/components/AltarManager.tsx ---
