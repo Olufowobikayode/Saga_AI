@@ -1,4 +1,3 @@
-// --- START OF FILE src/components/InputRune.tsx ---
 'use client';
 
 import React from 'react';
@@ -7,12 +6,13 @@ import React from 'react';
 interface InputRuneProps {
   id: string;
   label: string;
-  placeholder: string;
+  placeholder?: string; // Placeholder is optional
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  type?: 'text' | 'url'; // Standard text input or a URL input
+  type?: 'text' | 'url' | 'password'; // MODIFIED: Added 'password' as a valid type
   as?: 'input' | 'textarea'; // Allows us to use this component as a single-line or multi-line input
   optional?: boolean; // To display an "(Optional)" hint
+  className?: string; // Added className to allow for custom styling
 }
 
 /**
@@ -28,6 +28,7 @@ export default function InputRune({
   type = 'text',
   as = 'input',
   optional = false,
+  className = '', // Default to an empty string
 }: InputRuneProps) {
   
   // Common styling for both input and textarea to ensure consistency.
@@ -36,6 +37,7 @@ export default function InputRune({
     px-4 py-3 text-saga-text-light placeholder-saga-text-dark
     focus:outline-none focus:ring-2 focus:ring-saga-primary focus:border-transparent
     transition-all duration-300
+    disabled:opacity-50
   `;
 
   // Conditionally render either an <input> or a <textarea> element.
@@ -46,7 +48,7 @@ export default function InputRune({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className={`${commonClasses} min-h-[120px]`} // Textareas have a minimum height
+        className={`${commonClasses} min-h-[120px] ${className}`} // Textareas have a minimum height and pass className
         rows={4}
       />
     : <input
@@ -56,7 +58,7 @@ export default function InputRune({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className={commonClasses}
+        className={`${commonClasses} ${className}`} // Pass className
       />;
 
   return (
@@ -69,4 +71,3 @@ export default function InputRune({
     </div>
   );
 }
-// --- END OF FILE src/components/InputRune.tsx ---
