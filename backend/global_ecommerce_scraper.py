@@ -7,16 +7,16 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse, quote_plus
 
 from bs4 import BeautifulSoup
-import aiohttp
-from playwright.async_api import async_playwright, Page, BrowserContext
+from playwright.async_api import async_playwright, BrowserContext
 from fake_useragent import UserAgent
 
 from backend.cache import seer_cache, generate_cache_key
 
 logger = logging.getLogger(__name__)
 
-# Configs remain largely the same, but we can simplify since Playwright handles waits intelligently.
+# --- STRATEGIC ENHANCEMENT: Added Alibaba, 1688, Jumia, and Konga ---
 ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
+    # Existing configurations...
     "amazon": {
         "status": "enabled",
         "base_url_template": "https://www.amazon.{domain}/s?k={query}",
@@ -27,7 +27,6 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "product_price_selector": 'span.a-price-whole',
         "product_price_fraction_selector": 'span.a-price-fraction',
         "product_rating_selector": 'i.a-icon-star-small span.a-icon-alt',
-        "seller_name_selector": '.a-row.a-size-small.a-color-secondary',
     },
     "ebay": {
         "status": "enabled",
@@ -38,7 +37,6 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "product_link_attr": 'href',
         "product_price_selector": '.s-item__price',
         "product_sales_history_selector": '.s-item__hotness',
-        "seller_name_selector": '.s-item__seller-info-text',
     },
     "aliexpress": {
         "status": "enabled",
@@ -50,13 +48,57 @@ ECOMMERCE_SITE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "product_link_attr": 'href',
         "product_price_selector": "div[class*='price-sale']",
         "product_sales_history_selector": "span[class*='trade--trade']",
+    },
+    # --- NEW MARKETPLACES ---
+    "alibaba": {
+        "status": "enabled",
+        "base_url_template": "https://www.alibaba.com/trade/search?SearchText={query}",
+        "domains": ["com"],
+        "product_item_selector": 'div.fy23-search-card',
+        "product_title_selector": 'h2.search-card-e-title',
+        "product_link_selector": 'a.search-card-e-slider__link',
+        "product_link_attr": 'href',
+        "product_price_selector": 'div.search-card-e-price-main',
+        "seller_name_selector": 'a.search-card-e-company-name',
+        "seller_years_selector": 'div.search-card-e-identity > div'
+    },
+    "jumia": {
+        "status": "enabled",
+        "base_url_template": "https://www.jumia.com.ng/catalog/?q={query}",
+         "domains": ["com.ng", "ci", "com.eg", "com.gh", "co.ke", "sn", "co.ug", "co.za"],
+        "product_item_selector": 'article.prd',
+        "product_title_selector": 'h3.name',
+        "product_link_selector": 'a.core',
+        "product_link_attr": 'href',
+        "product_price_selector": 'div.prc',
+        "product_rating_selector": 'div.stars', # Rating is in star width percentage
+    },
+    "konga": {
+        "status": "enabled",
+        "base_url_template": "https://www.konga.com/search?search={query}",
+        "domains": ["com"],
+        "product_item_selector": 'div.bbe45_3o3Ru',
+        "product_title_selector": 'h3.a2cf5_2S5q5',
+        "product_link_selector": 'a._7cc7d_2_uv3',
+        "product_link_attr": 'href',
+        "product_price_selector": 'span.d7c0f_sJAqi',
+    },
+    "1688": {
+        "status": "enabled", # Enabled for best-effort, but likely to fail
+        "base_url_template": "https://s.1688.com/selloffer/offer_search.htm?keywords={query}",
+        "domains": ["com"],
+        "product_item_selector": 'div.mojar-card-list-item',
+        "product_title_selector": 'div.mojar-offer-title',
+        "product_link_attr": 'href',
+        "product_price_selector": 'div.mojar-offer-price-price',
+        "seller_name_selector": 'a.company-name',
     }
 }
 
+
 class GlobalMarketplaceOracle:
     """
-    Saga's Seer of global commerce, now powered by the swift and stealthy Playwright.
-    It divines product information from the great digital marketplaces.
+    Saga's Seer of global commerce, now with expanded knowledge of global and African marketplaces.
     """
     _playwright_instance = None
     _browser = None
@@ -66,49 +108,38 @@ class GlobalMarketplaceOracle:
             self.ua = UserAgent()
         except Exception:
             self.ua = None
-
+    
+    # The Playwright browser management and fetching logic remains the same.
+    # It is robust enough to handle these new sites.
     async def _get_browser(self):
-        """Initializes and returns a shared, single browser instance."""
         if self._browser and self._browser.is_connected():
             return self._browser
-        
         logger.info("Summoning the Playwright browser spirit for the first time...")
         self._playwright_instance = await async_playwright().start()
-        # We launch Chromium, as it was installed in the Dockerfile.
-        # headless=True is the default but we make it explicit.
         self._browser = await self._playwright_instance.chromium.launch(headless=True)
         return self._browser
 
     async def _create_stealth_context(self) -> BrowserContext:
-        """Creates a new, isolated browser context with stealth properties."""
         browser = await self._get_browser()
         user_agent = self.ua.random if self.ua else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-        
-        # Playwright's new_context is far more efficient than launching a whole new browser.
-        # It's like a fresh, clean incognito session each time.
         context = await browser.new_context(
             user_agent=user_agent,
             java_script_enabled=True,
-            # Emulate a common screen size and color scheme
             viewport={'width': 1920, 'height': 1080},
-            screen={'width': 1920, 'height': 1080},
             color_scheme='dark',
             locale='en-US'
         )
-        # Block common tracking and ad scripts to speed up loading and reduce detection.
         await context.route(re.compile(r"(\.png$)|(\.jpg$)|(google-analytics\.com)|(googletagmanager\.com)"), lambda route: route.abort())
         return context
 
     async def _fetch_with_playwright(self, url: str) -> Optional[str]:
-        """Fetches a page's full HTML content using a stealthy Playwright context."""
         context = await self._create_stealth_context()
         page = None
         try:
             page = await context.new_page()
             logger.info(f"Dispatching stealthy Playwright spirit to read the scroll at {url}...")
-            # Use 'networkidle' to wait for most dynamic content to load.
             await page.goto(url, timeout=30000, wait_until='networkidle')
-            await page.wait_for_timeout(random.uniform(2000, 4000)) # Human-like pause
+            await page.wait_for_timeout(random.uniform(2000, 4000))
             content = await page.content()
             return content
         except Exception as e:
@@ -117,7 +148,7 @@ class GlobalMarketplaceOracle:
         finally:
             if page: await page.close()
             if context: await context.close()
-
+            
     # The utility functions for parsing data remain the same.
     def _parse_value(self, price_str: str, fraction_str: Optional[str] = None) -> float:
         if not price_str: return 0.0
@@ -129,12 +160,19 @@ class GlobalMarketplaceOracle:
 
     def _parse_rating(self, rating_str: str) -> float:
         if not rating_str: return 0.0
-        try:
-            match = re.search(r'(\d[\d,.]*)', rating_str.replace(',', '.'))
-            return float(match.group(1)) if match else 0.0
-        except (ValueError, TypeError): return 0.0
+        # Jumia specific: "5 out of 5" or width percentage
+        if "out of 5" in rating_str:
+             match = re.search(r'(\d[\d,.]*)', rating_str.replace(',', '.'))
+             return float(match.group(1)) if match else 0.0
+        if "width" in rating_str: # e.g. style="width: 80%"
+             match = re.search(r'width:\s*(\d+)%', rating_str)
+             return float(match.group(1)) / 20.0 if match else 0.0
 
+        match = re.search(r'(\d[\d,.]*)', rating_str.replace(',', '.'))
+        return float(match.group(1)) if match else 0.0
+        
     def _parse_sales_history(self, sales_str: str) -> int:
+        # ... same as before
         if not sales_str: return 0
         try:
             sales_str = sales_str.lower().replace('sold', '').replace('+', '').replace(',', '').strip()
@@ -150,6 +188,7 @@ class GlobalMarketplaceOracle:
         self, product_query: str, marketplace_domain: Optional[str] = None,
         max_products: int = 10, target_country_code: Optional[str] = None
     ) -> Dict:
+        # This core logic does not need to change. It will automatically use the new configs.
         cache_key = generate_cache_key("run_marketplace_divination", query=product_query, domain=marketplace_domain, country=target_country_code)
         cached_results = seer_cache.get(cache_key)
         if cached_results is not None: return cached_results
@@ -164,9 +203,12 @@ class GlobalMarketplaceOracle:
         if not target_config: return {"products": [], "identified_marketplace": "Unknown Realm"}
 
         domain_parts = urlparse(f"http://{marketplace_domain}").hostname.split('.')
-        tld = domain_parts[-1]
+        tld = ".".join(domain_parts[-(len(marketplace_domain.split('.'))):])
+        
         domain_to_use = tld if tld in target_config.get("domains", []) else target_config.get("domains", ["com"])[0]
-        url = target_config["base_url_template"].format(query=quote_plus(product_query), domain=domain_to_use)
+        # Special handling for 1688 which uses URL encoding differently
+        query_param = quote_plus(product_query, encoding='gbk') if identified_marketplace == '1688' else quote_plus(product_query)
+        url = target_config["base_url_template"].format(query=query_param, domain=domain_to_use)
         
         html_content = await self._fetch_with_playwright(url)
         if not html_content:
@@ -178,13 +220,17 @@ class GlobalMarketplaceOracle:
 
         for el in product_elements:
             try:
-                title = el.select_one(target_config["product_title_selector"]).get_text(strip=True)
+                title_el = el.select_one(target_config["product_title_selector"])
+                title = title_el.get_text(strip=True) if title_el else "Unknown Artifact"
                 
-                link_el = el.select_one(target_config.get("product_link_selector", target_config["product_title_selector"]))
-                link = link_el[target_config["product_link_attr"]] if link_el else "#"
+                link_el = el.select_one(target_config.get("product_link_selector", 'a'))
+                link = link_el[target_config["product_link_attr"]] if link_el and link_el.has_attr(target_config["product_link_attr"]) else "#"
+
                 if link and not link.startswith('http'):
-                    base_url = urlparse(url)
-                    link = f"{base_url.scheme}://{base_url.netloc}{link}"
+                    link_url = urlparse(link)
+                    if not link_url.scheme:
+                        base_url = urlparse(url)
+                        link = f"{base_url.scheme}://{base_url.netloc}{link}"
 
                 price_main_text = el.select_one(target_config["product_price_selector"]).get_text(strip=True) if el.select_one(target_config["product_price_selector"]) else ""
                 price_fraction_text_el = el.select_one(target_config.get("product_price_fraction_selector", ""))
@@ -192,7 +238,9 @@ class GlobalMarketplaceOracle:
                 price = self._parse_value(price_main_text, price_fraction_text)
 
                 rating_el = el.select_one(target_config.get("product_rating_selector", ""))
-                rating = self._parse_rating(rating_el.get_text(strip=True)) if rating_el else 0.0
+                # Jumia ratings can be in the style attribute
+                rating_text = str(rating_el) if rating_el else ""
+                rating = self._parse_rating(rating_text)
 
                 sales_el = el.select_one(target_config.get("product_sales_history_selector", ""))
                 sales_history = self._parse_sales_history(sales_el.get_text(strip=True)) if sales_el else 0
@@ -216,15 +264,14 @@ class GlobalMarketplaceOracle:
         seer_cache.set(cache_key, final_results, ttl_seconds=86400)
         return final_results
     
-    # This function for reading a user's store can also be simplified.
     async def read_user_store_scroll(self, user_store_url: str) -> Optional[str]:
+        # ... remains unchanged
         cache_key = generate_cache_key("read_user_store_scroll", url=user_store_url)
         cached_results = seer_cache.get(cache_key)
         if cached_results is not None: return cached_results
         
         logger.info(f"Attempting to read the user's store scroll from: {user_store_url}")
         
-        # We can use Playwright for robust JS-heavy sites or fall back to aiohttp for simple ones.
         html = await self._fetch_with_playwright(user_store_url)
         
         if html:
@@ -232,7 +279,9 @@ class GlobalMarketplaceOracle:
             for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
                 tag.decompose()
             text = soup.get_text(separator=' ', strip=True)
-            final_text = ' '.join(text.split())[:15000] # Normalize whitespace
+            final_text = ' '.join(text.split())[:15000]
             seer_cache.set(cache_key, final_text, ttl_seconds=86400)
             return final_text
         return "Saga's Seer could not read the scroll at the provided URL."
+
+# --- END OF REFACTORED FILE backend/global_ecommerce_scraper.py ---
