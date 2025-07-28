@@ -4,6 +4,9 @@ import logging
 from pathlib import Path
 import uuid
 from datetime import datetime, timezone
+import requests
+from fastapi import FastAPI, Request
+
 import re
 
 from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Depends, Header
@@ -213,4 +216,37 @@ async def shutdown_event(): await close_mongo_connection()
 
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+# ... (your existing FastAPI app setup)
+app = FastAPI()
+
+
+# New endpoint to get the user's location
+@app.get("/api/v10/get-my-location")
+def get_user_location(request: Request):
+    """
+    This endpoint detects the user's IP and returns their geographical location.
+    """
+    # 1. FastAPI gives us the user's IP address from the request object
+    client_ip = request.client.host
+
+    # Handle local development case where IP might be localhost
+    if client_ip == "127.0.0.1":
+        return {"location": "Localhost", "ip": client_ip}
+
+    # 2. Call an external geolocation API with the user's IP
+    # Using a free service for this example.
+    response = requests.get(f"http://ip-api.com/json/{client_ip}")
+
+    if response.status_code == 200:
+        # 3. Get the location data and send it back to the frontend
+        location_data = response.json()
+        return {
+            "ip": client_ip,
+            "location": f"{location_data.get('city', '')}, {location_data.get('country', '')}"
+        }
+    else:
+        # Handle cases where the API call fails
+        return {"error": "Could not determine location", "ip": client_ip}
 # --- END OF FILE backend/server.py ---
