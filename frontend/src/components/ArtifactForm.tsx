@@ -1,4 +1,3 @@
-// --- START OF FILE src/components/ArtifactForm.tsx ---
 'use client';
 
 import React, { useState } from 'react';
@@ -38,7 +37,8 @@ const SelectRune = ({ id, label, value, onChange, options, optional = false }: a
  */
 export default function ArtifactForm() {
   const submitArtifact = useSagaStore((state) => state.submitArtifact);
-  const isLoading = useSagaStore((state) => state.status === 'performing_rite_2');
+  // CORRECTED: Check for the new, unified 'forging' state
+  const isLoading = useSagaStore((state) => state.status === 'forging');
 
   const [assetType, setAssetType] = useState('');
   const [assetName, setAssetName] = useState('');
@@ -84,7 +84,7 @@ export default function ArtifactForm() {
           </div>
 
           <div className="pt-4 text-center">
-            <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg">
+            <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg" disabled={isLoading}>
               {isLoading ? "Observing Ritual..." : "Next: Select Realm"}
             </SagaButton>
           </div>
@@ -93,4 +93,3 @@ export default function ArtifactForm() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/ArtifactForm.tsx ---
