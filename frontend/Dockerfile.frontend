@@ -1,56 +1,37 @@
-# --- START OF FILE frontend/Dockerfile.frontend ---
-
 # --- STAGE 1: Builder ---
-# This stage installs dependencies and builds the Next.js application.
 FROM node:20-alpine AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json to leverage Docker cache
 COPY package*.json ./
 
-# Install dependencies
 RUN npm install
 
-# Copy the rest of the application code
 COPY . .
 
-# Declare the build-time argument for the API URL.
-# This ensures the frontend knows the backend's address during the build process.
 ARG NEXT_PUBLIC_SAGA_API_URL
 ENV NEXT_PUBLIC_SAGA_API_URL=${NEXT_PUBLIC_SAGA_API_URL}
 
-# Build the Next.js application for production
 RUN npm run build
 
 # --- STAGE 2: Runner ---
-# This stage creates the final lightweight image with only the necessary files.
 FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Create a non-root user for security
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nextjs -u 1001
 
-# Copy the built application from the builder stage
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
-# Change ownership of the directories to the non-root user
 USER nextjs
 
-# Expose the port Next.js runs on
 EXPOSE 3000
 
-# Set the environment variable for the Next.js server
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# The command to start the application
 CMD ["npm", "start"]
-
-# --- END OF FILE frontend/Dockerfile.frontend ---
