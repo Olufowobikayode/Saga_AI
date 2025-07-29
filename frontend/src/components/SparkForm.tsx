@@ -1,10 +1,9 @@
-// --- START OF REFACTORED FILE frontend/src/components/SparkForm.tsx ---
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useContentStore } from '@/store/contentStore';
-import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
+import { useSession } from '@/hooks/useSession';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 
@@ -16,10 +15,8 @@ export default function SparkForm() {
   const { tacticalInterest, generateSparks, status } = useContentStore();
   const isLoading = status === 'weaving_sparks';
 
-  // --- 2. USE THE SESSION HOOK ---
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
-  // Local state for the form input.
   const [topic, setTopic] = useState('');
 
   useEffect(() => {
@@ -37,8 +34,6 @@ export default function SparkForm() {
       alert("Session is not yet ready. Please wait a moment.");
       return;
     }
-    // SAGA LOGIC: The store now handles the topic, just pass the session ID.
-    // --- 3. PASS THE SESSION ID TO THE STORE ACTION ---
     generateSparks(sessionId);
   };
 
@@ -59,7 +54,7 @@ export default function SparkForm() {
         </header>
 
         <form 
-          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
+          onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} 
           className="space-y-8"
         >
           <InputRune
@@ -67,7 +62,7 @@ export default function SparkForm() {
             label="Content Topic"
             placeholder="Enter the core topic for your content..."
             value={topic}
-            onChange={(e) => setTopic(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTopic(e.target.value)}
           />
 
           <div className="pt-4 text-center">
@@ -84,4 +79,3 @@ export default function SparkForm() {
     </motion.div>
   );
 }
-// --- END OF REFACTORED FILE frontend/src/components/SparkForm.tsx ---
