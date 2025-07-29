@@ -1,10 +1,9 @@
-// --- START OF REFACTORED FILE frontend/src/components/RealmForm.tsx ---
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSagaStore } from '@/store/sagaStore';
-import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT THE SESSION HOOK
+import { useSession } from '@/hooks/useSession';
 import CountrySelector from './CountrySelector';
 import SagaButton from './SagaButton';
 
@@ -19,20 +18,28 @@ export default function RealmForm() {
 
   const [country, setCountry] = useState('Global');
   
-  // --- 2. USE THE SESSION HOOK ---
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
   // SAGA LOGIC: Pre-fill the country from the IP detection.
   useEffect(() => {
-    fetch('https://ipapi.co/country_name/')
-      .then(res => res.text())
-      .then(countryName => {
+    // Fetches location from a free geo IP service to provide a smart default
+    fetch('/api/v10/get-my-location')
+      .then(res => {
+        if (res.ok) {
+          return res.json();
+        }
+        throw new Error('Could not fetch location');
+      })
+      .then(data => {
+        // We expect a format like "City, Country"
+        const countryName = data.location?.split(', ')[1];
         if (countryName && countryName.trim().length > 0) {
           setCountry(countryName);
         }
       })
       .catch(error => {
-        console.error("Could not fetch user country:", error);
+        console.error("Could not fetch user country via backend:", error);
+        // Fallback or just keep the default 'Global'
         setCountry('Global');
       });
   }, []);
@@ -48,7 +55,6 @@ export default function RealmForm() {
       return;
     }
     
-    // --- 3. PASS THE SESSION ID TO THE STORE ACTION ---
     submitRealmAndDivine(country, sessionId);
   };
 
@@ -82,11 +88,10 @@ export default function RealmForm() {
           />
 
           <div className="pt-4 text-center">
-            {/* The button is now disabled while the session or the prophecy is loading */}
             <SagaButton 
               onClick={handleSubmit} 
               className="py-4 px-10 text-xl"
-              disabled={isLoading || isSessionLoading}
+              disabled={isLoading || isSessionLoading} // Using the new 'disabled' prop
             >
               {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Grand Ritual..." : "Divine My Grand Strategy")}
             </SagaButton>
@@ -96,4 +101,3 @@ export default function RealmForm() {
     </motion.div>
   );
 }
-// --- END OF REFACTORED FILE frontend/src/components/RealmForm.tsx ---
