@@ -50,7 +50,7 @@ export default function EchoChamber() {
 
       <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
         <form 
-          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
+          onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} 
           className="space-y-8"
         >
           <div className="bg-saga-bg p-4 rounded-lg border border-saga-primary/20">
@@ -61,6 +61,7 @@ export default function EchoChamber() {
 
           <InputRune
             id="postContent"
+            name="postContent"
             label="Post to Comment On"
             as="textarea"
             placeholder="Paste the text of the social media post you wish to respond to here..."
