@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, 'useState' from 'react';
 import { motion } from 'framer-motion';
 import { useSagaStore } from '@/store/sagaStore';
 import InputRune from './InputRune';
@@ -13,7 +13,6 @@ import SagaButton from './SagaButton';
 export default function QueryForm() {
   const submitQuery = useSagaStore((state) => state.submitQuery);
   // CORRECTED: Check for the new, unified 'forging' state.
-  // The old check was for a state like 'performing_rite_1' which no longer exists.
   const isLoading = useSagaStore((state) => state.status === 'forging');
 
   const [interest, setInterest] = useState('');
@@ -26,8 +25,7 @@ export default function QueryForm() {
       alert("The Oracle requires an Interest or Niche to begin the ritual.");
       return;
     }
-    // SAGA LOGIC: Call the rite from the store with the collected data.
-    // This will trigger the first ritual and advance the state.
+    // Call the rite from the store to advance the state.
     submitQuery(interest, subNiche, toneText, toneUrl);
   };
 
