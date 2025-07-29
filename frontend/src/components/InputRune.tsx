@@ -2,36 +2,43 @@
 
 import React from 'react';
 
-// SAGA UI: Defining the properties for our custom input component.
-interface InputRuneProps {
+// SAGA UI: We define the props using a more advanced TypeScript pattern
+// called a "discriminated union" to link the 'as' prop to the correct 'onChange' type.
+
+// 1. Define the props that are common to both inputs and textareas.
+type BaseProps = {
   id: string;
   label: string;
-  placeholder?: string; // Placeholder is optional
+  placeholder?: string;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  type?: 'text' | 'url' | 'password'; // MODIFIED: Added 'password' as a valid type
-  as?: 'input' | 'textarea'; // Allows us to use this component as a single-line or multi-line input
-  optional?: boolean; // To display an "(Optional)" hint
-  className?: string; // Added className to allow for custom styling
-}
+  optional?: boolean;
+  className?: string;
+};
+
+// 2. Define the props specific to a standard input.
+type InputSpecificProps = {
+  as?: 'input';
+  type?: 'text' | 'url' | 'password';
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+};
+
+// 3. Define the props specific to a textarea.
+type TextareaSpecificProps = {
+  as: 'textarea';
+  type?: never; // A textarea doesn't have a 'type' attribute like 'url' or 'password'.
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+};
+
+// 4. Combine them: Props must include the base props AND either the input OR textarea props.
+type InputRuneProps = BaseProps & (InputSpecificProps | TextareaSpecificProps);
 
 /**
  * InputRune: A themed input component for the Saga UI.
  * It represents the stone tablet upon which a user inscribes their query.
+ * This version uses a discriminated union for type-safe props.
  */
-export default function InputRune({
-  id,
-  label,
-  placeholder,
-  value,
-  onChange,
-  type = 'text',
-  as = 'input',
-  optional = false,
-  className = '', // Default to an empty string
-}: InputRuneProps) {
+export default function InputRune({ className = '', ...props }: InputRuneProps) {
   
-  // Common styling for both input and textarea to ensure consistency.
   const commonClasses = `
     w-full bg-saga-bg border-2 border-saga-surface rounded-lg
     px-4 py-3 text-saga-text-light placeholder-saga-text-dark
@@ -40,34 +47,35 @@ export default function InputRune({
     disabled:opacity-50
   `;
 
-  // Conditionally render either an <input> or a <textarea> element.
-  const InputComponent = as === 'textarea' 
-    ? <textarea
-        id={id}
-        name={id}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className={`${commonClasses} min-h-[120px] ${className}`} // Textareas have a minimum height and pass className
-        rows={4}
-      />
-    : <input
-        id={id}
-        name={id}
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className={`${commonClasses} ${className}`} // Pass className
-      />;
-
   return (
     <div className="w-full">
-      <label htmlFor={id} className="block font-serif text-lg text-saga-text-light mb-2">
-        {label}
-        {optional && <span className="text-saga-text-dark text-sm ml-2">(Optional)</span>}
+      <label htmlFor={props.id} className="block font-serif text-lg text-saga-text-light mb-2">
+        {props.label}
+        {props.optional && <span className="text-saga-text-dark text-sm ml-2">(Optional)</span>}
       </label>
-      {InputComponent}
+      
+      {/* Based on the 'as' prop, TypeScript now knows which 'onChange' is valid. */}
+      {props.as === 'textarea' ? (
+        <textarea
+          id={props.id}
+          name={props.id}
+          placeholder={props.placeholder}
+          value={props.value}
+          onChange={props.onChange}
+          className={`${commonClasses} min-h-[120px] ${className}`}
+          rows={4}
+        />
+      ) : (
+        <input
+          id={props.id}
+          name={props.id}
+          type={props.type || 'text'}
+          placeholder={props.placeholder}
+          value={props.value}
+          onChange={props.onChange}
+          className={`${commonClasses} ${className}`}
+        />
+      )}
     </div>
   );
 }
