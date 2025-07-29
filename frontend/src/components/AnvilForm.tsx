@@ -1,4 +1,3 @@
-// --- START OF REFACTORED FILE frontend/src/components/AnvilForm.tsx ---
 'use client';
 
 import React, { useState } from 'react';
@@ -7,7 +6,7 @@ import { useMarketingStore } from '@/store/marketingStore';
 import { useSession } from '@/hooks/useSession';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
-import ErrorMessage from './ErrorMessage'; // <-- 1. IMPORT THE NEW COMPONENT
+import ErrorMessage from './ErrorMessage';
 
 /**
  * AnvilForm: The component where a user provides the core product details
@@ -37,10 +36,7 @@ export default function AnvilForm() {
     commandAnvil(productName, productDescription, targetAudience, sessionId);
   };
   
-  // --- 2. CREATE A RETRY HANDLER ---
-  // This function simply re-runs the last submission.
   const handleRetry = () => {
-    // We can just call handleSubmit again as the form state is preserved.
     handleSubmit();
   };
 
@@ -66,7 +62,7 @@ export default function AnvilForm() {
           label="Product or Service Name"
           placeholder="e.g., 'The Chronos Watch', 'AI-Powered Copywriting Service'"
           value={productName}
-          onChange={(e) => setProductName(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductName(e.target.value)}
         />
 
         <InputRune
@@ -75,7 +71,7 @@ export default function AnvilForm() {
           as="textarea"
           placeholder="Describe its features, benefits, and what makes it unique."
           value={productDescription}
-          onChange={(e) => setProductDescription(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setProductDescription(e.target.value)}
         />
         
         <InputRune
@@ -83,7 +79,7 @@ export default function AnvilForm() {
           label="Target Audience"
           placeholder="e.g., 'Tech-savvy professionals aged 30-50', 'Eco-conscious millennials'"
           value={targetAudience}
-          onChange={(e) => setTargetAudience(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTargetAudience(e.target.value)}
         />
 
         <div className="pt-4 text-center">
@@ -96,11 +92,9 @@ export default function AnvilForm() {
           </SagaButton>
         </div>
 
-        {/* --- 3. REPLACE THE OLD ERROR TEXT WITH THE NEW COMPONENT --- */}
         <ErrorMessage error={error} onRetry={handleRetry} />
         
       </form>
     </motion.div>
   );
 }
-// --- END OF REFACTORED FILE frontend/src/components/AnvilForm.tsx ---
