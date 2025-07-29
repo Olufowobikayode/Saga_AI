@@ -1,4 +1,3 @@
-// --- START OF REFACTORED FILE frontend/src/components/CommerceInputForm.tsx ---
 'use client';
 
 import React, { useState } from 'react';
@@ -7,10 +6,17 @@ import { useCommerceStore } from '@/store/commerceStore';
 import { useSession } from '@/hooks/useSession';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
-import ErrorMessage from './ErrorMessage'; // <-- 1. IMPORT THE NEW COMPONENT
+import ErrorMessage from './ErrorMessage';
 
 // A simple Select component for this form.
-const SelectRune = ({ id, label, name, value, onChange, options }: any) => (
+const SelectRune = ({ id, label, name, value, onChange, options }: {
+    id: string;
+    label: string;
+    name: string;
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+    options: string[];
+}) => (
     <div>
       <label htmlFor={id} className="block font-serif text-lg text-saga-text-light mb-2">{label}</label>
       <div className="relative">
@@ -49,13 +55,10 @@ export default function CommerceInputForm() {
     forgeProphecy(formData, sessionId);
   };
   
-  // --- 2. CREATE A RETRY HANDLER ---
   const handleRetry = () => {
     handleSubmit();
   };
 
-
-  // SAGA LOGIC: Intelligently render only the necessary form fields.
   const renderFormFields = () => {
     switch (chosenProphecyType) {
       case 'Commerce Audit':
@@ -120,11 +123,9 @@ export default function CommerceInputForm() {
                     </SagaButton>
                 </div>
                 
-                {/* --- 3. REPLACE THE OLD ERROR TEXT WITH THE NEW COMPONENT --- */}
                 <ErrorMessage error={error} onRetry={handleRetry} />
             </form>
         </div>
     </motion.div>
   );
 }
-// --- END OF REFACTORED FILE frontend/src/components/CommerceInputForm.tsx ---
