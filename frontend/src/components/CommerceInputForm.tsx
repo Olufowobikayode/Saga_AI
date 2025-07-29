@@ -37,7 +37,16 @@ export default function CommerceInputForm() {
 
   const [formData, setFormData] = useState<any>({});
   
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  // CORRECTED: Using specific handlers for each input type to ensure type safety.
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+  
+  const handleTextAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -59,7 +68,7 @@ export default function CommerceInputForm() {
         return (
           <>
             <InputRune id="store_url" name="store_url" label={`Your Store URL (for ${chosenAuditType})`} placeholder="https://your-store.com" type="url" value={formData.store_url || ''} onChange={handleInputChange} optional />
-            <InputRune id="statement_text" name="statement_text" label={`Account Statement Text (for ${chosenAuditType})`} as="textarea" placeholder="Paste text from your statements here..." value={formData.statement_text || ''} onChange={handleInputChange} optional />
+            <InputRune id="statement_text" name="statement_text" label={`Account Statement Text (for ${chosenAuditType})`} as="textarea" placeholder="Paste text from your statements here..." value={formData.statement_text || ''} onChange={handleTextAreaChange} optional />
           </>
         );
       case 'Arbitrage Paths':
@@ -85,7 +94,7 @@ export default function CommerceInputForm() {
             </>
         );
       case 'Product Route':
-        return <SelectRune id="location_type" name="location_type" label="Target Market Scope" value={formData.location_type || 'Global'} onChange={handleInputChange} options={['Global', 'My Location']} />;
+        return <SelectRune id="location_type" name="location_type" label="Target Market Scope" value={formData.location_type || 'Global'} onChange={handleSelectChange} options={['Global', 'My Location']} />;
       default:
         return <p>The prophecy type is unknown. Please return to the Crossroads.</p>;
     }
@@ -105,7 +114,7 @@ export default function CommerceInputForm() {
         </header>
 
         <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
-            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-8">
+            <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} className="space-y-8">
                 {renderFormFields()}
                 <div className="pt-4 text-center">
                     <SagaButton 
