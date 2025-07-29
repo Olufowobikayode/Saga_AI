@@ -1,4 +1,3 @@
-// --- START OF FILE src/components/QueryForm.tsx ---
 'use client';
 
 import React, { useState } from 'react';
@@ -13,7 +12,9 @@ import SagaButton from './SagaButton';
  */
 export default function QueryForm() {
   const submitQuery = useSagaStore((state) => state.submitQuery);
-  const isLoading = useSagaStore((state) => state.status === 'performing_rite_1');
+  // CORRECTED: Check for the new, unified 'forging' state.
+  // The old check was for a state like 'performing_rite_1' which no longer exists.
+  const isLoading = useSagaStore((state) => state.status === 'forging');
 
   const [interest, setInterest] = useState('');
   const [subNiche, setSubNiche] = useState('');
@@ -95,7 +96,7 @@ export default function QueryForm() {
           </div>
 
           <div className="pt-4 text-center">
-            <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg">
+            <SagaButton onClick={handleSubmit} className="py-3 px-8 text-lg" disabled={isLoading}>
               {isLoading ? "Observing Ritual..." : "Next: Declare Artifact"}
             </SagaButton>
           </div>
@@ -104,4 +105,3 @@ export default function QueryForm() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/QueryForm.tsx ---
