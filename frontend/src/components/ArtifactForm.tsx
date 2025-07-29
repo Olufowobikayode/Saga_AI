@@ -8,7 +8,14 @@ import SagaButton from './SagaButton';
 import { assetTypes, linkTypes } from '@/lib/assetTypes';
 
 // A simple, reusable dropdown component for this form.
-const SelectRune = ({ id, label, value, onChange, options, optional = false }: any) => (
+const SelectRune = ({ id, label, value, onChange, options, optional = false }: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: string[];
+  optional?: boolean;
+}) => (
   <div>
     <label htmlFor={id} className="block font-serif text-lg text-saga-text-light mb-2">
       {label}
@@ -37,7 +44,6 @@ const SelectRune = ({ id, label, value, onChange, options, optional = false }: a
  */
 export default function ArtifactForm() {
   const submitArtifact = useSagaStore((state) => state.submitArtifact);
-  // CORRECTED: Check for the new, unified 'forging' state
   const isLoading = useSagaStore((state) => state.status === 'forging');
 
   const [assetType, setAssetType] = useState('');
@@ -47,7 +53,6 @@ export default function ArtifactForm() {
   const [promoLinkUrl, setPromoLinkUrl] = useState('');
   
   const handleSubmit = () => {
-    // The user can skip this step entirely if they wish.
     submitArtifact(assetType, assetName, assetDescription, promoLinkType, promoLinkUrl);
   };
 
@@ -73,13 +78,13 @@ export default function ArtifactForm() {
           onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
           className="space-y-8"
         >
-          <SelectRune id="assetType" label="Type of Asset" value={assetType} onChange={(e) => setAssetType(e.target.value)} options={assetTypes} optional />
-          <InputRune id="assetName" label="Name of Asset" placeholder="e.g., 'The Chronos Watch', 'Saga Community'" value={assetName} onChange={(e) => setAssetName(e.target.value)} optional />
-          <InputRune id="assetDescription" label="Description of Asset" as="textarea" placeholder="Describe your product, service, community, or website..." value={assetDescription} onChange={(e) => setAssetDescription(e.target.value)} optional />
+          <SelectRune id="assetType" label="Type of Asset" value={assetType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAssetType(e.target.value)} options={assetTypes} optional />
+          <InputRune id="assetName" label="Name of Asset" placeholder="e.g., 'The Chronos Watch', 'Saga Community'" value={assetName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAssetName(e.target.value)} optional />
+          <InputRune id="assetDescription" label="Description of Asset" as="textarea" placeholder="Describe your product, service, community, or website..." value={assetDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAssetDescription(e.target.value)} optional />
           
           <div className="border-t border-saga-primary/20 pt-8 space-y-8">
-            <SelectRune id="promoLinkType" label="Type of Link" value={promoLinkType} onChange={(e) => setPromoLinkType(e.target.value)} options={linkTypes} optional />
-            <InputRune id="promoLinkUrl" label="Promotional Link" type="url" placeholder="https://your-link.com" value={promoLinkUrl} onChange={(e) => setPromoLinkUrl(e.target.value)} optional />
+            <SelectRune id="promoLinkType" label="Type of Link" value={promoLinkType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPromoLinkType(e.target.value)} options={linkTypes} optional />
+            <InputRune id="promoLinkUrl" label="Promotional Link" type="url" placeholder="https://your-link.com" value={promoLinkUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPromoLinkUrl(e.target.value)} optional />
           </div>
 
           <div className="pt-4 text-center">
