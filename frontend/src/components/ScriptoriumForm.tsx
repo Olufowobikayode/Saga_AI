@@ -1,4 +1,3 @@
-// --- START OF FILE src/components/ScriptoriumForm.tsx ---
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -7,10 +6,9 @@ import { GrimoirePage, createScroll, updateScroll, generateTitles, generateConte
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 
-// SAGA LOGIC: Define the properties for our new, powerful form.
 interface ScriptoriumFormProps {
-  scroll?: GrimoirePage | null; // The existing scroll to edit (if any).
-  onClose: () => void; // A function to return to the manage view.
+  scroll?: GrimoirePage | null;
+  onClose: () => void;
 }
 
 /**
@@ -18,24 +16,20 @@ interface ScriptoriumFormProps {
  * and divining new scrolls with AI assistance.
  */
 export default function ScriptoriumForm({ scroll, onClose }: ScriptoriumFormProps) {
-  // --- STATE MANAGEMENT ---
   const [mode, setMode] = useState<'manual' | 'ai_topic' | 'ai_titles' | 'ai_content'>('manual');
   
-  // Form fields
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
 
-  // AI workflow state
   const [topic, setTopic] = useState('');
   const [titleConcepts, setTitleConcepts] = useState<TitleConcept[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // SAGA LOGIC: Pre-fill the form if we are in "Edit Mode".
   useEffect(() => {
     if (scroll) {
       setTitle(scroll.title);
@@ -43,13 +37,12 @@ export default function ScriptoriumForm({ scroll, onClose }: ScriptoriumFormProp
       setSummary(scroll.summary);
       setContent(scroll.content);
       setTags(scroll.tags.join(', '));
-      setMode('manual'); // Start in manual mode when editing
+      setMode('manual');
     }
   }, [scroll]);
 
   const adminKey = typeof window !== 'undefined' ? localStorage.getItem('saga-admin-key') : null;
 
-  // --- AI RITUALS ---
   const handleGenerateTitles = async () => {
     if (!topic || !adminKey) return;
     setIsLoading(true);
@@ -69,15 +62,14 @@ export default function ScriptoriumForm({ scroll, onClose }: ScriptoriumFormProp
       setTitle(concept.title);
       setSlug(concept.slug);
       setSummary(generated.summary);
-setContent(generated.content);
-      setMode('manual'); // Switch to manual mode for final edits
+      setContent(generated.content);
+      setMode('manual');
     } else {
       setMessage('Error: Saga could not generate the content.');
     }
     setIsLoading(false);
   };
 
-  // --- SAVE / UPDATE RITE ---
   const handleSubmit = async () => {
     if (!title || !summary || !content || !adminKey) {
       setMessage("Title, Summary, and Content are required. The sacred key must also be present.");
@@ -91,20 +83,19 @@ setContent(generated.content);
     };
 
     const result = scroll
-      ? await updateScroll(scroll.id, pageData, adminKey) // UPDATE existing
-      : await createScroll(pageData, adminKey);           // CREATE new
+      ? await updateScroll(scroll.id, pageData, adminKey)
+      : await createScroll(pageData, adminKey);
 
     setMessage(result.message);
     setIsLoading(false);
     if (result.success) {
-      setTimeout(() => onClose(), 1500); // Go back to the manager on success
+      setTimeout(() => onClose(), 1500);
     }
   };
 
-  // --- RENDER LOGIC ---
   const renderAiTopicView = () => (
     <div className="space-y-6">
-        <InputRune id="topic" label="Scroll Topic" placeholder="What subject shall Saga divine?" value={topic} onChange={(e) => setTopic(e.target.value)} />
+        <InputRune id="topic" label="Scroll Topic" placeholder="What subject shall Saga divine?" value={topic} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTopic(e.target.value)} />
         <SagaButton onClick={handleGenerateTitles} className="w-full">{isLoading ? 'Divining...' : 'Generate Title Concepts'}</SagaButton>
     </div>
   );
@@ -124,12 +115,12 @@ setContent(generated.content);
   );
 
   const renderManualView = () => (
-    <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-8">
-      <InputRune id="title" label="Scroll Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <InputRune id="slug" label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
-      <InputRune id="summary" label="Summary" as="textarea" value={summary} onChange={(e) => setSummary(e.target.value)} />
-      <InputRune id="content" label="Content (HTML)" as="textarea" value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[300px] font-mono" />
-      <InputRune id="tags" label="Tags (comma-separated)" value={tags} onChange={(e) => setTags(e.target.value)} optional />
+    <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} className="space-y-8">
+      <InputRune id="title" label="Scroll Title" value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} />
+      <InputRune id="slug" label="Slug" value={slug} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSlug(e.target.value)} />
+      <InputRune id="summary" label="Summary" as="textarea" value={summary} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSummary(e.target.value)} />
+      <InputRune id="content" label="Content (HTML)" as="textarea" value={content} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)} className="min-h-[300px] font-mono" />
+      <InputRune id="tags" label="Tags (comma-separated)" value={tags} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTags(e.target.value)} optional />
       <div className="pt-4 text-center">
         <SagaButton onClick={handleSubmit} className="w-full">{isLoading ? 'Inscribing...' : (scroll ? 'Update Scroll' : 'Inscribe Scroll')}</SagaButton>
       </div>
@@ -138,8 +129,7 @@ setContent(generated.content);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
-      {/* Mode Toggle Buttons */}
-      {!scroll && ( // Only show mode toggle when creating a new post
+      {!scroll && (
         <div className="flex justify-center border-b border-white/20 pb-6 mb-8 gap-4">
             <button onClick={() => setMode('manual')} className={`font-serif pb-2 ${mode === 'manual' ? 'text-saga-primary border-b-2 border-saga-primary' : 'text-saga-text-dark'}`}>Manual Inscription</button>
             <button onClick={() => setMode('ai_topic')} className={`font-serif pb-2 ${mode.startsWith('ai_') ? 'text-saga-primary border-b-2 border-saga-primary' : 'text-saga-text-dark'}`}>Divine a Scroll</button>
@@ -151,6 +141,7 @@ setContent(generated.content);
             {mode === 'manual' && renderManualView()}
             {mode === 'ai_topic' && renderAiTopicView()}
             {mode === 'ai_titles' && renderAiTitlesView()}
+            {mode === 'ai_content' && <div>Loading Content...</div>}
         </motion.div>
       </AnimatePresence>
 
@@ -162,4 +153,3 @@ setContent(generated.content);
     </motion.div>
   );
 }
-// --- END OF FILE src/components/ScriptoriumForm.tsx ---
