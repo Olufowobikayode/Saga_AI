@@ -59,6 +59,7 @@ export default function SparkForm() {
         >
           <InputRune
             id="topic"
+            name="topic"
             label="Content Topic"
             placeholder="Enter the core topic for your content..."
             value={topic}
