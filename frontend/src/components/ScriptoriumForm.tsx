@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, auseState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GrimoirePage, createScroll, updateScroll, generateTitles, generateContent, TitleConcept } from '@/services/grimoireApi';
 import InputRune from './InputRune';
@@ -95,7 +95,7 @@ export default function ScriptoriumForm({ scroll, onClose }: ScriptoriumFormProp
 
   const renderAiTopicView = () => (
     <div className="space-y-6">
-        <InputRune id="topic" label="Scroll Topic" placeholder="What subject shall Saga divine?" value={topic} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTopic(e.target.value)} />
+        <InputRune id="topic" name="topic" label="Scroll Topic" placeholder="What subject shall Saga divine?" value={topic} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTopic(e.target.value)} />
         <SagaButton onClick={handleGenerateTitles} className="w-full">{isLoading ? 'Divining...' : 'Generate Title Concepts'}</SagaButton>
     </div>
   );
@@ -116,11 +116,11 @@ export default function ScriptoriumForm({ scroll, onClose }: ScriptoriumFormProp
 
   const renderManualView = () => (
     <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} className="space-y-8">
-      <InputRune id="title" label="Scroll Title" value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} />
-      <InputRune id="slug" label="Slug" value={slug} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSlug(e.target.value)} />
-      <InputRune id="summary" label="Summary" as="textarea" value={summary} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSummary(e.target.value)} />
-      <InputRune id="content" label="Content (HTML)" as="textarea" value={content} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)} className="min-h-[300px] font-mono" />
-      <InputRune id="tags" label="Tags (comma-separated)" value={tags} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTags(e.target.value)} optional />
+      <InputRune id="title" name="title" label="Scroll Title" value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} />
+      <InputRune id="slug" name="slug" label="Slug" value={slug} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSlug(e.target.value)} />
+      <InputRune id="summary" name="summary" label="Summary" as="textarea" value={summary} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSummary(e.target.value)} />
+      <InputRune id="content" name="content" label="Content (HTML)" as="textarea" value={content} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)} className="min-h-[300px] font-mono" />
+      <InputRune id="tags" name="tags" label="Tags (comma-separated)" value={tags} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTags(e.target.value)} optional />
       <div className="pt-4 text-center">
         <SagaButton onClick={handleSubmit} className="w-full">{isLoading ? 'Inscribing...' : (scroll ? 'Update Scroll' : 'Inscribe Scroll')}</SagaButton>
       </div>
@@ -141,7 +141,6 @@ export default function ScriptoriumForm({ scroll, onClose }: ScriptoriumFormProp
             {mode === 'manual' && renderManualView()}
             {mode === 'ai_topic' && renderAiTopicView()}
             {mode === 'ai_titles' && renderAiTitlesView()}
-            {mode === 'ai_content' && <div>Loading Content...</div>}
         </motion.div>
       </AnimatePresence>
 
