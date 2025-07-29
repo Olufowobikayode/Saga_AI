@@ -12,7 +12,6 @@ import SagaButton from './SagaButton';
  */
 export default function QueryForm() {
   const submitQuery = useSagaStore((state) => state.submitQuery);
-  // CORRECTED: Check for the new, unified 'forging' state.
   const isLoading = useSagaStore((state) => state.status === 'forging');
 
   const [interest, setInterest] = useState('');
@@ -25,7 +24,6 @@ export default function QueryForm() {
       alert("The Oracle requires an Interest or Niche to begin the ritual.");
       return;
     }
-    // Call the rite from the store to advance the state.
     submitQuery(interest, subNiche, toneText, toneUrl);
   };
 
@@ -56,7 +54,7 @@ export default function QueryForm() {
             label="Interest or Niche"
             placeholder="e.g., 'sustainable home goods', 'AI-powered productivity'"
             value={interest}
-            onChange={(e) => setInterest(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInterest(e.target.value)}
           />
 
           <InputRune
@@ -64,7 +62,7 @@ export default function QueryForm() {
             label="Sub-Niche or Specific Topic"
             placeholder="e.g., 'for small apartments', 'for busy professionals'"
             value={subNiche}
-            onChange={(e) => setSubNiche(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSubNiche(e.target.value)}
             optional
           />
 
@@ -78,7 +76,7 @@ export default function QueryForm() {
               as="textarea"
               placeholder="Paste a sample of your writing..."
               value={toneText}
-              onChange={(e) => setToneText(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setToneText(e.target.value)}
               optional
             />
             <p className="text-center my-4 font-serif text-saga-text-dark">OR</p>
@@ -88,7 +86,7 @@ export default function QueryForm() {
               type="url"
               placeholder="https://your-blog.com/about-me"
               value={toneUrl}
-              onChange={(e) => setToneUrl(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToneUrl(e.target.value)}
               optional
             />
           </div>
