@@ -34,7 +34,7 @@ export default function AltarManager() {
       case 'awaiting_realm':
         return <RealmForm />;
 
-      case 'forging': // This is the new, single loading state that replaces all previous "performing_rite_*" states.
+      case 'forging': // This is the new, single loading state
         return (
           <RitualScreen
             key="forging-rite"
@@ -44,7 +44,7 @@ export default function AltarManager() {
         );
 
       case 'prophesied_hub':
-      case 'prophesied_scroll': // Both of these final states now correctly show the HallOfProphecies component.
+      case 'prophesied_scroll': // Both of these final states show the results
         return <HallOfProphecies />;
 
       default:
