@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useSagaStore } from '@/store/sagaStore';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
-import { assetTypes, linkTypes } from '@/lib/assetTypes'; // Summoning our data lists
+import { assetTypes, linkTypes } from '@/lib/assetTypes';
 
 // A simple, reusable dropdown component for this form.
 const SelectRune = ({ id, label, value, onChange, options, optional = false }: any) => (
@@ -47,7 +47,6 @@ export default function ArtifactForm() {
   const [promoLinkUrl, setPromoLinkUrl] = useState('');
   
   const handleSubmit = () => {
-    // Since all fields are optional, we don't need validation.
     // The user can skip this step entirely if they wish.
     submitArtifact(assetType, assetName, assetDescription, promoLinkType, promoLinkUrl);
   };
