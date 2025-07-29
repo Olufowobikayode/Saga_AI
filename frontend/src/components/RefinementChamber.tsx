@@ -1,4 +1,3 @@
-// --- START OF REFACTORED FILE frontend/src/components/RefinementChamber.tsx ---
 'use client';
 
 import React, { useState } from 'react';
@@ -7,11 +6,17 @@ import { useVentureStore } from '@/store/ventureStore';
 import { useSagaStore } from '@/store/sagaStore';
 import { useSession } from '@/hooks/useSession';
 import SagaButton from './SagaButton';
-import ErrorMessage from './ErrorMessage'; // <-- 1. IMPORT THE NEW COMPONENT
+import ErrorMessage from './ErrorMessage';
 import { businessModels, primaryStrengths, investmentLevels } from '@/lib/ventureOptions';
 
 // A reusable Select component for this form.
-const SelectRune = ({ id, label, value, onChange, options }: { id: string, label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, options: string[] }) => (
+const SelectRune = ({ id, label, value, onChange, options }: { 
+  id: string;
+  label: string; 
+  value: string; 
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; 
+  options: string[];
+}) => (
   <div>
     <label htmlFor={id} className="block font-serif text-lg text-saga-text-light mb-2">{label}</label>
     <div className="relative">
@@ -54,11 +59,9 @@ export default function RefinementChamber() {
     beginQuest(brief, sessionId);
   };
 
-  // --- 2. CREATE A RETRY HANDLER ---
   const handleRetry = () => {
     handleSubmit();
   };
-
 
   return (
     <motion.div
@@ -93,11 +96,9 @@ export default function RefinementChamber() {
                 </SagaButton>
             </div>
             
-            {/* --- 3. REPLACE THE OLD ERROR TEXT WITH THE NEW COMPONENT --- */}
             <ErrorMessage error={error} onRetry={handleRetry} />
         </form>
       </div>
     </motion.div>
   );
 }
-// --- END OF REFACTORED FILE frontend/src/components/RefinementChamber.tsx ---
