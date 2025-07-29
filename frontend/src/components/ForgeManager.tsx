@@ -1,4 +1,3 @@
-// --- START OF FILE frontend/src/components/ForgeManager.tsx ---
 'use client';
 
 import React, { useEffect } from 'react';
@@ -23,9 +22,9 @@ export default function ForgeManager() {
     status, 
     invokeForge, 
     unveiledPrompt,
-    unfurledContent,
+    unfurledScroll, // CORRECTED: Was 'unfurledContent' which does not exist in the store
     returnToScroll,
-    ritualPromise // Summoning the promise from the store
+    ritualPromise
   } = useMarketingStore();
 
   useEffect(() => {
@@ -35,7 +34,6 @@ export default function ForgeManager() {
   }, [status, invokeForge]);
 
   const handleRitualComplete = () => {
-    // The store handles state transitions upon promise resolution, so this can be a no-op.
     console.log("ForgeManager acknowledges ritual completion.");
   };
 
@@ -60,11 +58,12 @@ export default function ForgeManager() {
         return <FinalScroll />;
         
       case 'scroll_unfurled':
-        if (!unfurledContent) return <div className="text-center p-8">Error: The scroll content was lost.</div>;
+        // CORRECTED: Check for 'unfurledScroll'
+        if (!unfurledScroll) return <div className="text-center p-8">Error: The scroll content was lost.</div>;
         return (
             <ScrollUnfurled 
-                title={unfurledContent.title}
-                content={unfurledContent.content}
+                title={unfurledScroll.title}
+                content={unfurledScroll.content}
                 onBack={returnToScroll}
             />
         );
@@ -88,9 +87,7 @@ export default function ForgeManager() {
 
       case 'forging_angles':
       case 'forging_asset':
-      case 'unfurling_scroll':
-      case 'forging_prompt':
-        // CORRECTED: Pass the required props to RitualScreen
+        // CORRECTED: Removed non-existent statuses 'unfurling_scroll' and 'forging_prompt'
         return (
           <RitualScreen
             key={`forge-ritual-${status}`}
@@ -112,4 +109,3 @@ export default function ForgeManager() {
     </div>
   );
 }
-// --- END OF FILE frontend/src/components/ForgeManager.tsx ---
