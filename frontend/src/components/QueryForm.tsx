@@ -46,11 +46,12 @@ export default function QueryForm() {
 
       <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
         <form 
-          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
+          onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} 
           className="space-y-8"
         >
           <InputRune
             id="interest"
+            name="interest"
             label="Interest or Niche"
             placeholder="e.g., 'sustainable home goods', 'AI-powered productivity'"
             value={interest}
@@ -59,6 +60,7 @@ export default function QueryForm() {
 
           <InputRune
             id="subNiche"
+            name="subNiche"
             label="Sub-Niche or Specific Topic"
             placeholder="e.g., 'for small apartments', 'for busy professionals'"
             value={subNiche}
@@ -72,6 +74,7 @@ export default function QueryForm() {
             </p>
             <InputRune
               id="toneText"
+              name="toneText"
               label="Your Writing Style"
               as="textarea"
               placeholder="Paste a sample of your writing..."
@@ -82,6 +85,7 @@ export default function QueryForm() {
             <p className="text-center my-4 font-serif text-saga-text-dark">OR</p>
             <InputRune
               id="toneUrl"
+              name="toneUrl"
               label="Link to Your Writing"
               type="url"
               placeholder="https://your-blog.com/about-me"
