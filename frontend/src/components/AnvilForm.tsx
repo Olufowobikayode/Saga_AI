@@ -8,6 +8,10 @@ import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 import ErrorMessage from './ErrorMessage';
 
+/**
+ * AnvilForm: The component where a user provides the core product details
+ * to begin the marketing angle prophecy.
+ */
 export default function AnvilForm() {
   const { commandAnvil, status, error } = useMarketingStore();
   const isLoading = status === 'forging_angles';
@@ -18,11 +22,32 @@ export default function AnvilForm() {
   const [productDescription, setProductDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
 
-  const handleSubmit = () => { /* ... unchanged ... */ };
-  const handleRetry = () => { /* ... unchanged ... */ };
+  const handleSubmit = () => {
+    if (!productName || !productDescription || !targetAudience) {
+      alert("The Skald requires a Name, Description, and Target Audience to begin the forging.");
+      return;
+    }
+
+    if (isSessionLoading || !sessionId) {
+      alert("Session is not yet ready. Please wait a moment.");
+      return;
+    }
+
+    commandAnvil(productName, productDescription, targetAudience, sessionId);
+  };
+  
+  const handleRetry = () => {
+    handleSubmit();
+  };
 
   return (
-    <motion.div /* ... unchanged ... */ >
+    <motion.div
+      key="anvil-form"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       <form 
         onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} 
         className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg space-y-8"
@@ -34,7 +59,7 @@ export default function AnvilForm() {
 
         <InputRune
           id="productName"
-          name="productName" // <-- CORRECTED
+          name="productName"
           label="Product or Service Name"
           placeholder="e.g., 'The Chronos Watch', 'AI-Powered Copywriting Service'"
           value={productName}
@@ -43,7 +68,7 @@ export default function AnvilForm() {
 
         <InputRune
           id="productDescription"
-          name="productDescription" // <-- CORRECTED
+          name="productDescription"
           label="Product Description"
           as="textarea"
           placeholder="Describe its features, benefits, and what makes it unique."
@@ -53,7 +78,7 @@ export default function AnvilForm() {
         
         <InputRune
           id="targetAudience"
-          name="targetAudience" // <-- CORRECTED
+          name="targetAudience"
           label="Target Audience"
           placeholder="e.g., 'Tech-savvy professionals aged 30-50', 'Eco-conscious millennials'"
           value={targetAudience}
@@ -61,7 +86,11 @@ export default function AnvilForm() {
         />
 
         <div className="pt-4 text-center">
-          <SagaButton /* ... */ >
+          <SagaButton 
+            onClick={handleSubmit} 
+            className="py-3 px-8 text-lg w-full md:w-auto"
+            disabled={isLoading || isSessionLoading}
+          >
             {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Forging Angles..." : "Forge Marketing Angles")}
           </SagaButton>
         </div>
