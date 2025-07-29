@@ -20,9 +20,7 @@ export default function RealmForm() {
   
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
-  // SAGA LOGIC: Pre-fill the country from the IP detection.
   useEffect(() => {
-    // Fetches location from a free geo IP service to provide a smart default
     fetch('/api/v10/get-my-location')
       .then(res => {
         if (res.ok) {
@@ -31,7 +29,6 @@ export default function RealmForm() {
         throw new Error('Could not fetch location');
       })
       .then(data => {
-        // We expect a format like "City, Country"
         const countryName = data.location?.split(', ')[1];
         if (countryName && countryName.trim().length > 0) {
           setCountry(countryName);
@@ -39,7 +36,6 @@ export default function RealmForm() {
       })
       .catch(error => {
         console.error("Could not fetch user country via backend:", error);
-        // Fallback or just keep the default 'Global'
         setCountry('Global');
       });
   }, []);
@@ -77,21 +73,21 @@ export default function RealmForm() {
 
       <div className="bg-saga-surface p-8 md:p-12 rounded-lg border border-white/10 shadow-lg">
         <form 
-          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
+          onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); handleSubmit(); }} 
           className="space-y-8"
         >
           <CountrySelector
             id="country"
             label="Target Realm"
             value={country}
-            onChange={(e) => setCountry(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCountry(e.target.value)}
           />
 
           <div className="pt-4 text-center">
             <SagaButton 
               onClick={handleSubmit} 
               className="py-4 px-10 text-xl"
-              disabled={isLoading || isSessionLoading} // Using the new 'disabled' prop
+              disabled={isLoading || isSessionLoading}
             >
               {isSessionLoading ? "Awaiting Session..." : (isLoading ? "Observing Grand Ritual..." : "Divine My Grand Strategy")}
             </SagaButton>
