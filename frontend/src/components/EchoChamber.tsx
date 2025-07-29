@@ -1,10 +1,9 @@
-// --- START OF REFACTORED FILE frontend/src/components/EchoChamber.tsx ---
 'use client';
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useContentStore } from '@/store/contentStore';
-import { useSession } from '@/hooks/useSession'; // <-- 1. IMPORT HOOK
+import { useSession } from '@/hooks/useSession';
 import InputRune from './InputRune';
 import SagaButton from './SagaButton';
 
@@ -16,7 +15,6 @@ export default function EchoChamber() {
   const { chosenSpark, submitPostToCommentOn, status } = useContentStore();
   const isLoading = status === 'weaving_comment';
 
-  // --- 2. USE THE SESSION HOOK ---
   const { sessionId, isLoading: isSessionLoading } = useSession();
 
   const [postContent, setPostContent] = useState('');
@@ -30,7 +28,6 @@ export default function EchoChamber() {
       alert("Session is not yet ready. Please wait a moment.");
       return;
     }
-    // --- 3. PASS THE SESSION ID TO THE STORE ACTION ---
     submitPostToCommentOn(postContent, sessionId);
   };
 
@@ -56,7 +53,6 @@ export default function EchoChamber() {
           onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} 
           className="space-y-8"
         >
-          {/* Display the user's chosen strategic angle for context */}
           <div className="bg-saga-bg p-4 rounded-lg border border-saga-primary/20">
             <p className="text-sm font-serif text-saga-primary mb-2">Your Strategic Angle:</p>
             <h3 className="font-semibold text-lg text-saga-text-light">{chosenSpark?.title}</h3>
@@ -69,10 +65,7 @@ export default function EchoChamber() {
             as="textarea"
             placeholder="Paste the text of the social media post you wish to respond to here..."
             value={postContent}
-            onChange={(e) => setPostContent(e.target.value)}
-            // A custom className can be passed to components like InputRune if designed to accept it.
-            // For now, this is a good-to-have, but the default styling is fine.
-            // className="min-h-[150px]"
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPostContent(e.target.value)}
           />
 
           <div className="pt-4 text-center">
@@ -89,4 +82,3 @@ export default function EchoChamber() {
     </motion.div>
   );
 }
-// --- END OF REFACTORED FILE frontend/src/components/EchoChamber.tsx ---
