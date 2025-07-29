@@ -1,14 +1,13 @@
-// --- START OF FILE src/components/FinalScroll.tsx ---
 'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
+import { useSession } from '@/hooks/useSession';
 import SagaButton from './SagaButton';
 
 // --- Helper Components ---
 
-// BaseCard provides a consistent container for all prophecy pieces.
 const BaseCard = ({ title, children }: { title: string, children: React.ReactNode }) => (
     <div className="bg-saga-surface p-6 rounded-lg border border-white/10 h-full">
         <h3 className="font-serif text-xl font-bold text-saga-secondary mb-4">{title}</h3>
@@ -16,12 +15,20 @@ const BaseCard = ({ title, children }: { title: string, children: React.ReactNod
     </div>
 );
 
-// Renders the main content with Copy and Regenerate buttons.
 const ContentWithActionsCard = ({ title, content, isCode = false }: { title: string; content: string; isCode?: boolean }) => {
     const { regenerateAsset, status } = useMarketingStore();
+    const { sessionId, isLoading: isSessionLoading } = useSession();
     const isLoading = status === 'forging_asset';
 
     const handleCopy = () => navigator.clipboard.writeText(content);
+    
+    const handleRegenerate = () => {
+        if (!sessionId) {
+            alert("Session not found. Cannot regenerate.");
+            return;
+        }
+        regenerateAsset(sessionId);
+    }
 
     return (
         <BaseCard title={title}>
@@ -34,16 +41,15 @@ const ContentWithActionsCard = ({ title, content, isCode = false }: { title: str
             )}
             <div className="flex items-center space-x-4 mt-6 pt-4 border-t border-white/10">
                 <button onClick={handleCopy} className="text-sm font-semibold text-saga-primary hover:text-saga-secondary">Copy</button>
-                <button onClick={regenerateAsset} className="text-sm font-semibold text-saga-primary hover:text-saga-secondary flex items-center">
-                    {isLoading ? 'Regenerating...' : 'Regenerate'}
-                    {!isLoading && <span className="ml-1">✨</span>}
+                <button onClick={handleRegenerate} disabled={isLoading || isSessionLoading} className="text-sm font-semibold text-saga-primary hover:text-saga-secondary flex items-center">
+                    {isLoading || isSessionLoading ? 'Regenerating...' : 'Regenerate'}
+                    {!(isLoading || isSessionLoading) && <span className="ml-1">✨</span>}
                 </button>
             </div>
         </BaseCard>
     );
 };
 
-// Renders info cards (like Audience Rune) which don't need actions.
 const InfoCard = ({ title, content }: { title: string; content: object }) => (
     <BaseCard title={title}>
         <ul className="space-y-3">
@@ -57,7 +63,6 @@ const InfoCard = ({ title, content }: { title: string; content: object }) => (
     </BaseCard>
 );
 
-// Renders clickable cards for generating new assets.
 const ActionCard = ({ title, description, icon, onClick }: { title: string; description: string; icon: string; onClick: () => void; }) => (
     <button onClick={onClick} className="w-full h-full bg-saga-surface p-6 rounded-lg border border-white/10 text-left hover:border-saga-primary hover:scale-105 transition-all duration-300">
         <div className="text-4xl mb-4">{icon}</div>
@@ -88,15 +93,20 @@ export default function FinalScroll() {
     </div>
   );
   
-  const renderHtmlAsset = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <ActionCard title="View HTML Code" description="Unfurl the scroll containing the complete, SEO-optimized HTML for your page." icon="📜" onClick={() => unfurlScroll('html_code')} />
-        <ActionCard title="View Deployment Guide" description="Unfurl the scroll with custom, step-by-step instructions for deploying your page." icon="🗺️" onClick={() => unfurlScroll('deployment_guide')} />
-        {finalAsset.image_prompts && finalAsset.image_prompts.map((prompt: any, index: number) => (
-          <ActionCard key={index} title={`Generate ${prompt.section}`} description={`Invoke a ritual for the ${prompt.section.toLowerCase()} prompt.`} icon="🖼️" onClick={() => unveilPrompt('Image')} />
-        ))}
-    </div>
-  );
+  const renderHtmlAsset = () => {
+    // Corrected to handle cases where `image_prompts` might not exist.
+    const imagePrompts = finalAsset.image_prompts || [];
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <ActionCard title="View HTML Code" description="Unfurl the scroll containing the complete, SEO-optimized HTML for your page." icon="📜" onClick={() => unfurlScroll('html_code')} />
+            <ActionCard title="View Deployment Guide" description="Unfurl the scroll with custom, step-by-step instructions for deploying your page." icon="🗺️" onClick={() => unfurlScroll('deployment_guide')} />
+            {imagePrompts.map((prompt: any, index: number) => (
+                <ActionCard key={index} title={`Generate ${prompt.section}`} description={`Invoke a ritual for the ${prompt.section.toLowerCase()} prompt.`} icon="🖼️" onClick={() => unveilPrompt('Image')} />
+            ))}
+        </div>
+    );
+  };
 
   const renderReviewAsset = () => (
     <div className="space-y-8">
@@ -134,4 +144,3 @@ export default function FinalScroll() {
     </motion.div>
   );
 }
-// --- END OF FILE src/components/FinalScroll.tsx ---
