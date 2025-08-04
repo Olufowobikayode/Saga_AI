@@ -96,10 +96,10 @@ class TitleRequest(BaseModel): title: str; topic: str
 app = FastAPI(title="Saga AI", version="13.1.0 (Persistent Memory)", description="The Oracle of Strategy, now with persistent, anonymous user sessions.")
 api_router = APIRouter(prefix="/api/v10")
 engine: SagaEngine = None
-settings = Settings()
 
 # --- Security ---
 async def verify_admin_key(x_admin_api_key: str = Header(...)):
+    settings = Settings()
     if x_admin_api_key != settings.admin_api_key: raise HTTPException(status_code=401, detail="Unauthorized")
 
 # --- Helper to create prophecy history record ---
@@ -200,30 +200,12 @@ async def delete_grimoire_page(id: str, db: motor.motor_asyncio.AsyncIOMotorData
 async def generate_grimoire_titles(request: TopicRequest):
     return await engine.content_saga_stack.prophesy_title_slug_concepts(request.topic)
 
-# FIX: Corrected typo from `api_outer.post` to `api_router.post`
 @api_router.post("/grimoire/generate-content", tags=["5. Saga Grimoire"], dependencies=[Depends(verify_admin_key)])
 async def generate_grimoire_content(request: TitleRequest):
     return await engine.content_saga_stack.prophesy_full_scroll_content(request.title, request.topic)
 
-# --- APP LIFECYCLE ---
-@app.on_event("startup")
-async def startup_event():
-    global engine, settings; load_dotenv(); settings = Settings(); engine = SagaEngine(); await connect_to_mongo(settings.mongo_uri)
-    logger.info("Saga's Engine and Memory Scrolls are awake and ready.")
-
-@app.on_event("shutdown")
-async def shutdown_event(): await close_mongo_connection()
-
-app.include_router(api_router)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-
-
-# ... (your existing FastAPI app setup)
-app = FastAPI()
-
-
 # New endpoint to get the user's location
-@app.get("/api/v10/get-my-location")
+@api_router.get("/get-my-location")
 def get_user_location(request: Request):
     """
     This endpoint detects the user's IP and returns their geographical location.
@@ -249,4 +231,21 @@ def get_user_location(request: Request):
     else:
         # Handle cases where the API call fails
         return {"error": "Could not determine location", "ip": client_ip}
+
+# --- APP LIFECYCLE ---
+@app.on_event("startup")
+async def startup_event():
+    global engine
+    load_dotenv()
+    settings = Settings()
+    engine = SagaEngine()
+    await connect_to_mongo(settings.mongo_uri)
+    logger.info("Saga's Engine and Memory Scrolls are awake and ready.")
+
+@app.on_event("shutdown")
+async def shutdown_event(): 
+    await close_mongo_connection()
+
+app.include_router(api_router)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 # --- END OF FILE backend/server.py ---

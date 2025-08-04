@@ -1,6 +1,6 @@
 'use client';
 
-import React, auseState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GrimoirePage, createScroll, updateScroll, generateTitles, generateContent, TitleConcept } from '@/services/grimoireApi';
 import InputRune from './InputRune';

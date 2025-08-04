@@ -1,5 +1,4 @@
-// --- START OF REFACTORED FILE frontend/src/components/HallOfConcepts.tsx ---
-'client';
+'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';

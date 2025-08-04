@@ -137,7 +137,7 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
   chooseLength: (length, sessionId) => get()._forgeContent('social_post', { length, platform: get().chosenRealm }, sessionId),
   submitPostToCommentOn: (postContent, sessionId) => get()._forgeContent('comment', { post_to_comment_on: postContent }, sessionId),
 
-  _forgeContent: (type: ContentSagaType, details: any, sessionId: string) => {
+  _forgeContent: function(type: ContentSagaType, details: any, sessionId: string) {
     if (!sessionId) return set({ error: "Session ID missing."});
     const { chosenSpark } = get();
     if (!chosenSpark) return set({ error: "No content spark was chosen." });
@@ -174,7 +174,7 @@ export const useContentStore = create<ContentSagaState>((set, get) => ({
         }
     });
     set({ ritualPromise: promise });
-  },
+  } as any,
   
   regenerate: (sessionId) => {
     console.warn("Regeneration needs to be re-triggered from the component.");

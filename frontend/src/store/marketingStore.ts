@@ -113,7 +113,7 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
     set({ chosenAssetType: assetType, status: nextStatus });
   },
 
-  _forgeFinalAsset: (details: { platform?: string; length?: string; }, sessionId: string) => {
+  _forgeFinalAsset: function(details: { platform?: string; length?: string; }, sessionId: string) {
     if (!sessionId) return set({ error: "Session ID missing." });
     
     const { anglesResult, chosenAssetType } = get();
@@ -150,7 +150,7 @@ export const useMarketingStore = create<MarketingSagaState>((set, get) => ({
         }
     });
     set({ ritualPromise: promise });
-  },
+  } as any,
   
   choosePlatform: (platform: string, sessionId: string) => {
     get()._forgeFinalAsset({ platform }, sessionId);
